@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+
+{% block title %}Patient List - ICU Sepsis Decision Support{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h2>Patient Index</h2>
+        <div>
+            {% if cohort_active %}
+            <span class="badge" style="background: #48bb78; color: white; margin-right: 0.5rem;">Cohort Active</span>
+            {% endif %}
+            <span class="badge">{{ total_patients }} patient{{ total_patients|pluralize }}</span>
+        </div>
+    </div>
+    
+    {% if page_obj %}
+    <table>
+        <thead>
+            <tr>
+                <th>Subject ID</th>
+                <th>Stay ID</th>
+                <th>HADM ID</th>
+                <th>Age</th>
+                <th>Gender</th>
+                <th>Race</th>
+                <th>Care Unit</th>
+                <th>Admission Time</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for patient in page_obj %}
+            <tr>
+                <td><strong>{{ patient.subject_id }}</strong></td>
+                <td>{{ patient.stay_id }}</td>
+                <td>{{ patient.hadm_id }}</td>
+                <td>{{ patient.anchor_age|default:"-" }}</td>
+                <td>
+                    {% if patient.gender == 'M' %}
+                        <span class="gender-male">Male</span>
+                    {% elif patient.gender == 'F' %}
+                        <span class="gender-female">Female</span>
+                    {% else %}
+                        {{ patient.gender|default:"-" }}
+                    {% endif %}
+                </td>
+                <td>{{ patient.race|default:"-"|truncatechars:20 }}</td>
+                <td>{{ patient.first_careunit|default:"-" }}</td>
+                <td class="text-muted">{{ patient.intime|date:"M d, Y H:i"|default:"-" }}</td>
+                <td>
+                    <a href="{% url 'patients:detail' patient.subject_id patient.stay_id patient.hadm_id %}" 
+                       class="btn btn-primary btn-sm">View</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+    <!-- Pagination -->
+    <div class="pagination">
+        {% if page_obj.has_previous %}
+            <a href="?page=1">&laquo; First</a>
+            <a href="?page={{ page_obj.previous_page_number }}">Previous</a>
+        {% endif %}
+        
+        <span class="current">
+            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+        </span>
+        
+        {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}">Next</a>
+            <a href="?page={{ page_obj.paginator.num_pages }}">Last &raquo;</a>
+        {% endif %}
+    </div>
+    {% else %}
+    <p class="text-muted">No patients found in the database.</p>
+    {% endif %}
+</div>
+{% endblock %}

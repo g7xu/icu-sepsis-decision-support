@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+
+{% block title %}Patient {{ patient.subject_id }} - ICU Sepsis Decision Support{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h2>Patient Details</h2>
+        <a href="{% url 'patients:index' %}" class="btn btn-primary btn-sm">&larr; Back to List</a>
+    </div>
+    
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem;">
+        <div>
+            <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.25rem;">Subject ID</p>
+            <p style="font-size: 1.25rem; font-weight: 600;">{{ patient.subject_id }}</p>
+        </div>
+        <div>
+            <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.25rem;">Stay ID</p>
+            <p style="font-size: 1.25rem; font-weight: 600;">{{ patient.stay_id }}</p>
+        </div>
+        <div>
+            <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.25rem;">HADM ID</p>
+            <p style="font-size: 1.25rem; font-weight: 600;">{{ patient.hadm_id }}</p>
+        </div>
+        <div>
+            <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.25rem;">Age</p>
+            <p style="font-size: 1.25rem; font-weight: 600;">{{ patient.anchor_age|default:"-" }}</p>
+        </div>
+        <div>
+            <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.25rem;">Gender</p>
+            <p style="font-size: 1.25rem; font-weight: 600;">
+                {% if patient.gender == 'M' %}Male{% elif patient.gender == 'F' %}Female{% else %}{{ patient.gender|default:"-" }}{% endif %}
+            </p>
+        </div>
+        <div>
+            <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.25rem;">Race</p>
+            <p style="font-size: 1.25rem; font-weight: 600;">{{ patient.race|default:"-" }}</p>
+        </div>
+        <div>
+            <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.25rem;">First Care Unit</p>
+            <p style="font-size: 1.25rem; font-weight: 600;">{{ patient.first_careunit|default:"-" }}</p>
+        </div>
+        <div>
+            <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.25rem;">Admission Time</p>
+            <p style="font-size: 1.25rem; font-weight: 600;">{{ patient.intime|date:"M d, Y H:i"|default:"-" }}</p>
+        </div>
+    </div>
+</div>
+
+<!-- Placeholder for future sections -->
+<div class="card" style="margin-top: 1rem;">
+    <div class="card-header">
+        <h2>Predictions</h2>
+    </div>
+    <p class="text-muted">Sepsis predictions will appear here.</p>
+</div>
+{% endblock %}
