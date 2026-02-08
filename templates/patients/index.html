@@ -1,0 +1,167 @@
+{% extends 'base.html' %}
+
+{% block title %}Patient List - ICU Sepsis Decision Support{% endblock %}
+
+{% block content %}
+<!-- Simulation Clock Control -->
+<div class="card">
+    <div class="card-header">
+        <h2>Simulation Clock</h2>
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <span id="current-time" class="badge" style="background: #1a365d; color: white; font-size: 1rem; padding: 0.4rem 1rem;">
+                {{ current_time_display }}
+            </span>
+            <button id="advance-btn" class="btn btn-primary" style="font-size: 1.1rem; font-weight: 700; cursor: pointer; border: none;">
+                +1
+            </button>
+        </div>
+    </div>
+    <div id="api-response" style="display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+            <h3 style="font-size: 1rem; color: #4a5568;">API Response</h3>
+            <span id="response-summary" class="text-muted" style="font-size: 0.85rem;"></span>
+        </div>
+        <pre id="json-output" style="background: #1a202c; color: #68d391; padding: 1rem; border-radius: 6px; overflow: auto; max-height: 500px; font-size: 0.8rem; line-height: 1.5;"></pre>
+    </div>
+</div>
+
+<!-- Patient Index -->
+<div class="card">
+    <div class="card-header">
+        <h2>Patient Index</h2>
+        <div>
+            {% if cohort_active %}
+            <span class="badge" style="background: #48bb78; color: white; margin-right: 0.5rem;">Cohort Active</span>
+            {% endif %}
+            <span class="badge" id="patient-count">{{ total_patients }} patient{{ total_patients|pluralize }}</span>
+        </div>
+    </div>
+    
+    {% if page_obj %}
+    <table>
+        <thead>
+            <tr>
+                <th>Subject ID</th>
+                <th>Stay ID</th>
+                <th>HADM ID</th>
+                <th>Age</th>
+                <th>Gender</th>
+                <th>Race</th>
+                <th>Care Unit</th>
+                <th>Admission Time</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for patient in page_obj %}
+            <tr>
+                <td><strong>{{ patient.subject_id }}</strong></td>
+                <td>{{ patient.stay_id }}</td>
+                <td>{{ patient.hadm_id }}</td>
+                <td>{{ patient.anchor_age|default:"-" }}</td>
+                <td>
+                    {% if patient.gender == 'M' %}
+                        <span class="gender-male">Male</span>
+                    {% elif patient.gender == 'F' %}
+                        <span class="gender-female">Female</span>
+                    {% else %}
+                        {{ patient.gender|default:"-" }}
+                    {% endif %}
+                </td>
+                <td>{{ patient.race|default:"-"|truncatechars:20 }}</td>
+                <td>{{ patient.first_careunit|default:"-" }}</td>
+                <td class="text-muted">{{ patient.intime|date:"M d, Y H:i"|default:"-" }}</td>
+                <td>
+                    <a href="{% url 'patients:detail' patient.subject_id patient.stay_id patient.hadm_id %}" 
+                       class="btn btn-primary btn-sm">View</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+    <!-- Pagination -->
+    <div class="pagination">
+        {% if page_obj.has_previous %}
+            <a href="?page=1">&laquo; First</a>
+            <a href="?page={{ page_obj.previous_page_number }}">Previous</a>
+        {% endif %}
+        
+        <span class="current">
+            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+        </span>
+        
+        {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}">Next</a>
+            <a href="?page={{ page_obj.paginator.num_pages }}">Last &raquo;</a>
+        {% endif %}
+    </div>
+    {% else %}
+    <p class="text-muted">
+        {% if current_hour < 0 %}
+            Simulation has not started. Press <strong>+1</strong> to advance the clock and admit patients.
+        {% else %}
+            No patients admitted yet at {{ current_time_display }}.
+        {% endif %}
+    </p>
+    {% endif %}
+</div>
+
+<script>
+(function() {
+    const advanceBtn = document.getElementById('advance-btn');
+    const apiResponseDiv = document.getElementById('api-response');
+    const jsonOutput = document.getElementById('json-output');
+    const currentTimeEl = document.getElementById('current-time');
+    const responseSummary = document.getElementById('response-summary');
+    const csrfToken = '{{ csrf_token }}';
+
+    advanceBtn.addEventListener('click', function() {
+        advanceBtn.disabled = true;
+        advanceBtn.textContent = '...';
+
+        fetch('{% url "patients:advance_time" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken,
+            },
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Show JSON response
+            // jsonOutput.textContent = JSON.stringify(data, null, 2);
+            // apiResponseDiv.style.display = 'block';
+
+            // Update time display
+            if (data.current_time) {
+                currentTimeEl.textContent = data.current_time;
+            }
+
+            // Update summary line
+            if (!data.error) {
+                responseSummary.textContent =
+                    `+${data.new_patients_count} new patient(s) | ` +
+                    `${data.total_admitted} total admitted | ` +
+                    `${data.vitalsigns_count} vitalsign row(s) | ` +
+                    `${data.procedureevents_count} procedure row(s)`;
+            } else {
+                responseSummary.textContent = data.error;
+            }
+
+            advanceBtn.disabled = false;
+            advanceBtn.textContent = '+1';
+
+            // Reload the page after a short delay so the patient table updates
+            // but the user has a moment to see the JSON response
+            setTimeout(() => location.reload(), 1500);
+        })
+        .catch(err => {
+            jsonOutput.textContent = 'Error: ' + err.message;
+            apiResponseDiv.style.display = 'block';
+            advanceBtn.disabled = false;
+            advanceBtn.textContent = '+1';
+        });
+    });
+})();
+</script>
+{% endblock %}
