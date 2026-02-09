@@ -21,6 +21,10 @@ db.sqlite3-journal
 media/
 staticfiles/
 
+# MIMIC-IV Data (Large dataset - DO NOT commit)
+mimiciv/
+*.csv.gz
+
 # IDE
 .idea/
 .vscode/

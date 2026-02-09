@@ -75,204 +75,236 @@ terraform output -raw env_file_content > ../.env
 
 ## Load MIMIC-IV Data
 
-After RDS is created (typically 5-10 minutes), load the MIMIC-IV 3.1 data from your local `mimiciv/` folder.
+After RDS is created (typically 5-10 minutes), follow these detailed steps to load the complete MIMIC-IV 3.1 dataset from your local machine to AWS RDS.
 
-### Step 1: Get database connection details
+### Prerequisites Verification
+
+Before starting, verify you have everything ready:
 
 ```bash
-terraform output
-# Or specifically:
-terraform output connection_string
+# 1. Test RDS connection (get endpoint from terraform output)
+terraform output db_address
+psql -h <RDS_ENDPOINT> -U postgres -d mimiciv
+# Enter password from terraform.tfvars when prompted
+# Type \q to exit after successful connection
+
+# 2. Verify your local MIMIC-IV data location (you need to request for mimic data)
+ls -lh ~/Documents/local_repo/icu-sepsis-decision-support/mimiciv/3.1/hosp/
+ls -lh ~/Documents/local_repo/icu-sepsis-decision-support/mimiciv/3.1/icu/
+
+# 3. Confirm required tools are installed
+which psql gzip
+psql --version  # Should be v10 or later
 ```
 
-Save the endpoint, username, and password for the following steps.
+---
 
-### Step 2: Clone the MIMIC-code repository
+### Step 1: Clone MIMIC-code Repository
 
-The [MIMIC-code repo](https://github.com/MIT-LCP/mimic-code/tree/main/mimic-iv) has PostgreSQL scripts to create tables and load data.
+Get the official PostgreSQL loading scripts:
 
 ```bash
 git clone https://github.com/MIT-LCP/mimic-code.git
 cd mimic-code/mimic-iv/buildmimic/postgres/
+ls -lh *.sql
 ```
 
-### Step 3: Connect to your RDS instance
+You should see four SQL scripts:
+- `create.sql` - Table schemas
+- `load_gz.sql` - Data loading commands
+- `constraint.sql` - Primary/foreign keys
+- `index.sql` - Performance indexes
 
-Using `psql` (PostgreSQL client):
+---
+
+### Step 2: Understand the Load Script
+
+**How it works:**
+- Script expects a variable: `mimic_data_dir`
+- You pass it when running psql with: `-v mimic_data_dir=<YOUR_PATH>`
+- Script uses `\cd` to navigate into hosp/ and icu/ subdirectories
+- Loads files using relative paths (e.g., `admissions.csv.gz`)
+
+**Preview the script (optional):**
+```bash
+head -20 load_gz.sql
+```
+
+You'll see:
+```sql
+\cd :mimic_data_dir
+\cd hosp
+\COPY mimiciv_hosp.admissions FROM PROGRAM 'gzip -dc admissions.csv.gz' ...
+```
+
+---
+
+### Step 3: Create Database Schema
+
+Create all table structures:
+
+```bash
+psql -h <RDS_ENDPOINT> -U postgres -d mimiciv -f create.sql
+```
+
+**Expected output:**
+- Creates `mimiciv_hosp` and `mimiciv_icu` schemas
+- Creates ~30 empty tables
+- **Duration:** 2-5 minutes
+
+**Verify schemas created:**
+```bash
+psql -h <RDS_ENDPOINT> -U postgres -d mimiciv -c "\dn"
+psql -h <RDS_ENDPOINT> -U postgres -d mimiciv -c "\dt mimiciv_hosp.*"
+psql -h <RDS_ENDPOINT> -U postgres -d mimiciv -c "\dt mimiciv_icu.*"
+```
+
+---
+
+### Step 4: Load Data (Long Running - Can Run Overnight)
+
+**This is the main loading step that takes several hours.**
+
+Run with the `-v` flag to pass your data directory path:
+
+```bash
+psql -h <RDS_ENDPOINT> \
+     -U postgres \
+     -d mimiciv \
+     -v mimic_data_dir=/Users/guoxuanxu/Documents/local_repo/icu-sepsis-decision-support/mimiciv/3.1 \
+     -f load_gz.sql
+```
+
+**Expected behavior:**
+- Streams compressed CSV files from your Mac → AWS RDS
+- Decompresses on-the-fly (no need to unzip files)
+- Loads tables sequentially (hosp tables first, then icu tables)
+- **Duration:** 4-8 hours depending on internet upload speed
+- **Safe to run overnight:** Process is automatic and unattended
+
+**What happens:**
+1. Loads small tables first (~100 MB each): patients, admissions, etc.
+2. Loads medium tables (~1-5 GB): prescriptions, procedures, etc.
+3. Loads large tables last:
+   - `labevents` (~2.4 GB compressed → ~30 GB uncompressed)
+   - `chartevents` (~3.3 GB compressed → ~40 GB uncompressed)
+
+**Monitoring progress (optional):**
+
+Open a **new terminal** while loading continues:
+
+```bash
+# Check which tables are populated
+psql -h <RDS_ENDPOINT> -U postgres -d mimiciv -c "
+SELECT schemaname, tablename, 
+       pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) as size
+FROM pg_tables 
+WHERE schemaname IN ('mimiciv_hosp', 'mimiciv_icu')
+ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;"
+
+# Watch storage auto-scale in real-time
+watch -n 60 "aws rds describe-db-instances \
+  --db-instance-identifier icu-sepsis-db \
+  --query 'DBInstances[0].AllocatedStorage'"
+
+# Check database size growth
+psql -h <RDS_ENDPOINT> -U postgres -d mimiciv -c \
+  "SELECT pg_size_pretty(pg_database_size('mimiciv'));"
+```
+
+**Storage auto-scaling during load:**
+- Starts at **20 GB** (Free Tier)
+- At ~18 GB (90% full) → scales to **22 GB**
+- Continues scaling in 10% increments
+- Final size: **~128-130 GB**
+
+---
+
+### Step 5: Add Constraints
+
+After data is loaded, add primary keys and foreign keys:
+
+```bash
+psql -h <RDS_ENDPOINT> -U postgres -d mimiciv -f constraint.sql
+```
+
+**Purpose:**
+- Enforces data integrity
+- Required for proper relational database structure
+- Prevents invalid data insertion
+
+**Expected output:**
+- Creates primary keys on ID columns
+- Creates foreign key relationships between tables
+- **Duration:** 20-30 minutes
+
+---
+
+### Step 6: Create Indexes
+
+Build indexes for fast query performance:
+
+```bash
+psql -h <RDS_ENDPOINT> -U postgres -d mimiciv -f index.sql
+```
+
+**Purpose:**
+- Dramatically improves query speed
+- Creates indexes on commonly queried columns
+- Essential for production use
+
+**Expected output:**
+- Creates indexes on patient IDs, admission IDs, timestamps, etc.
+- Adds 20-30% to database size
+- **Duration:** 1-2 hours
+
+---
+
+### Step 7: Verify Data Load Success
+
+Connect and validate the data:
 
 ```bash
 psql -h <RDS_ENDPOINT> -U postgres -d mimiciv
 ```
 
-Enter your password from `terraform.tfvars` when prompted.
-
-### Step 4: Load data using MIMIC scripts
-
-The repo provides four SQL scripts to run **in order**:
-
-1. **`create.sql`** – Creates all MIMIC-IV tables (hosp and icu schemas)
-2. **`load_gz.sql`** – Loads compressed CSV files (edit paths first!)
-3. **`constraint.sql`** – Adds primary/foreign keys
-4. **`index.sql`** – Creates indexes for query performance
-
-**Edit `load_gz.sql` first**: Update the data path to point to your local MIMIC-IV data:
+**Run verification queries:**
 
 ```sql
--- Change paths like:
-\COPY mimiciv_hosp.patients FROM '/path/to/mimiciv/3.1/hosp/patients.csv.gz' WITH (FORMAT CSV, HEADER, COMPRESSION GZIP);
+-- Check row counts for key tables
+SELECT 'patients' as table_name, COUNT(*) FROM mimiciv_hosp.patients
+UNION ALL
+SELECT 'admissions', COUNT(*) FROM mimiciv_hosp.admissions
+UNION ALL
+SELECT 'icustays', COUNT(*) FROM mimiciv_icu.icustays
+UNION ALL
+SELECT 'chartevents', COUNT(*) FROM mimiciv_icu.chartevents
+UNION ALL
+SELECT 'labevents', COUNT(*) FROM mimiciv_hosp.labevents;
+
+-- Check final database size
+SELECT pg_size_pretty(pg_database_size('mimiciv'));
+-- Expected: ~128 GB
+
+-- Check schema sizes
+SELECT schemaname, 
+       pg_size_pretty(sum(pg_total_relation_size(schemaname||'.'||tablename))::bigint) as size
+FROM pg_tables 
+WHERE schemaname IN ('mimiciv_hosp', 'mimiciv_icu')
+GROUP BY schemaname;
+
+-- List all tables with row counts
+SELECT schemaname, tablename, 
+       pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) as size
+FROM pg_tables 
+WHERE schemaname IN ('mimiciv_hosp', 'mimiciv_icu')
+ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC
+LIMIT 10;
 ```
 
-Then run each script:
-
-```bash
-psql -h <RDS_ENDPOINT> -U postgres -d mimiciv -f create.sql
-psql -h <RDS_ENDPOINT> -U postgres -d mimiciv -f load_gz.sql
-psql -h <RDS_ENDPOINT> -U postgres -d mimiciv -f constraint.sql
-psql -h <RDS_ENDPOINT> -U postgres -d mimiciv -f index.sql
-```
-
-**Note:** Loading takes **several hours** (especially `chartevents` with millions of rows).
-
-### Step 5: Verify data loaded successfully
-
-Connect and check row counts:
-
-```sql
-SELECT COUNT(*) FROM mimiciv_hosp.patients;
-SELECT COUNT(*) FROM mimiciv_icu.icustays;
-SELECT COUNT(*) FROM mimiciv_icu.chartevents;  -- This will be the largest table
-```
-
-Compare against expected counts from MIMIC-IV documentation.
-
-### Step 6: Create derived schema and views
-
-Create the `mimiciv_derived` schema and any materialized views your app needs (e.g., `fisi9t_unique_patient_profile`):
-
-```sql
-CREATE SCHEMA IF NOT EXISTS mimiciv_derived;
--- Then create your custom views/tables as needed
-```
-
-### Data Size Considerations
-
-- **Compressed CSV files**: 10 GB (5.9 GB hosp + 4.1 GB icu)
-- **Uncompressed in PostgreSQL**: ~128 GB total (100-120 GB data + 20-30% for indexes)
-- **Largest table**: `chartevents` (3.3 GB compressed → ~40-50 GB uncompressed)
-- **Your RDS config**: Starts at 20 GB (Free Tier), auto-scales up to 130 GB max
-
-**How Auto-Scaling Works**:
-- Starts at **20 GB** (Free Tier, $0/month)
-- As you load MIMIC-IV data, RDS automatically increases storage in 10% increments
-- Scales up to **130 GB** maximum when database is full
-- **You only pay for storage after it scales beyond 20 GB**
-
-**Cost Strategy**: Start loading data on 20 GB. When storage reaches ~18 GB (90% full), RDS auto-scales to ~22 GB and you start paying ~$0.23/month. As you continue loading, it scales incrementally until reaching the full 130 GB (~$13/month).
-
-### Alternative: Manual load with COPY
-
-If you prefer more control, load each table individually:
-
-```bash
-gunzip -c mimiciv/3.1/hosp/patients.csv.gz | \
-  psql -h <ENDPOINT> -U postgres -d mimiciv \
-  -c "\COPY mimiciv_hosp.patients FROM STDIN WITH (FORMAT CSV, HEADER TRUE);"
-```
-
-Repeat for each CSV file in `hosp/` and `icu/` directories.
-
----
-
-## Restrict access
-
-To allow only your IP:
-
-- Set `allowed_cidr_blocks` in `terraform.tfvars` to e.g. `["YOUR_IP/32"]`.
-- Run `terraform apply` to update the security group.
-
----
-
-## Destroy (deletes RDS and all data)
-
-```bash
-cd terraform
-terraform destroy
-```
-
----
-
-## Cost Estimates
-
-**Current configuration (starts at 20 GB, auto-scales to 130 GB):**
-
-- **Initial state (empty database)**:
-  - Storage: 20 GB → **$0/month** (Free Tier)
-  - Instance: db.t4g.micro → $0/month (Free Tier, 750 hours)
-  - **Total: $0/month**
-
-- **After loading MIMIC-IV (Year 1 with Free Tier)**:
-  - Storage: ~130 GB → **~$13/month** (pay for 110 GB beyond free tier)
-  - Instance: db.t4g.micro → $0/month (Free Tier)
-  - **Total: ~$13/month or ~$156/year**
-
-- **Year 2+ (after Free Tier expires)**:
-  - Storage: 130 GB → ~$15/month
-  - Instance: db.t4g.micro → ~$12/month
-  - **Total: ~$27/month or ~$324/year**
-
-**Cost-saving strategies:**
-- **Load data gradually**: Storage auto-scales as you load, so you only pay for what you use
-- **Load essential tables only**: Skip `chartevents` and `labevents` to stay under 20 GB → $0/month indefinitely
-- **Stop when not in use**: Stop the instance to avoid compute charges (~$12/month savings after Year 1)
-- **Apply for AWS credits**: AWS Educate ($100-200) or Research Credits ($5,000+) for qualified medical research projects
-
----
-
-## Troubleshooting
-
-### Terraform Issues
-
-- **"No valid credential sources found"**: 
-  - Run `aws configure` with IAM user access keys (not root user keys)
-  - Verify credentials work: `aws sts get-caller-identity`
-  - Note: `aws login` credentials may not work with Terraform; use IAM user keys instead
-
-- **"Cannot find version X.X for postgres"**: 
-  - Check available versions: `aws rds describe-db-engine-versions --engine postgres --query 'DBEngineVersions[].EngineVersion' --output text`
-  - Update `db_engine_version` in `terraform.tfvars` to a supported version
-
-- **"FreeTierRestrictionError" on backup retention**: 
-  - Free Tier allows max 1 day backup retention
-  - Set `backup_retention_period = 1` in `terraform.tfvars`
-
-- **No default VPC**: Create a VPC or reference an existing one in the Terraform config.
-
-- **Insufficient permissions**: Ensure AWS IAM user has RDS, EC2, and VPC permissions (e.g., attach `AdministratorAccess` or specific RDS/VPC policies).
-
-- **DB instance already exists**: Check for an existing instance with the same identifier in the same region.
-
-### Data Loading Issues
-
-- **psql not found**: Install PostgreSQL client tools (`brew install postgresql` on macOS, or PostgreSQL Windows installer)
-
-- **Connection timeout**: Verify your IP in `allowed_cidr_blocks` matches your current public IP (`curl ifconfig.me`)
-
-- **Out of storage**: Current config allows auto-scaling from 20 GB to 130 GB. If you need more space, increase `max_allocated_storage` in `terraform.tfvars` and run `terraform apply` (each additional GB costs $0.115/month)
-
-- **Load taking too long**: 
-  - Run `create.sql` and `load_gz.sql` first (tables + data)
-  - Skip `constraint.sql` and `index.sql` initially for faster loading
-  - Add constraints/indexes later when you need query performance
-
----
-
-## Later: full cloud deployment
-
-When you want to run the app on AWS too:
-
-1. Create a **Lightsail** instance (or small EC2).
-2. Attach a **Lightsail static IP** (or Elastic IP on EC2) so the URL doesn’t change.
-3. On the instance: install Python, clone repo, set env vars (or SSM), run Django with **gunicorn + nginx**.
-4. Update the RDS security group so the Lightsail/EC2 instance can reach PostgreSQL (add its IP or security group to `allowed_cidr_blocks` or an ingress rule).
-
-Detailed steps for Lightsail + gunicorn + nginx can be added here when you’re ready.
+**Expected row counts (MIMIC-IV 3.1):**
+- `patients`: ~299,712
+- `admissions`: ~431,231
+- `icustays`: ~73,181
+- `chartevents`: ~313,645,063 (313 million - largest table)
+- `labevents`: ~122,103,667 (122 million)
