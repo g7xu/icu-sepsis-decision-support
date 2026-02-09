@@ -8,10 +8,12 @@ db_username = "postgres"
 db_password = "CHANGE_ME_TO_STRONG_PASSWORD"  # Use a strong password!
 
 # Instance configuration
-db_instance_class    = "db.t4g.micro"  # Free tier: db.t4g.micro or db.t3.micro
-db_allocated_storage = 20               # Free tier: 20 GB
-db_storage_type      = "gp2"
-db_engine_version    = "15.4"
+db_instance_class      = "db.t4g.micro"  # Free tier: db.t4g.micro or db.t3.micro
+db_allocated_storage   = 20              # Start at Free Tier (20 GB, $0/month)
+max_allocated_storage  = 130             # Auto-scale to 130 GB when database grows (incurs ~$13/month when scaled)
+                                         # Storage auto-scales as data is loaded, you only pay for what's provisioned
+db_storage_type        = "gp2"
+db_engine_version      = "15.14"
 
 # Backup settings
 backup_retention_period = 7

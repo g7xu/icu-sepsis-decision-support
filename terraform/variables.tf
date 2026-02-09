@@ -30,9 +30,15 @@ variable "db_instance_class" {
 }
 
 variable "db_allocated_storage" {
-  description = "Allocated storage in GB"
+  description = "Initial allocated storage in GB"
   type        = number
-  default     = 20  # Free tier: 20 GB
+  default     = 20  # Start at Free Tier limit
+}
+
+variable "max_allocated_storage" {
+  description = "Maximum storage for auto-scaling in GB"
+  type        = number
+  default     = 130  # Auto-scale up to 130 GB for full MIMIC-IV dataset
 }
 
 variable "db_storage_type" {
@@ -44,7 +50,7 @@ variable "db_storage_type" {
 variable "db_engine_version" {
   description = "PostgreSQL engine version"
   type        = string
-  default     = "15.4"
+  default     = "15.14"
 }
 
 variable "backup_retention_period" {

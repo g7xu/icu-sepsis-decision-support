@@ -81,7 +81,7 @@ resource "aws_db_instance" "mimiciv" {
 
   # Storage configuration
   allocated_storage     = var.db_allocated_storage
-  max_allocated_storage = var.db_allocated_storage * 2  # Auto-scaling up to 2x
+  max_allocated_storage = var.max_allocated_storage
   storage_type          = var.db_storage_type
   storage_encrypted     = true  # Enable encryption at rest
 
