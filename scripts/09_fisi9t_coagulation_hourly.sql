@@ -1,5 +1,7 @@
--- 10_fisi9t_coagulation_hourly.sql
+-- 09_fisi9t_coagulation_hourly.sql
 -- Materialized view: hourly coagulation features per stay.
+
+DROP MATERIALIZED VIEW IF EXISTS fisi9t_coagulation_hourly CASCADE;
 
 CREATE MATERIALIZED VIEW fisi9t_coagulation_hourly AS (
   WITH stay_window AS (
@@ -77,3 +79,6 @@ CREATE MATERIALIZED VIEW fisi9t_coagulation_hourly AS (
    AND co.charttime_hour = g.hour_ts
   ORDER BY g.stay_id, g.hour_ts
 );
+
+CREATE INDEX idx_fisi9t_coag_stay_id_time ON fisi9t_coagulation_hourly (stay_id, charttime_hour);
+CREATE INDEX idx_fisi9t_coag_subject_id ON fisi9t_coagulation_hourly (subject_id);

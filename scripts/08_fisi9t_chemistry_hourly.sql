@@ -1,5 +1,7 @@
--- 09_fisi9t_chemistry_hourly.sql
+-- 08_fisi9t_chemistry_hourly.sql
 -- Materialized view: hourly chemistry features per stay.
+
+DROP MATERIALIZED VIEW IF EXISTS fisi9t_chemistry_hourly CASCADE;
 
 CREATE MATERIALIZED VIEW fisi9t_chemistry_hourly AS (
   WITH stay_window AS (
@@ -71,3 +73,6 @@ CREATE MATERIALIZED VIEW fisi9t_chemistry_hourly AS (
    AND ch.charttime_hour = g.hour_ts
   ORDER BY g.stay_id, g.hour_ts
 );
+
+CREATE INDEX idx_fisi9t_chem_stay_id_time ON fisi9t_chemistry_hourly (stay_id, charttime_hour);
+CREATE INDEX idx_fisi9t_chem_subject_id ON fisi9t_chemistry_hourly (subject_id);

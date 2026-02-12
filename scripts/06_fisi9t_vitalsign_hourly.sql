@@ -1,6 +1,8 @@
 -- 06_fisi9t_vitalsign_hourly.sql
 -- Materialized view: hourly vital signs per stay.
 
+DROP MATERIALIZED VIEW IF EXISTS fisi9t_vitalsign_hourly CASCADE;
+
 CREATE MATERIALIZED VIEW fisi9t_vitalsign_hourly AS (
   WITH cohort AS (
     SELECT DISTINCT
@@ -151,3 +153,6 @@ CREATE MATERIALIZED VIEW fisi9t_vitalsign_hourly AS (
    AND h.hour_ts = g.hour_ts
   ORDER BY g.stay_id, g.hour_ts
 );
+
+CREATE INDEX idx_fisi9t_vitals_stay_id_time ON fisi9t_vitalsign_hourly (stay_id, charttime_hour);
+CREATE INDEX idx_fisi9t_vitals_subject_id ON fisi9t_vitalsign_hourly (subject_id);

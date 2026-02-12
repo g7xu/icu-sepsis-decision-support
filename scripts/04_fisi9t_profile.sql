@@ -1,6 +1,8 @@
 -- 04_fisi9t_profile.sql
 -- Materialized view: profile (demographics + ICU stay + ICD9 titles).
 
+DROP MATERIALIZED VIEW IF EXISTS fisi9t_profile CASCADE;
+
 CREATE MATERIALIZED VIEW fisi9t_profile AS (
   SELECT
     f.subject_id,
@@ -25,3 +27,6 @@ CREATE MATERIALIZED VIEW fisi9t_profile AS (
   JOIN icustay_detail id
     ON id.stay_id = f.stay_id
 );
+
+CREATE INDEX idx_fisi9t_profile_subject_id ON fisi9t_profile (subject_id);
+CREATE INDEX idx_fisi9t_profile_stay_id ON fisi9t_profile (stay_id);

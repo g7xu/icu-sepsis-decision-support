@@ -1,6 +1,8 @@
 -- 01_first_icu_stay.sql
 -- Materialized view: first ICU stay per subject.
 
+DROP MATERIALIZED VIEW IF EXISTS first_icu_stay CASCADE;
+
 CREATE MATERIALIZED VIEW first_icu_stay AS (
   WITH ranked AS (
     SELECT
@@ -27,3 +29,6 @@ CREATE MATERIALIZED VIEW first_icu_stay AS (
   FROM ranked
   WHERE rn = 1
 );
+
+CREATE INDEX idx_first_icu_stay_subject_id ON first_icu_stay (subject_id);
+CREATE INDEX idx_first_icu_stay_stay_id ON first_icu_stay (stay_id);

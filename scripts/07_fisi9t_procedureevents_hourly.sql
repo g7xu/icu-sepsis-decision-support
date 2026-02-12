@@ -1,6 +1,8 @@
 -- 07_fisi9t_procedureevents_hourly.sql
 -- Materialized view: hourly procedure events per stay.
 
+DROP MATERIALIZED VIEW IF EXISTS fisi9t_procedureevents_hourly CASCADE;
+
 CREATE MATERIALIZED VIEW fisi9t_procedureevents_hourly AS (
   WITH cohort AS (
     SELECT DISTINCT
@@ -101,3 +103,6 @@ CREATE MATERIALIZED VIEW fisi9t_procedureevents_hourly AS (
    AND e.charttime_hour = g.hour_ts
   ORDER BY g.stay_id, g.hour_ts, e.charttime, e.itemid, e.orderid
 );
+
+CREATE INDEX idx_fisi9t_proc_stay_id_time ON fisi9t_procedureevents_hourly (stay_id, charttime_hour);
+CREATE INDEX idx_fisi9t_proc_subject_id ON fisi9t_procedureevents_hourly (subject_id);
