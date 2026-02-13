@@ -124,3 +124,10 @@ STATICFILES_DIRS = [BASE_DIR / 'static']
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+# Model service (external HTTPS prediction API)
+# When MODEL_SERVICE_URL is empty, prediction falls back to stub data for local dev
+MODEL_SERVICE_URL = os.getenv('MODEL_SERVICE_URL', '').rstrip('/')
+MODEL_SERVICE_TIMEOUT = int(os.getenv('MODEL_SERVICE_TIMEOUT', '30'))
+MODEL_SERVICE_API_KEY = os.getenv('MODEL_SERVICE_API_KEY', '')

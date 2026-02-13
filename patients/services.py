@@ -259,15 +259,91 @@ def assemble_hourly_wide_table(subject_id, stay_id, hadm_id, start, end, include
     }
 
 
+def _serialize_row(row):
+    """Convert datetime objects to ISO strings for JSON payload."""
+    out = {}
+    for k, v in row.items():
+        if hasattr(v, 'isoformat'):
+            out[k] = v.isoformat()
+        elif v is not None and not isinstance(v, (str, int, float, bool, list, dict)):
+            out[k] = str(v)
+        else:
+            out[k] = v
+    return out
+
+
 def get_prediction(subject_id, stay_id, hadm_id, as_of, window_hours=24):
     """
     Get model prediction: risk_score and comorbidity_group for a patient at a given time.
 
-    Eventually: fetch features, call model API, return result.
-    For now: returns stub data for UI development.
+    When MODEL_SERVICE_URL is set: fetches features, POSTs to model service, returns result.
+    When not set: returns stub data for local dev.
     """
-    # TODO: Fetch features via assemble_hourly_wide_table, call model API, return real result
-    # Stub: deterministic placeholder based on patient IDs for demo
+    from django.conf import settings
+
+    model_url = getattr(settings, 'MODEL_SERVICE_URL', '') or ''
+    if not model_url:
+        return _get_prediction_stub(subject_id, stay_id, hadm_id, as_of)
+
+    start = as_of - timedelta(hours=window_hours)
+    wide = assemble_hourly_wide_table(
+        subject_id, stay_id, hadm_id, start, as_of,
+        include_sofa=True, include_labs=True,
+    )
+    if not wide.get('ok'):
+        return {"ok": False, "error": wide.get("error", "Feature fetch failed")}
+
+    payload = {
+        "patient": {"subject_id": subject_id, "stay_id": stay_id, "hadm_id": hadm_id},
+        "as_of": as_of.isoformat(),
+        "features": {
+            "hourly_wide": [_serialize_row(r) for r in wide.get("rows", [])],
+            "columns": wide.get("columns", []),
+        },
+    }
+
+    headers = {"Content-Type": "application/json"}
+    api_key = getattr(settings, 'MODEL_SERVICE_API_KEY', '') or ''
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    timeout = getattr(settings, 'MODEL_SERVICE_TIMEOUT', 30) or 30
+
+    try:
+        import httpx
+    except ImportError:
+        return {"ok": False, "error": "httpx not installed. Run: pip install httpx"}
+
+    try:
+        with httpx.Client(timeout=timeout) as client:
+            resp = client.post(
+                f"{model_url.rstrip('/')}/predict",
+                json=payload,
+                headers=headers,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+    except httpx.TimeoutException as e:
+        return {"ok": False, "error": f"Model service timeout: {e}"}
+    except httpx.HTTPStatusError as e:
+        return {"ok": False, "error": f"Model service error {e.response.status_code}: {e.response.text[:200]}"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+    risk_score = data.get("risk_score")
+    comorbidity_group = data.get("comorbidity_group")
+    if risk_score is None or comorbidity_group is None:
+        return {"ok": False, "error": "Model response missing risk_score or comorbidity_group"}
+
+    return {
+        "ok": True,
+        "risk_score": float(risk_score),
+        "comorbidity_group": str(comorbidity_group),
+    }
+
+
+def _get_prediction_stub(subject_id, stay_id, hadm_id, as_of):
+    """Stub prediction for local dev when MODEL_SERVICE_URL is not set."""
     import hashlib
     key = f"{subject_id}_{stay_id}_{hadm_id}_{as_of}"
     h = int(hashlib.md5(key.encode()).hexdigest()[:8], 16)
