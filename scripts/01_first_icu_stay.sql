@@ -1,9 +1,9 @@
 -- 01_first_icu_stay.sql
 -- Materialized view: first ICU stay per subject.
 
-DROP MATERIALIZED VIEW IF EXISTS first_icu_stay CASCADE;
+DROP MATERIALIZED VIEW IF EXISTS mimiciv_derived.first_icu_stay CASCADE;
 
-CREATE MATERIALIZED VIEW first_icu_stay AS (
+CREATE MATERIALIZED VIEW mimiciv_derived.first_icu_stay AS (
   WITH ranked AS (
     SELECT
       i.subject_id,

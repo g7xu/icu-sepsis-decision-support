@@ -1,0 +1,14 @@
+[workspace]
+authors = ["y3pat <y3patel@ucsd.edu>"]
+channels = ["conda-forge"]
+name = "icu-sepsis-decision-support"
+platforms = ["osx-arm64"]
+version = "0.1.0"
+
+[tasks]
+
+[dependencies]
+python = "3.11.*"
+django = ">=4.2,<5"
+psycopg2 = ">=2.9"
+python-dotenv = ">=1.0"
