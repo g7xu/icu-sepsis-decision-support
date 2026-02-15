@@ -112,23 +112,39 @@
 
 </div>
 
-<!-- Predictions placeholder -->
+<!-- Predictions: risk_score + comorbidity_group -->
 <div class="card" style="margin-top: 1rem;">
     <div class="card-header">
         <h2>Predictions</h2>
     </div>
-    <p class="text-muted">Sepsis predictions will appear here.</p>
+    <div id="prediction-panel" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem;">
+        {% if prediction_as_of_iso %}
+        <div>
+            <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.25rem;">Risk Score</p>
+            <p id="risk-score" style="font-size: 1.25rem; font-weight: 600;">...</p>
+        </div>
+        <div>
+            <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.25rem;">Comorbidity Group</p>
+            <p id="comorbidity-group" style="font-size: 1.25rem; font-weight: 600;">...</p>
+        </div>
+        {% else %}
+        <p class="text-muted">Press <strong>+1</strong> to start the simulation and load predictions.</p>
+        {% endif %}
+    </div>
 </div>
 
 <!-- Plotly.js from CDN -->
 <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+
+<script type="application/json" id="vitalsigns-data">{{ vitalsigns_json|safe }}</script>
+<div id="page-config" style="display:none" data-csrf-token="{{ csrf_token }}" data-advance-url="{% url 'patients:advance_time' %}" {% if prediction_as_of_iso %}data-prediction-url="{% url 'patients:prediction' patient.subject_id patient.stay_id patient.hadm_id %}?as_of={{ prediction_as_of_iso|urlencode }}&window_hours=24"{% endif %}></div>
 
 <script>
 (function() {
     // =========================================================================
     // Plotly Vitalsigns Chart
     // =========================================================================
-    const vitalsData = {{ vitalsigns_json|safe }};
+    const vitalsData = JSON.parse(document.getElementById('vitalsigns-data').textContent || '[]');
 
     if (vitalsData.length > 0) {
         const times = vitalsData.map(v => v.hour_label);
@@ -230,13 +246,36 @@
     // +1 Button — advance time, then reload to refresh chart + log
     // =========================================================================
     const advanceBtn = document.getElementById('advance-btn');
-    const csrfToken = '{{ csrf_token }}';
+    const config = document.getElementById('page-config').dataset;
+    const csrfToken = config.csrfToken;
+    const advanceUrl = config.advanceUrl;
+
+    // =========================================================================
+    // Prediction: fetch risk_score + comorbidity_group
+    // =========================================================================
+    const predUrl = config.predictionUrl;
+    if (predUrl) {
+        fetch(predUrl)
+            .then(response => response.json())
+            .then(data => {
+                const riskEl = document.getElementById('risk-score');
+                const groupEl = document.getElementById('comorbidity-group');
+                if (riskEl) riskEl.textContent = data.risk_score != null ? data.risk_score.toFixed(2) : '-';
+                if (groupEl) groupEl.textContent = data.comorbidity_group || '-';
+            })
+            .catch(() => {
+                const riskEl = document.getElementById('risk-score');
+                const groupEl = document.getElementById('comorbidity-group');
+                if (riskEl) riskEl.textContent = '-';
+                if (groupEl) groupEl.textContent = 'Error';
+            });
+    }
 
     advanceBtn.addEventListener('click', function() {
         advanceBtn.disabled = true;
         advanceBtn.textContent = '...';
 
-        fetch('{% url "patients:advance_time" %}', {
+        fetch(advanceUrl, {
             method: 'POST',
             headers: { 'X-CSRFToken': csrfToken },
         })
