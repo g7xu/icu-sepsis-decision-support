@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Patient {{ patient.subject_id }} - ICU Sepsis Decision Support{% endblock %}
+{% block title %}{{ patient.display_name }} - ICU Sepsis Decision Support{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'patient.css' %}">
@@ -24,16 +24,8 @@
     
     <div class="patient-detail-grid">
         <div>
-            <p class="patient-field-label">Subject ID</p>
-            <p class="patient-field-value">{{ patient.subject_id }}</p>
-        </div>
-        <div>
-            <p class="patient-field-label">Stay ID</p>
-            <p class="patient-field-value">{{ patient.stay_id }}</p>
-        </div>
-        <div>
-            <p class="patient-field-label">HADM ID</p>
-            <p class="patient-field-value">{{ patient.hadm_id }}</p>
+            <p class="patient-field-label">Patient</p>
+            <p class="patient-field-value">{{ patient.display_name }}</p>
         </div>
         <div>
             <p class="patient-field-label">Age</p>
@@ -55,7 +47,7 @@
         </div>
         <div>
             <p class="patient-field-label">Admission Time</p>
-            <p class="patient-field-value">{{ patient.intime|date:"M d, Y H:i"|default:"-" }}</p>
+            <p class="patient-field-value">{{ patient.intime|time:"H:i"|default:"-" }}</p>
         </div>
     </div>
 </div>

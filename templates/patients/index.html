@@ -20,9 +20,9 @@
     <div class="card-header">
         <h2>Patient Index</h2>
         <div>
-            {% if cohort_active %}
+            <!-- {% if cohort_active %}
             <span class="badge badge--cohort">Cohort Active</span>
-            {% endif %}
+            {% endif %} -->
             <span class="badge" id="patient-count">{{ total_patients }} patient{{ total_patients|pluralize }}</span>
         </div>
     </div>
@@ -31,36 +31,32 @@
     <table class="table">
         <thead>
             <tr>
-                <th>Subject ID</th>
-                <th>Stay ID</th>
-                <th>HADM ID</th>
+                <th>Patient</th>
                 <th>Age</th>
                 <th>Gender</th>
                 <th>Race</th>
                 <th>Care Unit</th>
                 <th>Admission Time</th>
-                <th>Actions</th>
+                <th></th>
             </tr>
         </thead>
         <tbody>
             {% for patient in page_obj %}
             <tr>
-                <td><strong>{{ patient.subject_id }}</strong></td>
-                <td>{{ patient.stay_id }}</td>
-                <td>{{ patient.hadm_id }}</td>
+                <td><strong>{{ patient.display_name }}</strong></td>
                 <td>{{ patient.anchor_age|default:"-" }}</td>
                 <td>
                     {% if patient.gender == 'M' %}
-                        <span class="gender-male">Male</span>
+                        Male
                     {% elif patient.gender == 'F' %}
-                        <span class="gender-female">Female</span>
+                        Female
                     {% else %}
                         {{ patient.gender|default:"-" }}
                     {% endif %}
                 </td>
                 <td>{{ patient.race|default:"-"|truncatechars:20 }}</td>
                 <td>{{ patient.first_careunit|default:"-" }}</td>
-                <td class="text-muted">{{ patient.intime|date:"M d, Y H:i"|default:"-" }}</td>
+                <td class="text-muted">{{ patient.intime|time:"H:i"|default:"-" }}</td>
                 <td>
                     <a href="{% url 'patients:detail' patient.subject_id patient.stay_id patient.hadm_id %}" 
                        class="btn btn-primary btn-sm">View</a>

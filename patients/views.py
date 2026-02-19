@@ -13,6 +13,7 @@ from django.views.decorators.http import require_POST
 
 from .models import UniquePatientProfile, VitalsignHourly, ProcedureeventsHourly
 from .cohort import get_cohort_filter
+from .display_names import get_display_name_mapping
 
 
 # =============================================================================
@@ -35,11 +36,11 @@ def _display_time(current_hour):
     """
     display_hour = current_hour + 1
     if display_hour <= 0:
-        return "March 13, 2025 00:00"
+        return "March 13 00:00"
     elif display_hour >= 24:
-        return "March 14, 2025 00:00"
+        return "March 14 00:00"
     else:
-        return f"March 13, 2025 {display_hour:02d}:00"
+        return f"March 13 {display_hour:02d}:00"
 
 
 def _get_cohort_patients():
@@ -90,6 +91,14 @@ def patient_list(request):
     paginator = Paginator(patients, 25)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
+
+    # Attach display names (IDs hidden from clinicians)
+    name_mapping = get_display_name_mapping()
+    for p in page_obj:
+        p.display_name = name_mapping.get(
+            (p.subject_id, p.stay_id, p.hadm_id),
+            f"Patient {p.subject_id}"
+        )
 
     context = {
         'page_obj': page_obj,
@@ -161,6 +170,13 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
         prediction_as_of_iso = "2025-03-14T00:00:00"
     else:
         prediction_as_of_iso = f"2025-03-13T{current_hour + 1:02d}:00:00"
+
+    # Attach display name (IDs hidden from clinicians)
+    name_mapping = get_display_name_mapping()
+    patient.display_name = name_mapping.get(
+        (patient.subject_id, patient.stay_id, patient.hadm_id),
+        f"Patient {patient.subject_id}"
+    )
 
     context = {
         'patient': patient,
