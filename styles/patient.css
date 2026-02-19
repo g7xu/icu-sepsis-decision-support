@@ -37,11 +37,29 @@
 
 .vitals-chart {
     width: 100%;
-    min-height: 600px;
+    min-height: 250px;
 }
 
+.vitals-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: center;
+    margin: 0.25rem;
+    font-size: 1rem;
+    color: #2d3748;
+}
+  
+  .vitals-controls label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    cursor: pointer;
+    user-select: none;
+}  
+
 .procedures-log {
-    max-height: 600px;
+    max-height: 250px;
     overflow-y: auto;
 }
 
