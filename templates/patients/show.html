@@ -60,6 +60,15 @@
         <div class="card-header">
             <h2>Vital Signs</h2>
         </div>
+        <div class="vitals-controls">
+            <label><input type="radio" name="vital" value="hr" checked>Heart Rate</label>
+            <label><input type="radio" name="vital" value="bp">Blood Pressure</label>
+            <label><input type="radio" name="vital" value="spo2">SpO2</label>
+            <label><input type="radio" name="vital" value="resp">Resp Rate</label>
+            <label><input type="radio" name="vital" value="temp">Temperature</label>
+            <label><input type="radio" name="vital" value="glucose">Glucose</label>
+          </div>
+          
         <div id="vitals-chart" class="vitals-chart"></div>
         {% if current_hour < 0 %}
         <p class="text-muted">Press <strong>+1</strong> to start collecting vital signs.</p>
@@ -70,7 +79,7 @@
     <div class="card">
         <div class="card-header">
             <h2>Procedure Events</h2>
-            <span class="badge">{{ procedures_count }} event{{ procedures_count|pluralize }}</span>
+            <span class="badge">{{ procedures_count }} event {{ procedures_count|pluralize }}</span>
         </div>
         <div id="procedures-log" class="procedures-log">
             {% if procedures %}
@@ -137,106 +146,97 @@
 
 <script>
 (function() {
-    // =========================================================================
-    // Plotly Vitalsigns Chart
-    // =========================================================================
-    const vitalsData = JSON.parse(document.getElementById('vitalsigns-data').textContent || '[]');
 
-    if (vitalsData.length > 0) {
-        const times = vitalsData.map(v => v.hour_label);
+// =========================================================================
+// Plotly Vitalsigns Chart (single chart + radio selection)
+// =========================================================================
+const vitalsData = JSON.parse(document.getElementById('vitalsigns-data').textContent || '[]');
 
-        const traces = [
-            // --- Row 1: Heart Rate ---
-            {
-                x: times, y: vitalsData.map(v => v.heart_rate),
-                name: 'Heart Rate', type: 'scatter', mode: 'lines+markers',
-                line: { color: '#e53e3e', width: 2 }, marker: { size: 5 },
-                xaxis: 'x', yaxis: 'y',
-            },
-            // --- Row 2: Blood Pressure (SBP / DBP / MBP) ---
-            {
-                x: times, y: vitalsData.map(v => v.sbp),
-                name: 'SBP', type: 'scatter', mode: 'lines+markers',
-                line: { color: '#3182ce', width: 2 }, marker: { size: 4 },
-                xaxis: 'x2', yaxis: 'y2',
-            },
-            {
-                x: times, y: vitalsData.map(v => v.dbp),
-                name: 'DBP', type: 'scatter', mode: 'lines+markers',
-                line: { color: '#90cdf4', width: 2 }, marker: { size: 4 },
-                xaxis: 'x2', yaxis: 'y2',
-            },
-            {
-                x: times, y: vitalsData.map(v => v.mbp),
-                name: 'MBP', type: 'scatter', mode: 'lines+markers',
-                line: { color: '#2b6cb0', width: 2, dash: 'dash' }, marker: { size: 4 },
-                xaxis: 'x2', yaxis: 'y2',
-            },
-            // --- Row 3: SpO2 ---
-            {
-                x: times, y: vitalsData.map(v => v.spo2),
-                name: 'SpO2', type: 'scatter', mode: 'lines+markers',
-                line: { color: '#38a169', width: 2 }, marker: { size: 5 },
-                xaxis: 'x3', yaxis: 'y3',
-            },
-            // --- Row 4: Respiratory Rate ---
-            {
-                x: times, y: vitalsData.map(v => v.resp_rate),
-                name: 'Resp Rate', type: 'scatter', mode: 'lines+markers',
-                line: { color: '#d69e2e', width: 2 }, marker: { size: 5 },
-                xaxis: 'x4', yaxis: 'y4',
-            },
-            // --- Row 5: Temperature ---
-            {
-                x: times, y: vitalsData.map(v => v.temperature),
-                name: 'Temperature', type: 'scatter', mode: 'lines+markers',
-                line: { color: '#805ad5', width: 2 }, marker: { size: 5 },
-                xaxis: 'x5', yaxis: 'y5',
-            },
-            // --- Row 6: Glucose ---
-            {
-                x: times, y: vitalsData.map(v => v.glucose),
-                name: 'Glucose', type: 'scatter', mode: 'lines+markers',
-                line: { color: '#805ad5', width: 2 }, marker: { size: 5 },
-                xaxis: 'x6', yaxis: 'y6',
-            }
-        ];
+if (vitalsData.length > 0) {
+    const times = vitalsData.map(v => v.hour_label);
 
+    // 1) One base trace definition for ALL series (since all are scatter lines+markers)
+    const BASE_TRACE = {
+        type: 'scatter',
+        mode: 'lines+markers'
+    };
+
+    // 2) Centralized styling (not duplicated 6 times)
+    // NOTE: This is Plotly config (cannot be moved to CSS), but it’s centralized here.
+    const TRACE_STYLES = {
+        heart_rate: {name: 'Heart Rate', line: {color: '#e53e3e', width: 2}, marker: {size: 10}},
+        sbp: {name: 'SBP', line: {color: '#3182ce', width: 2}, marker: {size: 5}},
+        dbp: {name: 'DBP', line: {color: '#90cdf4', width: 2}, marker: {size: 5}},
+        mbp: {name: 'MBP', line: {color: '#2b6cb0', width: 2, dash: 'dash'}, marker: {size: 5}},
+        spo2: {name: 'SpO2', line: {color: '#38a169', width: 2 }, marker: {size: 10}},
+        resp_rate: {name: 'Resp Rate', line: {color: '#d69e2e', width: 2}, marker: {size: 10}},
+        temperature:{name: 'Temperature', line: {color: '#805ad5', width: 2}, marker: {size: 10}},
+        glucose: {name: 'Glucose', line: {color: '#805ad5', width: 2}, marker: {size: 10}}
+    };
+
+    // 3) Define each radio "chart" in terms of:
+    //    - title
+    //    - y axis label
+    //    - which series keys to include
+    const CHARTS = {
+        hr: {title: 'Heart Rate', yTitle: 'HR (bpm)', series: ['heart_rate'] },
+        bp: {title: 'Blood Pressure', yTitle: 'BP (mmHg)', series: ['sbp', 'dbp', 'mbp'] },
+        spo2: {title: 'SpO2', yTitle: 'SpO2 (%)', series: ['spo2'] },
+        resp: {title: 'Respiratory Rate', yTitle: 'Resp (/min)', series: ['resp_rate'] },
+        temp: {title: 'Temperature', yTitle: 'Temp (\u00b0C)', series: ['temperature'] },
+        glucose: {title: 'Glucose', yTitle: 'Glucose (mg/dL)', series: ['glucose'] }
+    };
+
+    function buildTraces(seriesKeys) {
+        return seriesKeys.map(key => {
+            const style = TRACE_STYLES[key] || { name: key };
+            return {
+                BASE_TRACE,
+                x: times,
+                y: vitalsData.map(v => v[key]),
+                name: style.name,
+                line: style.line,
+                marker: style.marker
+            };
+        });
+    }
+
+    const baseLayout = {
+        height: 250,
+        showlegend: true,
+        legend: { orientation: 'h', y: 1.35, x: 0.45, font: { size: 12 } },
+        margin: { l: 60, r: 20, t: 50, b: 45 },
+        xaxis: { title: { text: 'Hour', font: { size: 12 } }, tickfont: { size: 10 }, automargin: true },
+        yaxis: { tickfont: { size: 10 }, automargin: true, autorange: true }
+    };
+
+    function renderChart(chartKey) {
+        const chart = CHARTS[chartKey] || CHARTS.hr;
+
+        const traces = buildTraces(chart.series);
         const layout = {
-            height: 650,
-            showlegend: true,
-            legend: { orientation: 'h', y: 1.05, x: 0, font: { size: 11 } },
-            grid: { rows: 6, columns: 1, pattern: 'independent', roworder: 'top to bottom' },
-
-            // Row 1 – Heart Rate
-            xaxis:  { showticklabels: false },
-            yaxis:  { title: { text: 'HR (bpm)', font: { size: 11 } }, tickfont: { size: 10 } },
-
-            // Row 2 – Blood Pressure
-            xaxis2: { showticklabels: false },
-            yaxis2: { title: { text: 'BP (mmHg)', font: { size: 11 } }, tickfont: { size: 10 } },
-
-            // Row 3 – SpO2
-            xaxis3: { showticklabels: false },
-            yaxis3: { title: { text: 'SpO2 (%)', font: { size: 11 } }, tickfont: { size: 10 } },
-
-            // Row 4 – Respiratory Rate
-            xaxis4: { showticklabels: false },
-            yaxis4: { title: { text: 'Resp (/min)', font: { size: 11 } }, tickfont: { size: 10 } },
-
-            // Row 5 – Temperature  (bottom row shows x-axis labels)
-            xaxis5: { title: { text: 'Hour', font: { size: 11 } }, tickfont: { size: 10 } },
-            yaxis5: { title: { text: 'Temp (\u00b0C)', font: { size: 11 } }, tickfont: { size: 10 } },
-
-            // Row 5 – Temperature  (bottom row shows x-axis labels)
-            xaxis6: { title: { text: 'Hour', font: { size: 11 } }, tickfont: { size: 10 } },
-            yaxis6: { title: { text: 'Glucose (mg/dL)', font: { size: 11 } }, tickfont: { size: 10 } },
-
-            margin: { l: 60, r: 20, t: 30, b: 40 },
+            ...baseLayout,
+            title: { text: chart.title, x: 0.025, xanchor: 'left', font: { size: 14 } },
+            yaxis: {
+                ...baseLayout.yaxis,
+                title: { text: chart.yTitle, font: { size: 11 } },
+                autorange: true // force rescale per selection
+            }
         };
 
         Plotly.newPlot('vitals-chart', traces, layout, { responsive: true });
     }
+
+    // initial render
+    renderChart('hr');
+
+    // radio handlers
+    document.querySelectorAll('input[name="vital"]').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            if (e.target && e.target.checked) renderChart(e.target.value);
+        });
+    });
+}
 
     // =========================================================================
     // +1 Button — advance time, then reload to refresh chart + log
