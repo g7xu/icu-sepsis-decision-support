@@ -154,6 +154,14 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
             'ordercategoryname', 'statusdescription',
         ))
 
+    # Prediction "as_of" time for the API (matches simulation clock)
+    if current_hour < 0:
+        prediction_as_of_iso = None
+    elif current_hour >= 23:
+        prediction_as_of_iso = "2025-03-14T00:00:00"
+    else:
+        prediction_as_of_iso = f"2025-03-13T{current_hour + 1:02d}:00:00"
+
     context = {
         'patient': patient,
         'vitalsigns_json': vitalsigns_json,
@@ -161,6 +169,7 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
         'procedures_count': len(procedures),
         'current_hour': current_hour,
         'current_time_display': _display_time(current_hour),
+        'prediction_as_of_iso': prediction_as_of_iso,
     }
     return render(request, 'patients/show.html', context)
 
