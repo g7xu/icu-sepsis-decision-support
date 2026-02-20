@@ -9,6 +9,7 @@
 
 {% block navbar_clock %}
 <div class="app-navbar__clock">
+    <a href="{% url 'patients:index' %}" class="btn btn-primary btn-sm">&larr; Back to List</a>
     <span id="current-time" class="sim-time">{{ current_time_display }}</span>
     <button id="advance-btn" class="btn btn-primary">+1</button>
 </div>
@@ -19,7 +20,6 @@
 <div class="card">
     <div class="card-header">
         <h2>Patient Details</h2>
-        <a href="{% url 'patients:index' %}" class="btn btn-primary btn-sm">&larr; Back to List</a>
     </div>
     
     <div class="patient-detail-grid">
@@ -79,29 +79,32 @@
     <div class="card">
         <div class="card-header">
             <h2>Procedure Events</h2>
-            <span class="badge">{{ procedures_count }} event {{ procedures_count|pluralize }}</span>
         </div>
         <div id="procedures-log" class="procedures-log">
             {% if procedures %}
                 {% for proc in procedures %}
-                <div class="procedure-item">
-                    <div class="procedure-item__header">
-                        <strong class="procedure-item__label">{{ proc.item_label|default:"-" }}</strong>
-                        <span class="procedure-item__time text-muted">
-                            {{ proc.charttime_hour|date:"H:i"|default:"-" }}
-                        </span>
-                    </div>
-                    {% if proc.value %}
-                    <div class="procedure-item__value">
-                        Value: {{ proc.value }} {{ proc.valueuom|default:"" }}
-                    </div>
-                    {% endif %}
-                    {% if proc.ordercategoryname %}
-                    <div class="procedure-item__meta">
-                        {{ proc.ordercategoryname }}{% if proc.statusdescription %} &middot; {{ proc.statusdescription }}{% endif %}
-                    </div>
-                    {% endif %}
-                </div>
+                    {% with has_event=proc.item_label %}
+                        <div class="procedure-item {% if not has_event %}procedure-item--empty{% endif %}">
+                            {% if proc.item_label %}
+                            <div class="procedure-item__header">
+                                <strong class="procedure-item__label">{{ proc.item_label|default:"-" }}</strong>
+                                <span class="procedure-item__time text-muted">{{ proc.charttime_hour|date:"H:i" }}</span>
+                            </div>
+                            {% endif %}
+                    
+                            {% if proc.value %}
+                            <div class="procedure-item__value">
+                                Value: {{ proc.value }} || Unit of Measurement (if provided): {{ proc.valueuom|default:"" }}
+                            </div>
+                            {% endif %}
+                    
+                            {% if proc.ordercategoryname %}
+                            <div class="procedure-item__meta">
+                                {{ proc.ordercategoryname }} {% if proc.statusdescription %} || {{ proc.statusdescription }}{% endif %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    {% endwith %}
                 {% endfor %}
             {% else %}
                 <p class="procedures-empty text-muted">
@@ -202,7 +205,7 @@ if (vitalsData.length > 0) {
     }
 
     const baseLayout = {
-        height: 250,
+        height: 300,
         showlegend: true,
         legend: { orientation: 'h', y: 1.35, x: 0.45, font: { size: 12 } },
         margin: { l: 60, r: 20, t: 50, b: 45 },

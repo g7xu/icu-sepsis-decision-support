@@ -17,22 +17,16 @@ DERIVED_TABLE_CANDIDATES = {
         "mimiciv_derived.fisi9t_procedureevents_hourly",
     ],
     "sofa_hourly": [
-        "sofa_hourly",
-        "mimiciv_derived.sofa_hourly",
-        "sofa",
-        "mimiciv_derived.sofa",
+        "fisi9t_sofa_hourly",
+        "mimiciv_derived.fisi9t_sofa_hourly",
     ],
     "chemistry_hourly": [
         "fisi9t_chemistry_hourly",
         "mimiciv_derived.fisi9t_chemistry_hourly",
-        "chemistry_hourly",
-        "mimiciv_derived.chemistry_hourly",
     ],
     "coagulation_hourly": [
         "fisi9t_coagulation_hourly",
         "mimiciv_derived.fisi9t_coagulation_hourly",
-        "coagulation_hourly",
-        "mimiciv_derived.coagulation_hourly",
     ],
 }
 
@@ -106,10 +100,10 @@ def get_static_feature_sources(subject_id, stay_id, hadm_id, limit=10):
     )
     return sources
 
-def get_hourly_feature_sources(subject_id, stay_id, start, end, include_procedures=True, include_sofa=True, limit=20000):
+def get_hourly_feature_sources(subject_id, stay_id, start, end, include_sofa=True, limit=20000):
     sources = {}
     
-    # 1. Vitals
+    # 1. vitals
     vitals_table = _pick_first_existing(DERIVED_TABLE_CANDIDATES["vitals_hourly"])
     if vitals_table:
         sources["vitals_hourly"] = _fetch_rows(
@@ -122,21 +116,45 @@ def get_hourly_feature_sources(subject_id, stay_id, start, end, include_procedur
     else:
         sources["vitals_hourly"] = {"ok": False, "error": "No vitals table found"}
 
-    # 2. Procedures
-    if include_procedures:
-        proc_table = _pick_first_existing(DERIVED_TABLE_CANDIDATES["procedures_hourly"])
-        if proc_table:
-            sources["procedures_hourly"] = _fetch_rows(
-                table=proc_table,
-                where_sql="stay_id = %(stay_id)s AND charttime_hour >= %(start)s AND charttime_hour <= %(end)s",
-                params={"stay_id": stay_id, "start": start, "end": end},
-                order_sql="charttime_hour, charttime, itemid",
-                limit=limit
-            )
-        else:
-            sources["procedures_hourly"] = {"ok": False, "error": "No procedures table found"}
+    # 2. procedures
+    proc_table = _pick_first_existing(DERIVED_TABLE_CANDIDATES["procedures_hourly"])
+    if proc_table:
+        sources["procedures_hourly"] = _fetch_rows(
+            table=proc_table,
+            where_sql="stay_id = %(stay_id)s AND charttime_hour >= %(start)s AND charttime_hour <= %(end)s",
+            params={"stay_id": stay_id, "start": start, "end": end},
+            order_sql="charttime_hour",
+            limit=limit
+        )
+    else:
+        sources["procedures_hourly"] = {"ok": False, "error": "No procedures table found"}
 
-    # 3. SOFA
+    # 3. chemistry
+    chem_table = _pick_first_existing(DERIVED_TABLE_CANDIDATES["chemistry_hourly"])
+    if chem_table:
+        sources["chemistry_hourly"] = _fetch_rows(
+            table=chem_table,
+            where_sql="stay_id = %(stay_id)s AND charttime_hour >= %(start)s AND charttime_hour <= %(end)s",
+            params={"stay_id": stay_id, "start": start, "end": end},
+            order_sql="charttime_hour",
+            limit=limit
+        )
+    else:
+        sources["chemistry_hourly"] = {"ok": False, "error": "No chemistry table found"}
+
+    # 4. coagulation
+    coag_table = _pick_first_existing(DERIVED_TABLE_CANDIDATES["coagulation_hourly"])
+    if coag_table:
+        sources["coagulation_hourly"] = _fetch_rows(
+            table=coag_table,
+            where_sql="stay_id = %(stay_id)s AND charttime_hour >= %(start)s AND charttime_hour <= %(end)s",
+            params={"stay_id": stay_id, "start": start, "end": end},
+            order_sql="charttime_hour",
+            limit=limit
+        )
+    else:
+        sources["coagulation_hourly"] = {"ok": False, "error": "No coagulation table found"}
+    # 5. SOFA
     if include_sofa:
         sofa_table = _pick_first_existing(DERIVED_TABLE_CANDIDATES["sofa_hourly"])
         if sofa_table:
@@ -152,7 +170,7 @@ def get_hourly_feature_sources(subject_id, stay_id, start, end, include_procedur
 
     return sources
 
-def assemble_hourly_wide_table(subject_id, stay_id, hadm_id, start, end, include_sofa=True, include_labs=True, limit=20000):
+def assemble_hourly_wide_table(subject_id, stay_id, hadm_id, start, end, include_sofa=True, limit=20000):
     # Fetch base vitals (required)
     vitals_table = _pick_first_existing(DERIVED_TABLE_CANDIDATES["vitals_hourly"])
     if not vitals_table:
@@ -184,26 +202,25 @@ def assemble_hourly_wide_table(subject_id, stay_id, hadm_id, start, end, include
 
     chemistry = None
     coagulation = None
-    if include_labs:
-        chem_table = _pick_first_existing(DERIVED_TABLE_CANDIDATES["chemistry_hourly"])
-        if chem_table:
-            chemistry = _fetch_rows(
-                table=chem_table,
-                where_sql="stay_id = %(stay_id)s AND charttime_hour >= %(start)s AND charttime_hour <= %(end)s",
-                params={"stay_id": stay_id, "start": start, "end": end},
-                order_sql="charttime_hour",
-                limit=limit
-            )
+    chem_table = _pick_first_existing(DERIVED_TABLE_CANDIDATES["chemistry_hourly"])
+    if chem_table:
+        chemistry = _fetch_rows(
+            table=chem_table,
+            where_sql="stay_id = %(stay_id)s AND charttime_hour >= %(start)s AND charttime_hour <= %(end)s",
+            params={"stay_id": stay_id, "start": start, "end": end},
+            order_sql="charttime_hour",
+            limit=limit
+        )
         
-        coag_table = _pick_first_existing(DERIVED_TABLE_CANDIDATES["coagulation_hourly"])
-        if coag_table:
-            coagulation = _fetch_rows(
-                table=coag_table,
-                where_sql="stay_id = %(stay_id)s AND charttime_hour >= %(start)s AND charttime_hour <= %(end)s",
-                params={"stay_id": stay_id, "start": start, "end": end},
-                order_sql="charttime_hour",
-                limit=limit
-            )
+    coag_table = _pick_first_existing(DERIVED_TABLE_CANDIDATES["coagulation_hourly"])
+    if coag_table:
+        coagulation = _fetch_rows(
+            table=coag_table,
+            where_sql="stay_id = %(stay_id)s AND charttime_hour >= %(start)s AND charttime_hour <= %(end)s",
+            params={"stay_id": stay_id, "start": start, "end": end},
+            order_sql="charttime_hour",
+            limit=limit
+        )
 
     # Merge logic
     wide_by_hour = {}

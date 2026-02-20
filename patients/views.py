@@ -157,6 +157,7 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
             charttime_hour__month=3,
             charttime_hour__day=13,
             charttime_hour__hour__lte=current_hour,
+            itemid__isnull=False,
         ).order_by('charttime_hour').values(
             'charttime_hour', 'charttime',
             'item_label', 'value', 'valueuom',
