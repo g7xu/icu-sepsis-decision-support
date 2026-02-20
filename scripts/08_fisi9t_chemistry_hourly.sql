@@ -1,9 +1,9 @@
 -- 08_fisi9t_chemistry_hourly.sql
 -- Materialized view: hourly chemistry features per stay.
 
-DROP MATERIALIZED VIEW IF EXISTS fisi9t_chemistry_hourly CASCADE;
+DROP MATERIALIZED VIEW IF EXISTS mimiciv_derived.fisi9t_chemistry_hourly CASCADE;
 
-CREATE MATERIALIZED VIEW fisi9t_chemistry_hourly AS (
+CREATE MATERIALIZED VIEW mimiciv_derived.fisi9t_chemistry_hourly AS (
   WITH stay_window AS (
     SELECT
       c.subject_id,
@@ -12,8 +12,8 @@ CREATE MATERIALIZED VIEW fisi9t_chemistry_hourly AS (
       date_trunc('hour', id.icu_outtime) AS end_hour,
       id.icu_intime,
       id.icu_outtime
-    FROM fisi9t_unique_patient_profile c
-    JOIN icustay_detail id
+    FROM mimiciv_derived.fisi9t_unique_patient_profile c
+    JOIN mimiciv_derived.icustay_detail id
       ON id.stay_id = c.stay_id
   ),
   hour_grid AS (
@@ -38,8 +38,8 @@ CREATE MATERIALIZED VIEW fisi9t_chemistry_hourly AS (
       ch.calcium,
       ch.sodium,
       ch.potassium
-    FROM chemistry ch
-    JOIN fisi9t_unique_patient_profile c
+    FROM mimiciv_derived.chemistry ch
+    JOIN mimiciv_derived.fisi9t_unique_patient_profile c
       ON c.subject_id = ch.subject_id
     JOIN stay_window sw
       ON sw.subject_id = c.subject_id
@@ -74,5 +74,5 @@ CREATE MATERIALIZED VIEW fisi9t_chemistry_hourly AS (
   ORDER BY g.stay_id, g.hour_ts
 );
 
-CREATE INDEX idx_fisi9t_chem_stay_id_time ON fisi9t_chemistry_hourly (stay_id, charttime_hour);
-CREATE INDEX idx_fisi9t_chem_subject_id ON fisi9t_chemistry_hourly (subject_id);
+CREATE INDEX idx_fisi9t_chem_stay_id_time ON mimiciv_derived.fisi9t_chemistry_hourly (stay_id, charttime_hour);
+CREATE INDEX idx_fisi9t_chem_subject_id ON mimiciv_derived.fisi9t_chemistry_hourly (subject_id);

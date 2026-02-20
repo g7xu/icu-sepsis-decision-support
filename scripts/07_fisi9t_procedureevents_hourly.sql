@@ -1,14 +1,14 @@
 -- 07_fisi9t_procedureevents_hourly.sql
 -- Materialized view: hourly procedure events per stay.
 
-DROP MATERIALIZED VIEW IF EXISTS fisi9t_procedureevents_hourly CASCADE;
+DROP MATERIALIZED VIEW IF EXISTS mimiciv_derived.fisi9t_procedureevents_hourly CASCADE;
 
-CREATE MATERIALIZED VIEW fisi9t_procedureevents_hourly AS (
+CREATE MATERIALIZED VIEW mimiciv_derived.fisi9t_procedureevents_hourly AS (
   WITH cohort AS (
     SELECT DISTINCT
-      upp.subject_id,
-      upp.stay_id
-    FROM fisi9t_unique_patient_profile upp
+      subject_id,
+      stay_id
+    FROM mimiciv_derived.fisi9t_unique_patient_profile
   ),
   stay_window AS (
     SELECT
@@ -19,7 +19,7 @@ CREATE MATERIALIZED VIEW fisi9t_procedureevents_hourly AS (
       id.icu_intime,
       id.icu_outtime
     FROM cohort c
-    JOIN icustay_detail id
+    JOIN mimiciv_derived.icustay_detail id
       ON id.stay_id = c.stay_id
   ),
   hour_grid AS (
@@ -60,13 +60,13 @@ CREATE MATERIALIZED VIEW fisi9t_procedureevents_hourly AS (
       di.unitname AS item_unitname,
       di.lownormalvalue AS item_lownormalvalue,
       di.highnormalvalue AS item_highnormalvalue
-    FROM procedureevents p
+    FROM mimiciv_icu.procedureevents p
     JOIN cohort c
       ON c.subject_id = p.subject_id
      AND c.stay_id = p.stay_id
     JOIN stay_window sw
       ON sw.stay_id = p.stay_id
-    LEFT JOIN d_items di
+    LEFT JOIN mimiciv_icu.d_items di
       ON di.itemid = p.itemid
     WHERE p.storetime IS NOT NULL
       AND p.storetime >= sw.icu_intime
@@ -104,5 +104,5 @@ CREATE MATERIALIZED VIEW fisi9t_procedureevents_hourly AS (
   ORDER BY g.stay_id, g.hour_ts, e.charttime, e.itemid, e.orderid
 );
 
-CREATE INDEX idx_fisi9t_proc_stay_id_time ON fisi9t_procedureevents_hourly (stay_id, charttime_hour);
-CREATE INDEX idx_fisi9t_proc_subject_id ON fisi9t_procedureevents_hourly (subject_id);
+CREATE INDEX idx_fisi9t_proc_stay_id_time ON mimiciv_derived.fisi9t_procedureevents_hourly (stay_id, charttime_hour);
+CREATE INDEX idx_fisi9t_proc_subject_id ON mimiciv_derived.fisi9t_procedureevents_hourly (subject_id);

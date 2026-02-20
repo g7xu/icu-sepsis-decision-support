@@ -2,6 +2,7 @@
 .env
 venv/
 .venv/
+.pixi/
 
 # Python
 __pycache__/
@@ -21,6 +22,10 @@ db.sqlite3-journal
 media/
 staticfiles/
 
+# MIMIC-IV Data (Large dataset - DO NOT commit)
+mimiciv/
+*.csv.gz
+
 # IDE
 .idea/
 .vscode/
@@ -31,3 +36,16 @@ staticfiles/
 # OS
 .DS_Store
 Thumbs.db
+
+# Terraform
+terraform/*.tfvars
+!terraform/terraform.tfvars.example
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/crash.log
+terraform/override.tf
+terraform/override.tf.json
+terraform/*_override.tf
+terraform/*_override.tf.json

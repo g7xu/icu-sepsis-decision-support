@@ -1,14 +1,14 @@
 -- 06_fisi9t_vitalsign_hourly.sql
 -- Materialized view: hourly vital signs per stay.
 
-DROP MATERIALIZED VIEW IF EXISTS fisi9t_vitalsign_hourly CASCADE;
+DROP MATERIALIZED VIEW IF EXISTS mimiciv_derived.fisi9t_vitalsign_hourly CASCADE;
 
-CREATE MATERIALIZED VIEW fisi9t_vitalsign_hourly AS (
+CREATE MATERIALIZED VIEW mimiciv_derived.fisi9t_vitalsign_hourly AS (
   WITH cohort AS (
     SELECT DISTINCT
-      fisi9t_unique_patient_profile.subject_id,
-      fisi9t_unique_patient_profile.stay_id
-    FROM fisi9t_unique_patient_profile
+      subject_id,
+      stay_id
+    FROM mimiciv_derived.fisi9t_unique_patient_profile
   ),
   base AS (
     SELECT
@@ -27,7 +27,7 @@ CREATE MATERIALIZED VIEW fisi9t_vitalsign_hourly AS (
       v.temperature_site,
       v.spo2,
       v.glucose
-    FROM vitalsign v
+    FROM mimiciv_derived.vitalsign v
     JOIN cohort c
       ON c.subject_id = v.subject_id
      AND c.stay_id = v.stay_id
@@ -116,7 +116,7 @@ CREATE MATERIALIZED VIEW fisi9t_vitalsign_hourly AS (
       date_trunc('hour', id.icu_intime) AS start_hour,
       date_trunc('hour', id.icu_outtime) AS end_hour
     FROM cohort c
-    JOIN icustay_detail id
+    JOIN mimiciv_derived.icustay_detail id
       ON id.stay_id = c.stay_id
   ),
   hour_grid AS (
@@ -154,5 +154,5 @@ CREATE MATERIALIZED VIEW fisi9t_vitalsign_hourly AS (
   ORDER BY g.stay_id, g.hour_ts
 );
 
-CREATE INDEX idx_fisi9t_vitals_stay_id_time ON fisi9t_vitalsign_hourly (stay_id, charttime_hour);
-CREATE INDEX idx_fisi9t_vitals_subject_id ON fisi9t_vitalsign_hourly (subject_id);
+CREATE INDEX idx_fisi9t_vitals_stay_id_time ON mimiciv_derived.fisi9t_vitalsign_hourly (stay_id, charttime_hour);
+CREATE INDEX idx_fisi9t_vitals_subject_id ON mimiciv_derived.fisi9t_vitalsign_hourly (subject_id);
