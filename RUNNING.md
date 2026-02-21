@@ -1,5 +1,7 @@
 # How to Run
 
+**First-time setup:** If using AWS RDS with MIMIC-IV, run the view scripts and configure `.env` per [SETUP_VIEWS.md](SETUP_VIEWS.md).
+
 ## Option A: Docker (recommended)
 
 ```bash
@@ -9,6 +11,10 @@ docker compose up --build
 # Open in browser
 open http://localhost:8000/patients/
 ```
+
+**Docker with AWS RDS:** The web container reads `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_PORT`, and `DB_SCHEMA` from your project root `.env`. Copy `.env.example` to `.env`, fill in your RDS values (e.g. from `terraform output -raw env_file_content` plus `DB_PASSWORD`), then run `docker compose up`. The app will connect to RDS; the local `db` container still starts but is not used by the app.
+
+**Docker with local DB only:** To use the local Postgres container instead, set in `.env`: `DB_HOST=db`, `DB_NAME=sepsis`, `DB_PORT=5432`, `DB_SCHEMA=public`. Only makes sense if you have loaded data and run the view scripts against that local DB.
 
 ## Option B: Local (Postgres must be running)
 
@@ -27,7 +33,7 @@ python manage.py runserver
 
 The prediction endpoint (`GET /patients/<ids>/prediction`) now supports this flow:
 
-1. Pull hourly-wide features from Postgres materialized views.
+1. Pull hourly-wide features from Postgres views.
 2. Select the **most recent hourly vector** at or before `as_of`.
 3. Write that vector to S3 under:
    - `s3://<bucket>/<prefix>/patients/<subject_stay_hadm>/features/<hour>.json`
@@ -42,7 +48,7 @@ Comorbidity group behavior:
 - Later calls may omit it; backend reuses the first stored group from S3.
 
 Input vector rule (latest ERD):
-- Backend requires patient rows in all required hourly matviews:
+- Backend requires patient rows in all required hourly views:
   - `vitals_hourly`
   - `procedures_hourly`
   - `chemistry_hourly`
