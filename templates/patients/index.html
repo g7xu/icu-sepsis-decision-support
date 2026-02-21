@@ -7,22 +7,46 @@
 <div class="card">
     <div class="card-header">
         <h2>Simulation Clock</h2>
-        <div style="display: flex; align-items: center; gap: 1rem;">
-            <span id="current-time" class="badge" style="background: #1a365d; color: white; font-size: 1rem; padding: 0.4rem 1rem;">
-                {{ current_time_display }}
-            </span>
-            <button id="advance-btn" class="btn btn-primary" style="font-size: 1.1rem; font-weight: 700; cursor: pointer; border: none;">
-                +1
-            </button>
-        </div>
+        <span id="current-time" class="badge" style="background: #1a365d; color: white; font-size: 1rem; padding: 0.4rem 1rem;">
+            {{ current_time_display }}
+        </span>
     </div>
-    <div id="api-response" style="display: none;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-            <h3 style="font-size: 1rem; color: #4a5568;">API Response</h3>
-            <span id="response-summary" class="text-muted" style="font-size: 0.85rem;"></span>
-        </div>
-        <pre id="json-output" style="background: #1a202c; color: #68d391; padding: 1rem; border-radius: 6px; overflow: auto; max-height: 500px; font-size: 0.8rem; line-height: 1.5;"></pre>
+
+    <!-- Transport Controls -->
+    <div style="display: flex; align-items: center; gap: 0.75rem; padding: 1rem; flex-wrap: wrap;">
+        <button id="reset-btn" class="btn" style="background:#e53e3e; color:white; font-weight:600;">
+            &#8635; Reset
+        </button>
+
+        <button id="rewind-btn" class="btn btn-secondary">
+            &#9664;&#9664; Rewind
+        </button>
+
+        <button id="play-btn" class="btn btn-primary" style="font-size: 1.1rem; font-weight: 700; min-width: 120px;">
+            {% if auto_play %}&#9646;&#9646; Pause{% else %}&#9654; Play{% endif %}
+        </button>
+
+        <button id="forward-btn" class="btn btn-secondary">
+            Forward &#9654;&#9654;
+        </button>
+
+        <label style="font-weight:600; white-space:nowrap; margin-left: 0.5rem;">
+            Speed:
+            <select id="speed-select" style="margin-left: 0.25rem; padding: 0.3rem 0.5rem; border-radius: 4px; border: 1px solid #cbd5e0;">
+                <option value="1" {% if speed_seconds == 1 %}selected{% endif %}>1s/hr (fast)</option>
+                <option value="5" {% if speed_seconds == 5 or not speed_seconds %}selected{% endif %}>5s/hr</option>
+                <option value="10" {% if speed_seconds == 10 %}selected{% endif %}>10s/hr</option>
+                <option value="30" {% if speed_seconds == 30 %}selected{% endif %}>30s/hr</option>
+            </select>
+        </label>
+
+        <span style="margin-left: 0.5rem; display: flex; gap: 0.4rem;">
+            <button id="step-back-btn" class="btn btn-secondary" title="Step back 1 hour">&larr; -1</button>
+            <button id="step-fwd-btn" class="btn btn-primary" title="Step forward 1 hour">+1 &rarr;</button>
+        </span>
     </div>
+
+    <div id="status-msg" style="padding: 0 1rem 0.75rem; font-size: 0.9rem; color: #4a5568; min-height: 1.4em;"></div>
 </div>
 
 <!-- Patient Index -->
@@ -36,7 +60,7 @@
             <span class="badge" id="patient-count">{{ total_patients }} patient{{ total_patients|pluralize }}</span>
         </div>
     </div>
-    
+
     {% if page_obj %}
     <table>
         <thead>
@@ -72,25 +96,25 @@
                 <td>{{ patient.first_careunit|default:"-" }}</td>
                 <td class="text-muted">{{ patient.intime|date:"M d, Y H:i"|default:"-" }}</td>
                 <td>
-                    <a href="{% url 'patients:detail' patient.subject_id patient.stay_id patient.hadm_id %}" 
+                    <a href="{% url 'patients:detail' patient.subject_id patient.stay_id patient.hadm_id %}"
                        class="btn btn-primary btn-sm">View</a>
                 </td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
-    
+
     <!-- Pagination -->
     <div class="pagination">
         {% if page_obj.has_previous %}
             <a href="?page=1">&laquo; First</a>
             <a href="?page={{ page_obj.previous_page_number }}">Previous</a>
         {% endif %}
-        
+
         <span class="current">
             Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
         </span>
-        
+
         {% if page_obj.has_next %}
             <a href="?page={{ page_obj.next_page_number }}">Next</a>
             <a href="?page={{ page_obj.paginator.num_pages }}">Last &raquo;</a>
@@ -99,7 +123,7 @@
     {% else %}
     <p class="text-muted">
         {% if current_hour < 0 %}
-            Simulation has not started. Press <strong>+1</strong> to advance the clock and admit patients.
+            Simulation has not started. Press <strong>&#9654; Play</strong> or <strong>+1 &rarr;</strong> to begin.
         {% else %}
             No patients admitted yet at {{ current_time_display }}.
         {% endif %}
@@ -109,59 +133,172 @@
 
 <script>
 (function() {
-    const advanceBtn = document.getElementById('advance-btn');
-    const apiResponseDiv = document.getElementById('api-response');
-    const jsonOutput = document.getElementById('json-output');
-    const currentTimeEl = document.getElementById('current-time');
-    const responseSummary = document.getElementById('response-summary');
-    const csrfToken = '{{ csrf_token }}';
+    const csrf = '{{ csrf_token }}';
+    const timeEl = document.getElementById('current-time');
+    const statusMsg = document.getElementById('status-msg');
+    const playBtn = document.getElementById('play-btn');
+    const rewindBtn = document.getElementById('rewind-btn');
+    const forwardBtn = document.getElementById('forward-btn');
+    const stepBackBtn = document.getElementById('step-back-btn');
+    const stepFwdBtn = document.getElementById('step-fwd-btn');
+    const resetBtn = document.getElementById('reset-btn');
+    const speedSelect = document.getElementById('speed-select');
 
-    advanceBtn.addEventListener('click', function() {
-        advanceBtn.disabled = true;
-        advanceBtn.textContent = '...';
+    let autoPlay = {{ auto_play|yesno:"true,false" }};
+    let lastHour = {{ current_hour }};
+    let pollTimer = null;
 
-        fetch('{% url "patients:advance_time" %}', {
+    function post(url, body) {
+        return fetch(url, {
             method: 'POST',
             headers: {
-                'X-CSRFToken': csrfToken,
+                'X-CSRFToken': csrf,
+                'Content-Type': 'application/x-www-form-urlencoded',
             },
-        })
-        .then(response => response.json())
-        .then(data => {
-            // Show JSON response
-            // jsonOutput.textContent = JSON.stringify(data, null, 2);
-            // apiResponseDiv.style.display = 'block';
+            body: body || '',
+        }).then(r => r.json());
+    }
 
-            // Update time display
-            if (data.current_time) {
-                currentTimeEl.textContent = data.current_time;
-            }
+    function setStatus(msg) { statusMsg.textContent = msg; }
 
-            // Update summary line
-            if (!data.error) {
-                responseSummary.textContent =
-                    `+${data.new_patients_count} new patient(s) | ` +
-                    `${data.total_admitted} total admitted | ` +
-                    `${data.vitalsigns_count} vitalsign row(s) | ` +
-                    `${data.procedureevents_count} procedure row(s)`;
+    // ── Polling ───────────────────────────────────────────────────────────────
+    function startPolling() {
+        if (pollTimer) return;
+        pollTimer = setInterval(poll, 1000);
+    }
+
+    function stopPolling() {
+        if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    }
+
+    function poll() {
+        fetch('{% url "patients:simulation_status" %}')
+            .then(r => r.json())
+            .then(data => {
+                autoPlay = data.auto_play;
+                if (data.current_time) timeEl.textContent = data.current_time;
+                playBtn.textContent = autoPlay ? '\u23F8 Pause' : '\u25B6 Play';
+
+                if (!autoPlay) {
+                    stopPolling();
+                    location.reload();
+                } else if (data.current_hour !== lastHour) {
+                    lastHour = data.current_hour;
+                    location.reload();
+                }
+            })
+            .catch(() => {});
+    }
+
+    // ── Play / Pause ──────────────────────────────────────────────────────────
+    playBtn.addEventListener('click', function() {
+        if (autoPlay) {
+            post('{% url "patients:pause" %}').then(data => {
+                autoPlay = false;
+                playBtn.textContent = '\u25B6 Play';
+                setStatus('Paused at ' + (data.current_time || ''));
+                stopPolling();
+                location.reload();
+            });
+        } else {
+            const speed = speedSelect.value;
+            post('{% url "patients:play" %}', 'speed_seconds=' + speed + '&direction=forward')
+                .then(data => {
+                    autoPlay = true;
+                    playBtn.textContent = '\u23F8 Pause';
+                    setStatus('Playing forward at ' + speed + 's/hr');
+                    startPolling();
+                });
+        }
+    });
+
+    // ── Rewind (auto backward) ────────────────────────────────────────────────
+    rewindBtn.addEventListener('click', function() {
+        const speed = speedSelect.value;
+        post('{% url "patients:play" %}', 'speed_seconds=' + speed + '&direction=backward')
+            .then(data => {
+                if (data.status === 'already_playing') {
+                    setStatus('Already playing — pause first.');
+                    return;
+                }
+                autoPlay = true;
+                playBtn.textContent = '\u23F8 Pause';
+                setStatus('Rewinding at ' + speed + 's/hr');
+                startPolling();
+            });
+    });
+
+    // ── Forward fast (2×) ─────────────────────────────────────────────────────
+    forwardBtn.addEventListener('click', function() {
+        const speed = Math.max(1, parseFloat(speedSelect.value) / 2).toString();
+        post('{% url "patients:play" %}', 'speed_seconds=' + speed + '&direction=forward')
+            .then(data => {
+                if (data.status === 'already_playing') {
+                    setStatus('Already playing — pause first.');
+                    return;
+                }
+                autoPlay = true;
+                playBtn.textContent = '\u23F8 Pause';
+                setStatus('Playing 2\xd7 forward at ' + speed + 's/hr');
+                startPolling();
+            });
+    });
+
+    // ── Step +1 ───────────────────────────────────────────────────────────────
+    stepFwdBtn.addEventListener('click', function() {
+        stepFwdBtn.disabled = true;
+        stepFwdBtn.textContent = '\u23F3';
+        setStatus('Fetching MIMIC data\u2026 (may take 10\u201320s)');
+        post('{% url "patients:advance_time" %}').then(data => {
+            if (data.error) {
+                setStatus('Error: ' + data.error);
+                stepFwdBtn.disabled = false;
+                stepFwdBtn.textContent = '+1 \u2192';
             } else {
-                responseSummary.textContent = data.error;
+                location.reload();
             }
-
-            advanceBtn.disabled = false;
-            advanceBtn.textContent = '+1';
-
-            // Reload the page after a short delay so the patient table updates
-            // but the user has a moment to see the JSON response
-            setTimeout(() => location.reload(), 1500);
-        })
-        .catch(err => {
-            jsonOutput.textContent = 'Error: ' + err.message;
-            apiResponseDiv.style.display = 'block';
-            advanceBtn.disabled = false;
-            advanceBtn.textContent = '+1';
+        }).catch(function(err) {
+            setStatus('Network error: ' + err.message);
+            stepFwdBtn.disabled = false;
+            stepFwdBtn.textContent = '+1 \u2192';
         });
     });
+
+    // ── Step -1 ───────────────────────────────────────────────────────────────
+    stepBackBtn.addEventListener('click', function() {
+        stepBackBtn.disabled = true;
+        stepBackBtn.textContent = '\u23F3';
+        setStatus('Rewinding\u2026');
+        post('{% url "patients:rewind_time" %}').then(data => {
+            if (data.error) {
+                setStatus('Error: ' + data.error);
+                stepBackBtn.disabled = false;
+                stepBackBtn.textContent = '\u2190 -1';
+            } else {
+                location.reload();
+            }
+        }).catch(function(err) {
+            setStatus('Network error: ' + err.message);
+            stepBackBtn.disabled = false;
+            stepBackBtn.textContent = '\u2190 -1';
+        });
+    });
+
+    // ── Reset ─────────────────────────────────────────────────────────────────
+    resetBtn.addEventListener('click', function() {
+        if (!confirm('Reset simulation? This will delete all simulated data.')) return;
+        resetBtn.disabled = true;
+        stopPolling();
+        post('{% url "patients:reset" %}').then(() => {
+            location.reload();
+        }).catch(() => { resetBtn.disabled = false; });
+    });
+
+    // Resume polling if auto_play was active on page load
+    if (autoPlay) {
+        playBtn.textContent = '\u23F8 Pause';
+        startPolling();
+    }
 })();
 </script>
 {% endblock %}

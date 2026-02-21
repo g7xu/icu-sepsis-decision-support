@@ -126,6 +126,22 @@ STATICFILES_DIRS = [BASE_DIR / 'static']
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        'patients': {
+            'handlers': ['console'],
+            'level': 'INFO',
+        },
+    },
+}
+
 # Model service (external HTTPS prediction API)
 # When MODEL_SERVICE_URL is empty, prediction falls back to stub data for local dev
 MODEL_SERVICE_URL = os.getenv('MODEL_SERVICE_URL', '').rstrip('/')
