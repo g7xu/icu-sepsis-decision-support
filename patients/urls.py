@@ -11,8 +11,15 @@ app_name = 'patients'
 urlpatterns = [
     # UI Views
     path('', views.patient_list, name='index'),
-    path('advance-time/', views.advance_time, name='advance_time'),
     path('<int:subject_id>/<int:stay_id>/<int:hadm_id>/', views.patient_detail, name='detail'),
+
+    # Simulation clock controls
+    path('advance-time/',      views.advance_time,      name='advance_time'),
+    path('rewind-time/',       views.rewind_time,        name='rewind_time'),
+    path('play/',              views.play,               name='play'),
+    path('pause/',             views.pause,              name='pause'),
+    path('reset/',             views.reset,              name='reset'),
+    path('simulation-status/', views.simulation_status,  name='simulation_status'),
 
     # JSON API Endpoints (Features for ML)
     path('<int:subject_id>/<int:stay_id>/<int:hadm_id>/features/static', api.get_static_features, name='features_static'),

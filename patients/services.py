@@ -5,30 +5,36 @@ from django.db import connection
 # Use the same candidate list, but mapped to string names
 DERIVED_TABLE_CANDIDATES = {
     "profile": [
+        "simulation.sim_patient",
         "fisi9t_unique_patient_profile",
         "mimiciv_derived.fisi9t_unique_patient_profile",
     ],
     "vitals_hourly": [
+        "simulation.sim_vitalsign_hourly",
         "fisi9t_vitalsign_hourly",
         "mimiciv_derived.fisi9t_vitalsign_hourly",
     ],
     "procedures_hourly": [
+        "simulation.sim_procedureevents_hourly",
         "fisi9t_procedureevents_hourly",
         "mimiciv_derived.fisi9t_procedureevents_hourly",
     ],
     "sofa_hourly": [
+        "simulation.sim_sofa_hourly",
         "sofa_hourly",
         "mimiciv_derived.sofa_hourly",
         "sofa",
         "mimiciv_derived.sofa",
     ],
     "chemistry_hourly": [
+        "simulation.sim_chemistry_hourly",
         "fisi9t_chemistry_hourly",
         "mimiciv_derived.fisi9t_chemistry_hourly",
         "chemistry_hourly",
         "mimiciv_derived.chemistry_hourly",
     ],
     "coagulation_hourly": [
+        "simulation.sim_coagulation_hourly",
         "fisi9t_coagulation_hourly",
         "mimiciv_derived.fisi9t_coagulation_hourly",
         "coagulation_hourly",
