@@ -3,6 +3,7 @@ Patient views - handles patient list, detail pages, and simulation clock API.
 """
 
 import json
+from datetime import datetime
 
 from django.shortcuts import render, get_object_or_404
 from django.core.paginator import Paginator
@@ -13,6 +14,7 @@ from django.views.decorators.http import require_POST
 
 from .models import UniquePatientProfile, VitalsignHourly, ProcedureeventsHourly
 from .cohort import get_cohort_filter
+from .services import get_prediction
 
 
 # =============================================================================
@@ -40,6 +42,18 @@ def _display_time(current_hour):
         return "March 14, 2025 00:00"
     else:
         return f"March 13, 2025 {display_hour:02d}:00"
+
+
+def _prediction_as_of_dt(current_hour):
+    """
+    Backend timestamp used for model scoring per simulation hour.
+    Mirrors frontend display mapping (+1 hour offset).
+    """
+    if current_hour < 0:
+        return None
+    if current_hour >= 23:
+        return datetime(2025, 3, 14, 0, 0, 0)
+    return datetime(2025, 3, 13, current_hour + 1, 0, 0)
 
 
 def _get_cohort_patients():
@@ -212,6 +226,7 @@ def advance_time(request):
     # --- 2. All currently admitted patient stay_ids ---
     admitted_qs = _get_admitted_patients(current_hour)
     admitted_stay_ids = list(admitted_qs.values_list('stay_id', flat=True))
+    admitted_patients = list(admitted_qs.values('subject_id', 'stay_id', 'hadm_id'))
 
     # --- 3. Vitalsigns at this hour for admitted patients ---
     vitalsigns_data = []
@@ -248,6 +263,38 @@ def advance_time(request):
             'statusdescription', 'originalamount', 'originalrate',
         ))
 
+    # --- 5. Score ALL admitted patients at this hour ---
+    model_scoring_table = []
+    as_of_dt = _prediction_as_of_dt(current_hour)
+    if as_of_dt is not None:
+        for patient in admitted_patients:
+            pred = get_prediction(
+                subject_id=patient['subject_id'],
+                stay_id=patient['stay_id'],
+                hadm_id=patient['hadm_id'],
+                as_of=as_of_dt,
+                window_hours=24,
+            )
+            if pred.get('ok'):
+                model_scoring_table.append({
+                    'subject_id': patient['subject_id'],
+                    'stay_id': patient['stay_id'],
+                    'hadm_id': patient['hadm_id'],
+                    'as_of': as_of_dt.isoformat(),
+                    'risk_score': pred.get('risk_score'),
+                    'comorbidity_group': pred.get('comorbidity_group'),
+                    'ok': True,
+                })
+            else:
+                model_scoring_table.append({
+                    'subject_id': patient['subject_id'],
+                    'stay_id': patient['stay_id'],
+                    'hadm_id': patient['hadm_id'],
+                    'as_of': as_of_dt.isoformat(),
+                    'ok': False,
+                    'error': pred.get('error', 'prediction failed'),
+                })
+
     # --- Build response ---
     response_data = {
         'current_hour': current_hour,
@@ -259,6 +306,8 @@ def advance_time(request):
         'vitalsigns_count': len(vitalsigns_data),
         'procedureevents': procedures_data,
         'procedureevents_count': len(procedures_data),
+        'model_scoring_table': model_scoring_table,
+        'model_scoring_count': len(model_scoring_table),
     }
 
     return JsonResponse(response_data)
