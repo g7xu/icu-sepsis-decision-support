@@ -21,9 +21,8 @@ Then open `http://localhost:8000/patients/`. See [RUNNING.md](RUNNING.md) for de
 .
 ├── config/            # Django settings
 ├── patients/          # Patient app (views, API, services)
-├── scripts/           # SQL for views (run on MIMIC-IV DB)
+├── scripts/           # Reference SQL for materialized views
 ├── templates/
-├── SETUP_VIEWS.md     # View setup & env config procedure
 ├── requirements.txt
 ├── Dockerfile
 ├── docker-compose.yml
@@ -44,8 +43,8 @@ Then open `http://localhost:8000/patients/`. See [RUNNING.md](RUNNING.md) for de
 
 ## SQL & Data Sources
 
-The `scripts/` directory contains SQL for regular **views** (no materialized views — zero extra storage). Run them in order on your MIMIC-IV database. See [SETUP_VIEWS.md](SETUP_VIEWS.md) for the full procedure.
+The `scripts/` directory contains reference SQL for materialized views (e.g. `fisi9t_vitalsign_hourly`). These views must exist in your Postgres database for the feature endpoints to return data.
 
 ## Environment
 
-Copy `.env.example` to `.env` and fill in your values. For AWS RDS, see [SETUP_VIEWS.md](SETUP_VIEWS.md) Step 2.
+Compose loads `.env.example` by default. Copy to `.env` for local overrides.

@@ -1,61 +1,47 @@
 """
-Patient views — HTML pages and simulation clock API.
-
-Simulation clock endpoints:
-  POST /patients/advance-time/      step forward 1 hour
-  POST /patients/rewind-time/       step backward 1 hour (true state rewind)
-  POST /patients/play/              start auto-advance (forward or backward)
-  POST /patients/pause/             stop auto-advance
-  POST /patients/reset/             clear all sim tables, reset clock to -1
-  GET  /patients/simulation-status/ polling endpoint for the frontend
+Patient views - handles patient list, detail pages, and simulation clock API.
 """
 
 import json
 from datetime import datetime
 
+from django.shortcuts import render, get_object_or_404
 from django.core.paginator import Paginator
 from django.core.serializers.json import DjangoJSONEncoder
+from django.db.models import Q
 from django.http import JsonResponse
-from django.shortcuts import get_object_or_404, render
-from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.http import require_POST
 
+from .models import UniquePatientProfile, VitalsignHourly, ProcedureeventsHourly
 from .cohort import get_cohort_filter
-from .models import (
-    SimChemistryHourly,
-    SimCoagulationHourly,
-    SimPatient,
-    SimProcedureeventsHourly,
-    SimSofaHourly,
-    SimVitalsignHourly,
-)
-from .pipeline import advance_hour, rewind_hour
 from .services import get_prediction
+
 
 # =============================================================================
 # In-memory simulation state — resets when the server restarts
 # =============================================================================
-
 _simulation = {
-    'current_hour': -1,      # -1 = not started (ICU empty)
-    'auto_play': False,
-    'speed_seconds': 5.0,    # real seconds per simulated hour
-    'direction': 'forward',  # 'forward' | 'backward'
-    '_thread': None,
+    'current_hour': -1,  # -1 = not started yet (ICU is empty)
 }
-_sim_lock = threading.Lock()
 
 
 # =============================================================================
 # Helper functions
 # =============================================================================
 
-def _display_time(current_hour: int) -> str:
+def _display_time(current_hour):
+    """
+    Frontend display time — offset by +1 so the first click shows 01:00
+    instead of staying at 00:00.  The backend data queries still use
+    current_hour directly (0, 1, 2, …).
+    """
     display_hour = current_hour + 1
     if display_hour <= 0:
         return "March 13, 2025 00:00"
     elif display_hour >= 24:
         return "March 14, 2025 00:00"
-    return f"March 13, 2025 {display_hour:02d}:00"
+    else:
+        return f"March 13, 2025 {display_hour:02d}:00"
 
 
 def _prediction_as_of_dt(current_hour):
@@ -103,23 +89,21 @@ def _get_admitted_patients(current_hour):
 
 
 # =============================================================================
-# HTML views
+# Views
 # =============================================================================
 
 def patient_list(request):
     """
-    Display admitted patients (all rows in sim_patient = admitted so far).
+    Display a paginated list of patients currently admitted in the simulation.
     URL: /patients/
     """
     current_hour = _simulation['current_hour']
+    patients = _get_admitted_patients(current_hour).order_by('subject_id')
 
-    if current_hour < 0:
-        patients = SimPatient.objects.none()
-    else:
-        patients = SimPatient.objects.all().order_by('subject_id')
-
+    # Pagination - 25 patients per page
     paginator = Paginator(patients, 25)
-    page_obj = paginator.get_page(request.GET.get('page'))
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
 
     context = {
         'page_obj': page_obj,
@@ -127,23 +111,22 @@ def patient_list(request):
         'cohort_active': get_cohort_filter() is not None,
         'current_hour': current_hour,
         'current_time_display': _display_time(current_hour),
-        'auto_play': _simulation['auto_play'],
-        'speed_seconds': _simulation['speed_seconds'],
-        'direction': _simulation['direction'],
     }
     return render(request, 'patients/index.html', context)
 
 
 def patient_detail(request, subject_id, stay_id, hadm_id):
     """
-    Display details for a specific patient stay.
+    Display details for a specific patient stay, including vitalsign chart
+    and procedure events log up to the current simulation hour.
+
     URL: /patients/<subject_id>/<stay_id>/<hadm_id>/
     """
     patient = get_object_or_404(
-        SimPatient,
+        UniquePatientProfile,
         subject_id=subject_id,
         stay_id=stay_id,
-        hadm_id=hadm_id,
+        hadm_id=hadm_id
     )
 
     current_hour = _simulation['current_hour']
@@ -151,9 +134,13 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
     procedures = []
 
     if current_hour >= 0:
-        vitalsigns_qs = SimVitalsignHourly.objects.filter(
+        # --- Vitalsigns for Plotly chart ---
+        vitalsigns_qs = VitalsignHourly.objects.filter(
             subject_id=subject_id,
             stay_id=stay_id,
+            charttime_hour__month=3,
+            charttime_hour__day=13,
+            charttime_hour__hour__lte=current_hour,
         ).order_by('charttime_hour')
 
         vitalsigns_list = []
@@ -162,20 +149,26 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
             'heart_rate', 'sbp', 'dbp', 'mbp',
             'resp_rate', 'temperature', 'spo2', 'glucose',
         ):
+            # Add a clean hour label for the Plotly x-axis
             row['hour_label'] = f"{row['charttime_hour'].hour:02d}:00"
             vitalsigns_list.append(row)
 
         vitalsigns_json = json.dumps(vitalsigns_list, cls=DjangoJSONEncoder)
 
-        procedures = list(SimProcedureeventsHourly.objects.filter(
+        # --- Procedure events for the log ---
+        procedures = list(ProcedureeventsHourly.objects.filter(
             subject_id=subject_id,
             stay_id=stay_id,
+            charttime_hour__month=3,
+            charttime_hour__day=13,
+            charttime_hour__hour__lte=current_hour,
         ).order_by('charttime_hour').values(
             'charttime_hour', 'charttime',
             'item_label', 'value', 'valueuom',
             'ordercategoryname', 'statusdescription',
         ))
 
+    # Prediction "as_of" time for the API (matches simulation clock)
     if current_hour < 0:
         prediction_as_of_iso = None
     elif current_hour >= 23:
@@ -195,18 +188,22 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
     return render(request, 'patients/show.html', context)
 
 
-# =============================================================================
-# Simulation clock API endpoints
-# =============================================================================
-
 @require_POST
 def advance_time(request):
-    """Step the simulation forward by 1 hour."""
-    with _sim_lock:
-        if _simulation['current_hour'] >= 23:
-            return JsonResponse({'error': 'Cannot advance past 23:00', 'current_hour': 23}, status=400)
-        _simulation['current_hour'] += 1
-        current_hour = _simulation['current_hour']
+    """
+    API endpoint: advance the simulation clock by 1 hour.
+
+    Returns JSON with:
+      - current_hour
+      - new_patients admitted at this hour
+      - vitalsigns for ALL admitted patients at this hour (may be empty)
+      - procedureevents for ALL admitted patients at this hour (may be empty)
+
+    POST /patients/advance-time/
+    """
+    # --- Advance the clock ---
+    _simulation['current_hour'] += 1
+    current_hour = _simulation['current_hour']
 
     # Cap at hour 23
     if current_hour > 23:
