@@ -1,14 +1,28 @@
+version: '3.8'
+
 services:
   web:
     build: .
     command: python manage.py runserver 0.0.0.0:8000
-    env_file: .env
     volumes:
       - .:/code
     ports:
       - "8000:8000"
     depends_on:
       - db
+    environment:
+      - DB_NAME=sepsis
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_HOST=db
+      - DB_PORT=5432
+      # Add default schema if needed, though 'public' is standard for fresh DBs
+      # The settings.py defaults to 'mimiciv_derived', but for our local docker 
+      # we might want standard 'public' or ensure 'mimiciv_derived' exists.
+      # I'll stick to 'public' for the scaffolding unless you have a restore script.
+      - DB_SCHEMA=public 
+      - SECRET_KEY=dev_secret_key
+      - DEBUG=True
 
   db:
     image: postgres:14
@@ -19,13 +33,7 @@ services:
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=sepsis
     ports:
-      - "5434:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d sepsis"]
-      interval: 2s
-      timeout: 5s
-      retries: 10
-      start_period: 10s
+      - "5432:5432"
 
 volumes:
   postgres_data:
