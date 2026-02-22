@@ -193,6 +193,8 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
         'current_hour': current_hour,
         'current_time_display': _display_time(current_hour),
         'prediction_as_of_iso': prediction_as_of_iso,
+        'auto_play': _simulation['auto_play'],
+        'speed_seconds': _simulation['speed_seconds'],
     }
     return render(request, 'patients/show.html', context)
 
@@ -250,7 +252,7 @@ def play(request):
         if _simulation['auto_play']:
             return JsonResponse({'status': 'already_playing',
                                  'current_hour': _simulation['current_hour']})
-        speed = float(request.POST.get('speed_seconds', 5.0))
+        speed = float(request.POST.get('speed_seconds') or 5.0)
         direction = request.POST.get('direction', 'forward')
         _simulation['auto_play'] = True
         _simulation['speed_seconds'] = speed
