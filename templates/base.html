@@ -150,6 +150,28 @@
         .gender-male { color: #3182ce; }
         .gender-female { color: #d53f8c; }
 
+        /* ── Card header flex wrap ───────────────────────────────────────────── */
+        .card-header { flex-wrap: wrap; gap: 0.75rem; }
+
+        /* ── Tab bar ─────────────────────────────────────────────────────────── */
+        .tab-bar { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+        .tab-btn {
+            padding: 0.35rem 1rem;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+            background: white;
+            color: #4a5568;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 0.875rem;
+            transition: background 0.15s, color 0.15s;
+        }
+        .tab-btn:hover { background: #edf2f7; }
+        .tab-btn.active { background: #1a365d; color: white; border-color: #1a365d; }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+        .chart-empty-msg { padding: 2rem 1rem; }
+
         /* ── Simulation Dock ─────────────────────────────────────────────────── */
         .sim-dock {
             position: fixed;
