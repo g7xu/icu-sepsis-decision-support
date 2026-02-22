@@ -193,6 +193,8 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
         'current_hour': current_hour,
         'current_time_display': _display_time(current_hour),
         'prediction_as_of_iso': prediction_as_of_iso,
+        'auto_play': _simulation['auto_play'],
+        'speed_seconds': _simulation['speed_seconds'],
     }
     return render(request, 'patients/show.html', context)
 

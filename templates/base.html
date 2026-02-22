@@ -10,37 +10,37 @@
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
             background-color: #f5f7fa;
             color: #333;
             line-height: 1.6;
         }
-        
+
         .navbar {
             background: linear-gradient(135deg, #1a365d 0%, #2c5282 100%);
             color: white;
             padding: 1rem 2rem;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-        
+
         .navbar h1 {
             font-size: 1.5rem;
             font-weight: 600;
         }
-        
+
         .navbar .subtitle {
             font-size: 0.875rem;
             opacity: 0.8;
         }
-        
+
         .container {
             max-width: 1200px;
             margin: 0 auto;
             padding: 2rem;
         }
-        
+
         .card {
             background: white;
             border-radius: 8px;
@@ -48,7 +48,7 @@
             padding: 1.5rem;
             margin-bottom: 1rem;
         }
-        
+
         .card-header {
             display: flex;
             justify-content: space-between;
@@ -57,12 +57,12 @@
             padding-bottom: 1rem;
             border-bottom: 1px solid #e2e8f0;
         }
-        
+
         .card-header h2 {
             font-size: 1.25rem;
             color: #1a365d;
         }
-        
+
         .badge {
             background: #e2e8f0;
             color: #4a5568;
@@ -70,18 +70,18 @@
             border-radius: 9999px;
             font-size: 0.875rem;
         }
-        
+
         table {
             width: 100%;
             border-collapse: collapse;
         }
-        
+
         th, td {
             padding: 0.75rem 1rem;
             text-align: left;
             border-bottom: 1px solid #e2e8f0;
         }
-        
+
         th {
             background: #f7fafc;
             font-weight: 600;
@@ -90,11 +90,11 @@
             text-transform: uppercase;
             letter-spacing: 0.05em;
         }
-        
+
         tr:hover {
             background: #f7fafc;
         }
-        
+
         .btn {
             display: inline-block;
             padding: 0.5rem 1rem;
@@ -103,28 +103,28 @@
             font-weight: 500;
             transition: all 0.2s;
         }
-        
+
         .btn-primary {
             background: #3182ce;
             color: white;
         }
-        
+
         .btn-primary:hover {
             background: #2c5282;
         }
-        
+
         .btn-sm {
             padding: 0.25rem 0.75rem;
             font-size: 0.875rem;
         }
-        
+
         .pagination {
             display: flex;
             gap: 0.5rem;
             justify-content: center;
             margin-top: 1.5rem;
         }
-        
+
         .pagination a, .pagination span {
             padding: 0.5rem 1rem;
             border: 1px solid #e2e8f0;
@@ -132,23 +132,94 @@
             text-decoration: none;
             color: #4a5568;
         }
-        
+
         .pagination a:hover {
             background: #e2e8f0;
         }
-        
+
         .pagination .current {
             background: #3182ce;
             color: white;
             border-color: #3182ce;
         }
-        
+
         .text-muted {
             color: #718096;
         }
-        
+
         .gender-male { color: #3182ce; }
         .gender-female { color: #d53f8c; }
+
+        /* ── Simulation Dock ─────────────────────────────────────────────────── */
+        .sim-dock {
+            position: fixed;
+            top: 0.5rem;
+            right: 1rem;
+            z-index: 1000;
+            background: rgba(74, 85, 104, 0.88);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            color: white;
+            border-radius: 8px;
+            padding: 0.35rem 0.65rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            font-size: 0.85rem;
+            user-select: none;
+        }
+        .sim-dock-time {
+            font-size: 0.85rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            opacity: 0.95;
+            margin-right: 0.4rem;
+        }
+        .sim-dock-controls {
+            display: flex;
+            gap: 0.3rem;
+            flex-wrap: nowrap;
+            align-items: center;
+        }
+        .sim-dock .dock-btn {
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.22);
+            color: white;
+            border-radius: 5px;
+            padding: 0.25rem 0.55rem;
+            font-size: 0.8rem;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.15s;
+            line-height: 1.4;
+        }
+        .sim-dock .dock-btn:hover  { background: rgba(255,255,255,0.28); }
+        .sim-dock .dock-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .sim-dock .dock-btn-play {
+            background: rgba(49,130,206,0.72);
+            border-color: rgba(144,205,244,0.35);
+            min-width: 78px;
+        }
+        .sim-dock .dock-btn-play:hover  { background: rgba(49,130,206,0.95); }
+        .sim-dock .dock-btn-reset {
+            background: rgba(229,62,62,0.60);
+            border-color: rgba(255,160,160,0.3);
+        }
+        .sim-dock .dock-btn-reset:hover { background: rgba(229,62,62,0.90); }
+        .sim-dock select.dock-select {
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.22);
+            color: white;
+            border-radius: 5px;
+            padding: 0.22rem 0.3rem;
+            font-size: 0.78rem;
+            cursor: pointer;
+        }
+        .sim-dock select.dock-select option { color: #333; background: white; }
+        .sim-dock-status {
+            font-size: 0.72rem;
+            opacity: 0.68;
+            min-height: 1em;
+            margin-top: 0.2rem;
+        }
     </style>
 </head>
 <body>
@@ -156,9 +227,198 @@
         <h1>ICU Sepsis Decision Support</h1>
         <span class="subtitle">Clinical Decision Support System</span>
     </nav>
-    
+
     <div class="container">
         {% block content %}{% endblock %}
     </div>
+
+    <!-- Hidden state element injected by each page template -->
+    {% block sim_state %}{% endblock %}
+
+    <!-- Simulation Clock Dock — fixed top-right, shared across all pages -->
+    <div class="sim-dock" id="sim-dock">
+        <div class="sim-dock-controls">
+            <span class="sim-dock-time" id="dock-time">–</span>
+            <button class="dock-btn dock-btn-reset" id="dock-reset" title="Reset simulation">&#8635;</button>
+            <button class="dock-btn" id="dock-rewind" title="Auto-rewind">&#9664;&#9664;</button>
+            <button class="dock-btn dock-btn-play" id="dock-play">&#9654; Play</button>
+            <button class="dock-btn" id="dock-forward" title="Fast-forward 2&#215;">&#9654;&#9654;</button>
+            <select class="dock-select" id="dock-speed" title="Speed per simulated hour">
+                <option value="1">1s/hr</option>
+                <option value="5" selected>5s/hr</option>
+                <option value="10">10s/hr</option>
+                <option value="30">30s/hr</option>
+            </select>
+            <button class="dock-btn" id="dock-back" title="Step back 1 hour">&#8592; -1</button>
+            <button class="dock-btn" id="dock-fwd" title="Step forward 1 hour">+1 &#8594;</button>
+        </div>
+        <div class="sim-dock-status" id="dock-status"></div>
+    </div>
+
+    <script>
+    (function() {
+        // Seed initial state from hidden element provided by each page via the sim_state block
+        const stateEl = document.getElementById('sim-initial-state');
+        let autoPlay = stateEl ? stateEl.dataset.autoPlay === 'true' : false;
+        let lastHour = stateEl ? parseInt(stateEl.dataset.currentHour, 10) : -1;
+        const csrf   = stateEl ? stateEl.dataset.csrf : '';
+
+        const timeEl    = document.getElementById('dock-time');
+        const playBtn   = document.getElementById('dock-play');
+        const rewindBtn = document.getElementById('dock-rewind');
+        const fwdBtn    = document.getElementById('dock-forward');
+        const backBtn   = document.getElementById('dock-back');
+        const stepBtn   = document.getElementById('dock-fwd');
+        const resetBtn  = document.getElementById('dock-reset');
+        const speedSel  = document.getElementById('dock-speed');
+        const statusEl  = document.getElementById('dock-status');
+
+        // Seed display from page state
+        if (stateEl && stateEl.dataset.speedSeconds) {
+            speedSel.value = stateEl.dataset.speedSeconds;
+        }
+        if (stateEl && stateEl.dataset.currentTime) {
+            timeEl.textContent = stateEl.dataset.currentTime;
+        }
+        playBtn.innerHTML = autoPlay ? '&#9646;&#9646; Pause' : '&#9654; Play';
+
+        function post(url, body) {
+            return fetch(url, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrf,
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: body || '',
+            }).then(r => r.json());
+        }
+
+        function setStatus(msg) { statusEl.textContent = msg; }
+
+        // ── Polling ───────────────────────────────────────────────────────────
+        let pollTimer = null;
+        function startPolling() {
+            if (pollTimer) return;
+            pollTimer = setInterval(poll, 1000);
+        }
+        function stopPolling() {
+            if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+        }
+        function poll() {
+            fetch('{% url "patients:simulation_status" %}')
+                .then(r => r.json())
+                .then(data => {
+                    autoPlay = data.auto_play;
+                    if (data.current_time) timeEl.textContent = data.current_time;
+                    playBtn.innerHTML = autoPlay ? '&#9646;&#9646; Pause' : '&#9654; Play';
+                    if (!autoPlay) {
+                        stopPolling();
+                        location.reload();
+                    } else if (data.current_hour !== lastHour) {
+                        lastHour = data.current_hour;
+                        location.reload();
+                    }
+                }).catch(() => {});
+        }
+
+        // ── Play / Pause ──────────────────────────────────────────────────────
+        playBtn.addEventListener('click', function() {
+            if (autoPlay) {
+                post('{% url "patients:pause" %}').then(data => {
+                    autoPlay = false;
+                    playBtn.innerHTML = '&#9654; Play';
+                    setStatus('Paused at ' + (data.current_time || ''));
+                    stopPolling();
+                    location.reload();
+                });
+            } else {
+                post('{% url "patients:play" %}', 'speed_seconds=' + speedSel.value + '&direction=forward')
+                    .then(() => {
+                        autoPlay = true;
+                        playBtn.innerHTML = '&#9646;&#9646; Pause';
+                        setStatus('Playing forward\u2026');
+                        startPolling();
+                    });
+            }
+        });
+
+        // ── Rewind (auto backward) ────────────────────────────────────────────
+        rewindBtn.addEventListener('click', function() {
+            post('{% url "patients:play" %}', 'speed_seconds=' + speedSel.value + '&direction=backward')
+                .then(data => {
+                    if (data.status === 'already_playing') { setStatus('Pause first.'); return; }
+                    autoPlay = true;
+                    playBtn.innerHTML = '&#9646;&#9646; Pause';
+                    setStatus('Rewinding\u2026');
+                    startPolling();
+                });
+        });
+
+        // ── Fast forward (2×) ─────────────────────────────────────────────────
+        fwdBtn.addEventListener('click', function() {
+            const speed = Math.max(1, parseFloat(speedSel.value) / 2).toString();
+            post('{% url "patients:play" %}', 'speed_seconds=' + speed + '&direction=forward')
+                .then(data => {
+                    if (data.status === 'already_playing') { setStatus('Pause first.'); return; }
+                    autoPlay = true;
+                    playBtn.innerHTML = '&#9646;&#9646; Pause';
+                    setStatus('Fast-forward\u2026');
+                    startPolling();
+                });
+        });
+
+        // ── Step +1 ───────────────────────────────────────────────────────────
+        stepBtn.addEventListener('click', function() {
+            stepBtn.disabled = true;
+            stepBtn.textContent = '\u23F3';
+            setStatus('Advancing 1 hour\u2026');
+            post('{% url "patients:advance_time" %}').then(data => {
+                if (data.error) {
+                    setStatus('Error: ' + data.error);
+                    stepBtn.disabled = false;
+                    stepBtn.innerHTML = '+1 &#8594;';
+                } else {
+                    location.reload();
+                }
+            }).catch(() => {
+                setStatus('Network error.');
+                stepBtn.disabled = false;
+                stepBtn.innerHTML = '+1 &#8594;';
+            });
+        });
+
+        // ── Step -1 ───────────────────────────────────────────────────────────
+        backBtn.addEventListener('click', function() {
+            backBtn.disabled = true;
+            backBtn.textContent = '\u23F3';
+            setStatus('Rewinding 1 hour\u2026');
+            post('{% url "patients:rewind_time" %}').then(data => {
+                if (data.error) {
+                    setStatus('Error: ' + data.error);
+                    backBtn.disabled = false;
+                    backBtn.innerHTML = '&#8592; -1';
+                } else {
+                    location.reload();
+                }
+            }).catch(() => {
+                setStatus('Network error.');
+                backBtn.disabled = false;
+                backBtn.innerHTML = '&#8592; -1';
+            });
+        });
+
+        // ── Reset ─────────────────────────────────────────────────────────────
+        resetBtn.addEventListener('click', function() {
+            if (!confirm('Reset simulation? This will delete all simulated patient data.')) return;
+            resetBtn.disabled = true;
+            stopPolling();
+            post('{% url "patients:reset" %}').then(() => location.reload())
+                .catch(() => { resetBtn.disabled = false; });
+        });
+
+        // Resume polling if auto-play was active on page load
+        if (autoPlay) startPolling();
+    })();
+    </script>
 </body>
 </html>
