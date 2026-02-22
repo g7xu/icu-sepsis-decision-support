@@ -17,10 +17,16 @@ DERIVED_TABLE_CANDIDATES = {
         "mimiciv_derived.fisi9t_procedureevents_hourly",
     ],
     "sofa_hourly": [
+        "fisi9t_sofa_hourly",
+        "mimiciv_derived.fisi9t_sofa_hourly",
         "sofa_hourly",
         "mimiciv_derived.sofa_hourly",
         "sofa",
         "mimiciv_derived.sofa",
+    ],
+    "feature_matrix_hourly": [
+        "fisi9t_feature_matrix_hourly",
+        "mimiciv_derived.fisi9t_feature_matrix_hourly",
     ],
     "chemistry_hourly": [
         "fisi9t_chemistry_hourly",
@@ -375,6 +381,24 @@ def _prediction_payload(subject_id, stay_id, hadm_id, as_of, current_row, histor
     }
 
 
+def _prediction_payload_feature_matrix(subject_id, stay_id, hadm_id, as_of, current_row, history_rows):
+    return {
+        "patient": {
+            "subject_id": subject_id,
+            "stay_id": stay_id,
+            "hadm_id": hadm_id,
+        },
+        "as_of": as_of.isoformat(),
+        "current_feature_vector": _serialize_row(current_row),
+        "source_keys": {
+            "subject_id": current_row.get("subject_id"),
+            "stay_id": current_row.get("stay_id"),
+            "charttime_hour": current_row.get("charttime_hour"),
+        },
+        "history_feature_vectors": [_serialize_row(r) for r in history_rows],
+    }
+
+
 def _normalize_hour(value):
     if value is None:
         return None
@@ -477,6 +501,48 @@ def _build_current_vector_from_sources(source_rows, as_of):
     return current_vector, None
 
 
+def _fetch_feature_matrix_rows(subject_id, stay_id, start, end, limit=50000):
+    table = _pick_first_existing(DERIVED_TABLE_CANDIDATES["feature_matrix_hourly"])
+    if not table:
+        return None, "No feature matrix table found"
+
+    fetched = _fetch_rows(
+        table=table,
+        where_sql=(
+            "subject_id = %(subject_id)s "
+            "AND stay_id = %(stay_id)s "
+            "AND charttime_hour >= %(start)s "
+            "AND charttime_hour <= %(end)s"
+        ),
+        params={
+            "subject_id": subject_id,
+            "stay_id": stay_id,
+            "start": start,
+            "end": end,
+        },
+        order_sql="charttime_hour",
+        limit=limit,
+    )
+    if not fetched.get("ok"):
+        return None, fetched.get("error", "Feature matrix fetch failed")
+    rows = fetched.get("rows", [])
+    if not rows:
+        return None, "No feature matrix rows for patient in window"
+    return rows, None
+
+
+def _latest_row_at_or_before(rows, as_of):
+    valid = []
+    for row in rows:
+        hour = _normalize_hour(row.get("charttime_hour"))
+        if hour is not None and hour <= as_of:
+            valid.append((hour, row))
+    if not valid:
+        return None
+    valid.sort(key=lambda t: t[0])
+    return valid[-1][1]
+
+
 def _load_history_vectors_from_s3(s3, bucket, patient_prefix, history_limit, current_key):
     feature_prefix = f"{patient_prefix}/features/"
     keys = _list_s3_keys(s3, bucket, feature_prefix)
@@ -524,13 +590,28 @@ def get_prediction(subject_id, stay_id, hadm_id, as_of, window_hours=24):
     history_hours = int(getattr(settings, "MODEL_HISTORY_HOURS", 6) or 6)
 
     start = as_of - timedelta(hours=window_hours)
-    source_rows, source_err = _fetch_required_model_sources(subject_id, stay_id, start, as_of)
-    if source_err:
-        return {"ok": False, "error": source_err}
 
-    current_row, current_err = _build_current_vector_from_sources(source_rows, as_of)
-    if current_err:
-        return {"ok": False, "error": current_err}
+    using_feature_matrix = False
+    local_history_rows = []
+    matrix_rows, matrix_err = _fetch_feature_matrix_rows(subject_id, stay_id, start, as_of)
+    if matrix_rows:
+        using_feature_matrix = True
+        current_row = _latest_row_at_or_before(matrix_rows, as_of)
+        if not current_row:
+            return {"ok": False, "error": "No feature matrix row at or before as_of"}
+        current_hour = _normalize_hour(current_row.get("charttime_hour"))
+        local_history_rows = [
+            row for row in matrix_rows
+            if _normalize_hour(row.get("charttime_hour")) is not None
+            and _normalize_hour(row.get("charttime_hour")) < current_hour
+        ]
+    else:
+        source_rows, source_err = _fetch_required_model_sources(subject_id, stay_id, start, as_of)
+        if source_err:
+            return {"ok": False, "error": f"{matrix_err}; fallback failed: {source_err}"}
+        current_row, current_err = _build_current_vector_from_sources(source_rows, as_of)
+        if current_err:
+            return {"ok": False, "error": current_err}
 
     s3 = None
     patient_prefix = _build_patient_prefix(s3_prefix, subject_id, stay_id, hadm_id)
@@ -563,12 +644,17 @@ def get_prediction(subject_id, stay_id, hadm_id, as_of, window_hours=24):
         except Exception as e:
             return {"ok": False, "error": f"S3 IO failed: {e}"}
     else:
-        # Fallback without S3: no persisted history chain.
-        history_rows = []
+        # Fallback without S3: use local DB rows from feature matrix when available.
+        history_rows = local_history_rows[-history_hours:] if using_feature_matrix else []
 
-    payload = _prediction_payload(
-        subject_id, stay_id, hadm_id, as_of, current_row, history_rows
-    )
+    if using_feature_matrix:
+        payload = _prediction_payload_feature_matrix(
+            subject_id, stay_id, hadm_id, as_of, current_row, history_rows
+        )
+    else:
+        payload = _prediction_payload(
+            subject_id, stay_id, hadm_id, as_of, current_row, history_rows
+        )
 
     headers = {"Content-Type": "application/json"}
     api_key = getattr(settings, 'MODEL_SERVICE_API_KEY', '') or ''

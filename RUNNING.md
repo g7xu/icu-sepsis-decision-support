@@ -42,6 +42,8 @@ Comorbidity group behavior:
 - Later calls may omit it; backend reuses the first stored group from S3.
 
 Input vector rule (latest ERD):
+- Preferred source is `fisi9t_feature_matrix_hourly` (or `mimiciv_derived.fisi9t_feature_matrix_hourly`) when present.
+- If feature-matrix view is not present yet, backend falls back to multi-table source alignment.
 - Backend requires patient rows in all required hourly matviews:
   - `vitals_hourly`
   - `procedures_hourly`
