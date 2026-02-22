@@ -252,7 +252,7 @@ def play(request):
         if _simulation['auto_play']:
             return JsonResponse({'status': 'already_playing',
                                  'current_hour': _simulation['current_hour']})
-        speed = float(request.POST.get('speed_seconds', 5.0))
+        speed = float(request.POST.get('speed_seconds') or 5.0)
         direction = request.POST.get('direction', 'forward')
         _simulation['auto_play'] = True
         _simulation['speed_seconds'] = speed

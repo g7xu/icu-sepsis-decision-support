@@ -275,7 +275,7 @@
 
         // Seed display from page state
         if (stateEl && stateEl.dataset.speedSeconds) {
-            speedSel.value = stateEl.dataset.speedSeconds;
+            speedSel.value = String(Math.round(parseFloat(stateEl.dataset.speedSeconds)) || 5);
         }
         if (stateEl && stateEl.dataset.currentTime) {
             timeEl.textContent = stateEl.dataset.currentTime;
