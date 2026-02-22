@@ -2,7 +2,7 @@
 Simulation pipeline: advance_hour() and rewind_hour().
 
 advance_hour(H):
-  - Queries MIMIC-IV source tables directly (no fisi9t_* views needed)
+  - Reads from simulation.sim_cache_* tables (pre-loaded by preload_cohort_cache command)
   - Inserts newly admitted patients and one hour of measurements into sim_* tables
   - Called by views.advance_time() and the auto-play background thread
 
@@ -10,13 +10,19 @@ rewind_hour(H):
   - Deletes all sim_* rows for hour H
   - Removes patients admitted at hour H
   - Called by views.rewind_time() and the auto-play-backward thread
+  - Cache tables are NOT touched by rewind (they're permanent infrastructure)
 
 Simulation date is fixed: March 13 (any year — MIMIC uses shifted years).
 All charttime_hour values stored as 2025-03-13 HH:00:00 for consistent display.
+
+Performance note:
+  Each advance_hour() reads from tiny sim_cache_* tables (≤60 rows per query)
+  instead of scanning millions of rows in MIMIC source tables.
+  Run `python manage.py preload_cohort_cache` once to populate the cache.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from django.db import connection
 
@@ -51,14 +57,13 @@ SIM_YEAR, SIM_MONTH, SIM_DAY = 2025, 3, 13
 
 def advance_hour(current_hour: int) -> dict:
     """
-    Fetch one hour of MIMIC-IV data for the cohort and write it to sim_* tables.
+    Copy one hour of pre-cached MIMIC data into the sim_* tables.
     Returns a summary dict (mirrors the old advance_time JSON response shape).
     """
-    # Normalized hour stored in sim tables (MIMIC data has year-shifted timestamps)
     hour_start = datetime(SIM_YEAR, SIM_MONTH, SIM_DAY, current_hour, 0, 0)
-    logger.info("[pipeline] advance_hour(%d) — simulated window %s", current_hour, hour_start)
+    logger.info("[pipeline] advance_hour(%d) — %s", current_hour, hour_start)
 
-    # 1. Admit new patients whose intime falls on March 13 at this hour (any year)
+    # 1. Admit new patients whose intime_hour == current_hour (from cache)
     try:
         new_patients = _fetch_new_admissions(current_hour)
     except Exception as exc:
@@ -74,12 +79,8 @@ def advance_hour(current_hour: int) -> dict:
             logger.error("[pipeline] SimPatient.bulk_create FAILED: %s", exc, exc_info=True)
             raise
 
-    # 2. Get all stay_ids admitted so far (not just this hour)
-    try:
-        admitted_stay_ids = list(SimPatient.objects.values_list('stay_id', flat=True))
-    except Exception as exc:
-        logger.error("[pipeline] SimPatient.objects.values_list FAILED: %s", exc, exc_info=True)
-        raise
+    # 2. Get all stay_ids admitted so far
+    admitted_stay_ids = list(SimPatient.objects.values_list('stay_id', flat=True))
     logger.info("[pipeline] total admitted stay_ids so far: %d", len(admitted_stay_ids))
 
     vitalsigns_count = 0
@@ -112,7 +113,7 @@ def advance_hour(current_hour: int) -> dict:
             SimCoagulationHourly.objects.bulk_create(coag)
             logger.info("[pipeline] coagulation inserted: %d", len(coag))
 
-        # 7. SOFA (optional — skips gracefully if source table absent)
+        # 7. SOFA (optional — skips gracefully if cache table empty/absent)
         sofa = _fetch_sofa_for_hour(admitted_stay_ids, current_hour)
         if sofa:
             SimSofaHourly.objects.bulk_create(sofa)
@@ -145,7 +146,7 @@ def advance_hour(current_hour: int) -> dict:
 def rewind_hour(hour_to_remove: int) -> None:
     """
     Delete all sim_* rows for hour_to_remove and remove patients admitted at that hour.
-    charttime_hour is stored normalized to 2025-03-13 HH:00:00, so rewind uses that.
+    Cache tables (sim_cache_*) are NOT modified — they're permanent infrastructure.
     """
     rewind_dt = datetime(SIM_YEAR, SIM_MONTH, SIM_DAY, hour_to_remove, 0, 0)
     logger.info("[pipeline] rewind_hour(%d) — deleting rows with charttime_hour=%s", hour_to_remove, rewind_dt)
@@ -165,7 +166,7 @@ def rewind_hour(hour_to_remove: int) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Private helpers
+# Private helpers — all read from sim_cache_* tables (tiny, indexed, fast)
 # ---------------------------------------------------------------------------
 
 def _display_time(current_hour: int) -> str:
@@ -179,40 +180,16 @@ def _display_time(current_hour: int) -> str:
 
 def _fetch_new_admissions(current_hour: int) -> list:
     """
-    Return SimPatient objects for cohort patients admitted on March 13 at current_hour.
-    Filters by month=3, day=13, hour=H only — no year filter (MIMIC uses shifted years).
+    Return SimPatient objects for cohort patients admitted at current_hour.
+    Reads from sim_cache_icustays (intime_hour column) — no MIMIC scan needed.
     """
     sql = """
-        SELECT
-            i.subject_id,
-            a.anchor_age,
-            id.gender,
-            id.race,
-            i.hadm_id,
-            i.stay_id,
-            i.first_careunit,
-            i.last_careunit,
-            i.intime,
-            i.outtime,
-            i.los
-        FROM mimiciv_icu.icustays i
-        JOIN mimiciv_derived.age a
-            ON a.subject_id = i.subject_id AND a.hadm_id = i.hadm_id
-        JOIN mimiciv_derived.icustay_detail id
-            ON id.stay_id = i.stay_id
-        WHERE i.stay_id = ANY(%s)
-          AND EXTRACT(MONTH FROM i.intime) = %s
-          AND EXTRACT(DAY   FROM i.intime) = %s
-          AND EXTRACT(HOUR  FROM i.intime) = %s
+        SELECT subject_id, anchor_age, gender, race, hadm_id, stay_id,
+               first_careunit, last_careunit, intime, outtime, los
+        FROM simulation.sim_cache_icustays
+        WHERE intime_hour = %s
     """
-    logger.info(
-        "[pipeline] _fetch_new_admissions: month=%d day=%d hour=%d for %d cohort stay_ids",
-        SIM_MONTH, SIM_DAY, current_hour, len(COHORT_STAY_IDS),
-    )
-    rows = _run_query(sql, [COHORT_STAY_IDS, SIM_MONTH, SIM_DAY, current_hour])
-    logger.info("[pipeline] _fetch_new_admissions raw rows returned: %d", len(rows))
-    if rows:
-        logger.info("[pipeline] sample intime values: %s", [r.get('intime') for r in rows[:3]])
+    rows = _run_query(sql, [current_hour])
     return [
         SimPatient(
             subject_id=r['subject_id'],
@@ -233,33 +210,16 @@ def _fetch_new_admissions(current_hour: int) -> list:
 
 def _fetch_vitals_for_hour(stay_ids: list, current_hour: int) -> list:
     """
-    Hourly AVG vitals from mimiciv_derived.vitalsign.
-    Filters by March 13 at current_hour (any year). Stores normalized 2025-03-13 HH:00:00.
+    Reads pre-aggregated vitals from sim_cache_vitalsign_hourly.
+    Filters by admitted stay_ids and normalized charttime_hour.
     """
     sql = """
-        SELECT
-            v.subject_id,
-            v.stay_id,
-            MAKE_TIMESTAMP(2025, 3, 13, EXTRACT(HOUR FROM v.charttime)::int, 0, 0) AS charttime_hour,
-            AVG(v.heart_rate)     FILTER (WHERE v.heart_rate IS NOT NULL)    AS heart_rate,
-            AVG(v.sbp)            FILTER (WHERE v.sbp IS NOT NULL)           AS sbp,
-            AVG(v.dbp)            FILTER (WHERE v.dbp IS NOT NULL)           AS dbp,
-            AVG(v.mbp)            FILTER (WHERE v.mbp IS NOT NULL)           AS mbp,
-            AVG(v.sbp_ni)         FILTER (WHERE v.sbp_ni IS NOT NULL)        AS sbp_ni,
-            AVG(v.dbp_ni)         FILTER (WHERE v.dbp_ni IS NOT NULL)        AS dbp_ni,
-            AVG(v.mbp_ni)         FILTER (WHERE v.mbp_ni IS NOT NULL)        AS mbp_ni,
-            AVG(v.resp_rate)      FILTER (WHERE v.resp_rate IS NOT NULL)     AS resp_rate,
-            AVG(v.temperature)    FILTER (WHERE v.temperature IS NOT NULL)   AS temperature,
-            (ARRAY_AGG(v.temperature_site ORDER BY v.charttime)
-                FILTER (WHERE v.temperature_site IS NOT NULL))[1]            AS temperature_site,
-            AVG(v.spo2)           FILTER (WHERE v.spo2 IS NOT NULL)          AS spo2,
-            AVG(v.glucose)        FILTER (WHERE v.glucose IS NOT NULL)       AS glucose
-        FROM mimiciv_derived.vitalsign v
-        WHERE v.stay_id = ANY(%s)
-          AND EXTRACT(MONTH FROM v.charttime) = 3
-          AND EXTRACT(DAY   FROM v.charttime) = 13
-          AND EXTRACT(HOUR  FROM v.charttime) = %s
-        GROUP BY v.subject_id, v.stay_id, EXTRACT(HOUR FROM v.charttime)::int
+        SELECT subject_id, stay_id, charttime_hour,
+               heart_rate, sbp, dbp, mbp, sbp_ni, dbp_ni, mbp_ni,
+               resp_rate, temperature, temperature_site, spo2, glucose
+        FROM simulation.sim_cache_vitalsign_hourly
+        WHERE stay_id = ANY(%s)
+          AND charttime_hour = MAKE_TIMESTAMP(2025, 3, 13, %s, 0, 0)
     """
     rows = _run_query(sql, [stay_ids, current_hour])
     return [
@@ -286,43 +246,18 @@ def _fetch_vitals_for_hour(stay_ids: list, current_hour: int) -> list:
 
 def _fetch_procedures_for_hour(stay_ids: list, current_hour: int) -> list:
     """
-    Procedure events from mimiciv_icu.procedureevents + mimiciv_icu.d_items.
-    Filters by March 13, hour bucket using +30min rounding. Stores normalized charttime_hour.
+    Reads pre-filtered procedure events from sim_cache_procedures.
     """
     sql = """
-        SELECT
-            p.subject_id,
-            p.stay_id,
-            MAKE_TIMESTAMP(2025, 3, 13,
-                EXTRACT(HOUR FROM (p.storetime + INTERVAL '30 minutes'))::int, 0, 0) AS charttime_hour,
-            p.storetime       AS charttime,
-            p.caregiver_id,
-            p.itemid,
-            di.label          AS item_label,
-            di.unitname       AS item_unitname,
-            di.lownormalvalue AS item_lownormalvalue,
-            di.highnormalvalue AS item_highnormalvalue,
-            p.value,
-            p.valueuom,
-            p.location,
-            p.locationcategory,
-            p.orderid,
-            p.linkorderid,
-            p.ordercategoryname,
-            p.ordercategorydescription,
-            p.patientweight,
-            p.isopenbag,
-            p.continueinnextdept,
-            p.statusdescription,
-            p.originalamount,
-            p.originalrate
-        FROM mimiciv_icu.procedureevents p
-        LEFT JOIN mimiciv_icu.d_items di ON di.itemid = p.itemid
-        WHERE p.stay_id = ANY(%s)
-          AND p.storetime IS NOT NULL
-          AND EXTRACT(MONTH FROM p.storetime) = 3
-          AND EXTRACT(DAY   FROM p.storetime) = 13
-          AND EXTRACT(HOUR  FROM (p.storetime + INTERVAL '30 minutes')) = %s
+        SELECT subject_id, stay_id, charttime_hour, charttime, caregiver_id,
+               itemid, item_label, item_unitname, item_lownormalvalue, item_highnormalvalue,
+               value, valueuom, location, locationcategory, orderid, linkorderid,
+               ordercategoryname, ordercategorydescription, patientweight,
+               isopenbag, continueinnextdept, statusdescription,
+               originalamount, originalrate
+        FROM simulation.sim_cache_procedures
+        WHERE stay_id = ANY(%s)
+          AND charttime_hour = MAKE_TIMESTAMP(2025, 3, 13, %s, 0, 0)
     """
     rows = _run_query(sql, [stay_ids, current_hour])
     return [
@@ -358,27 +293,16 @@ def _fetch_procedures_for_hour(stay_ids: list, current_hour: int) -> list:
 
 def _fetch_chemistry_for_hour(stay_ids: list, current_hour: int) -> list:
     """
-    Hourly chemistry labs from mimiciv_derived.chemistry.
-    Keyed by subject_id; join through sim_patient to get stay_id.
+    Reads pre-aggregated chemistry from sim_cache_chemistry_hourly.
     """
     sql = """
-        SELECT
-            ch.subject_id,
-            sp.stay_id,
-            MAKE_TIMESTAMP(2025, 3, 13, %s, 0, 0) AS charttime_hour,
-            MIN(ch.bicarbonate) FILTER (WHERE ch.bicarbonate IS NOT NULL) AS bicarbonate,
-            AVG(ch.calcium)     FILTER (WHERE ch.calcium IS NOT NULL)     AS calcium,
-            AVG(ch.sodium)      FILTER (WHERE ch.sodium IS NOT NULL)      AS sodium,
-            MAX(ch.potassium)   FILTER (WHERE ch.potassium IS NOT NULL)   AS potassium
-        FROM mimiciv_derived.chemistry ch
-        JOIN simulation.sim_patient sp ON sp.subject_id = ch.subject_id
-        WHERE sp.stay_id = ANY(%s)
-          AND EXTRACT(MONTH FROM ch.charttime) = 3
-          AND EXTRACT(DAY   FROM ch.charttime) = 13
-          AND EXTRACT(HOUR  FROM (ch.charttime + INTERVAL '30 minutes')) = %s
-        GROUP BY ch.subject_id, sp.stay_id
+        SELECT subject_id, stay_id, charttime_hour,
+               bicarbonate, calcium, sodium, potassium
+        FROM simulation.sim_cache_chemistry_hourly
+        WHERE stay_id = ANY(%s)
+          AND charttime_hour = MAKE_TIMESTAMP(2025, 3, 13, %s, 0, 0)
     """
-    rows = _run_query(sql, [current_hour, stay_ids, current_hour])
+    rows = _run_query(sql, [stay_ids, current_hour])
     return [
         SimChemistryHourly(
             subject_id=r['subject_id'],
@@ -395,29 +319,16 @@ def _fetch_chemistry_for_hour(stay_ids: list, current_hour: int) -> list:
 
 def _fetch_coagulation_for_hour(stay_ids: list, current_hour: int) -> list:
     """
-    Hourly coagulation labs from mimiciv_derived.coagulation.
-    Keyed by subject_id; join through sim_patient to get stay_id.
+    Reads pre-aggregated coagulation from sim_cache_coagulation_hourly.
     """
     sql = """
-        SELECT
-            co.subject_id,
-            sp.stay_id,
-            MAKE_TIMESTAMP(2025, 3, 13, %s, 0, 0) AS charttime_hour,
-            (ARRAY_AGG(co.inr       ORDER BY co.charttime DESC) FILTER (WHERE co.inr IS NOT NULL))[1]       AS inr,
-            (ARRAY_AGG(co.pt        ORDER BY co.charttime DESC) FILTER (WHERE co.pt IS NOT NULL))[1]        AS pt,
-            (ARRAY_AGG(co.ptt       ORDER BY co.charttime DESC) FILTER (WHERE co.ptt IS NOT NULL))[1]       AS ptt,
-            (ARRAY_AGG(co.thrombin  ORDER BY co.charttime DESC) FILTER (WHERE co.thrombin IS NOT NULL))[1]  AS thrombin,
-            MAX(co.d_dimer)    FILTER (WHERE co.d_dimer IS NOT NULL)    AS d_dimer,
-            MIN(co.fibrinogen) FILTER (WHERE co.fibrinogen IS NOT NULL) AS fibrinogen
-        FROM mimiciv_derived.coagulation co
-        JOIN simulation.sim_patient sp ON sp.subject_id = co.subject_id
-        WHERE sp.stay_id = ANY(%s)
-          AND EXTRACT(MONTH FROM co.charttime) = 3
-          AND EXTRACT(DAY   FROM co.charttime) = 13
-          AND EXTRACT(HOUR  FROM (co.charttime + INTERVAL '30 minutes')) = %s
-        GROUP BY co.subject_id, sp.stay_id
+        SELECT subject_id, stay_id, charttime_hour,
+               d_dimer, fibrinogen, thrombin, inr, pt, ptt
+        FROM simulation.sim_cache_coagulation_hourly
+        WHERE stay_id = ANY(%s)
+          AND charttime_hour = MAKE_TIMESTAMP(2025, 3, 13, %s, 0, 0)
     """
-    rows = _run_query(sql, [current_hour, stay_ids, current_hour])
+    rows = _run_query(sql, [stay_ids, current_hour])
     return [
         SimCoagulationHourly(
             subject_id=r['subject_id'],
@@ -436,47 +347,24 @@ def _fetch_coagulation_for_hour(stay_ids: list, current_hour: int) -> list:
 
 def _fetch_sofa_for_hour(stay_ids: list, current_hour: int) -> list:
     """
-    SOFA scores from mimiciv_derived.sofa_hourly.
-    Skips gracefully if the source table doesn't exist on this database.
+    Reads SOFA scores from sim_cache_sofa_hourly.
+    Returns empty list if cache table has no data (sofa_hourly not available on RDS).
     """
-    with connection.cursor() as cursor:
-        cursor.execute(
-            "SELECT to_regclass('mimiciv_derived.sofa_hourly') IS NOT NULL"
-        )
-        exists = cursor.fetchone()[0]
-
-    if not exists:
-        return []
-
     sql = """
-        SELECT
-            s.stay_id,
-            MAKE_TIMESTAMP(2025, 3, 13, %s, 0, 0) AS charttime_hour,
-            s.sofa_24hours,
-            s.respiration,
-            s.coagulation,
-            s.liver,
-            s.cardiovascular,
-            s.cns,
-            s.renal
-        FROM mimiciv_derived.sofa_hourly s
-        WHERE s.stay_id = ANY(%s)
-          AND EXTRACT(MONTH FROM s.starttime) = 3
-          AND EXTRACT(DAY   FROM s.starttime) = 13
-          AND EXTRACT(HOUR  FROM s.starttime) = %s
+        SELECT subject_id, stay_id, charttime_hour,
+               sofa_24hours, respiration, coagulation, liver,
+               cardiovascular, cns, renal
+        FROM simulation.sim_cache_sofa_hourly
+        WHERE stay_id = ANY(%s)
+          AND charttime_hour = MAKE_TIMESTAMP(2025, 3, 13, %s, 0, 0)
     """
     try:
-        rows = _run_query(sql, [current_hour, stay_ids, current_hour])
+        rows = _run_query(sql, [stay_ids, current_hour])
     except Exception:
         return []
-
-    result = []
-    for r in rows:
-        subject_id, _ = STAY_TO_IDS.get(r['stay_id'], (None, None))
-        if subject_id is None:
-            continue
-        result.append(SimSofaHourly(
-            subject_id=subject_id,
+    return [
+        SimSofaHourly(
+            subject_id=r['subject_id'],
             stay_id=r['stay_id'],
             charttime_hour=r['charttime_hour'],
             sofa_24hours=r.get('sofa_24hours'),
@@ -486,8 +374,9 @@ def _fetch_sofa_for_hour(stay_ids: list, current_hour: int) -> list:
             cardiovascular=r.get('cardiovascular'),
             cns=r.get('cns'),
             renal=r.get('renal'),
-        ))
-    return result
+        )
+        for r in rows
+    ]
 
 
 def _run_query(sql: str, params: list) -> list:
