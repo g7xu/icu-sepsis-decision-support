@@ -150,6 +150,9 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
 
     current_hour = _simulation['current_hour']
     vitalsigns_json = '[]'
+    sofa_json = '[]'
+    chemistry_json = '[]'
+    coagulation_json = '[]'
     procedures = []
 
     if current_hour >= 0:
@@ -168,6 +171,38 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
             vitalsigns_list.append(row)
 
         vitalsigns_json = json.dumps(vitalsigns_list, cls=DjangoJSONEncoder)
+
+        sofa_list = list(SimSofaHourly.objects.filter(
+            subject_id=subject_id,
+            stay_id=stay_id,
+        ).order_by('charttime_hour').values(
+            'charttime_hour', 'sofa_24hours',
+            'respiration', 'coagulation', 'liver',
+            'cardiovascular', 'cns', 'renal',
+        ))
+        for row in sofa_list:
+            row['hour_label'] = f"{row['charttime_hour'].hour:02d}:00"
+        sofa_json = json.dumps(sofa_list, cls=DjangoJSONEncoder)
+
+        chem_list = list(SimChemistryHourly.objects.filter(
+            subject_id=subject_id,
+            stay_id=stay_id,
+        ).order_by('charttime_hour').values(
+            'charttime_hour', 'bicarbonate', 'calcium', 'sodium', 'potassium',
+        ))
+        for row in chem_list:
+            row['hour_label'] = f"{row['charttime_hour'].hour:02d}:00"
+        chemistry_json = json.dumps(chem_list, cls=DjangoJSONEncoder)
+
+        coag_list = list(SimCoagulationHourly.objects.filter(
+            subject_id=subject_id,
+            stay_id=stay_id,
+        ).order_by('charttime_hour').values(
+            'charttime_hour', 'inr', 'ptt', 'pt', 'fibrinogen',
+        ))
+        for row in coag_list:
+            row['hour_label'] = f"{row['charttime_hour'].hour:02d}:00"
+        coagulation_json = json.dumps(coag_list, cls=DjangoJSONEncoder)
 
         procedures = list(SimProcedureeventsHourly.objects.filter(
             subject_id=subject_id,
@@ -188,6 +223,9 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
     context = {
         'patient': patient,
         'vitalsigns_json': vitalsigns_json,
+        'sofa_json': sofa_json,
+        'chemistry_json': chemistry_json,
+        'coagulation_json': coagulation_json,
         'procedures': procedures,
         'procedures_count': len(procedures),
         'current_hour': current_hour,

@@ -19,7 +19,6 @@
         <h2>Patient Details</h2>
         <a href="{% url 'patients:index' %}" class="btn btn-primary btn-sm">&larr; Back to List</a>
     </div>
-
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem;">
         <div>
             <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.25rem;">Subject ID</p>
@@ -58,63 +57,92 @@
     </div>
 </div>
 
-<!-- Clinical Data: Vitals + Procedures side by side -->
-<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; margin-top: 1rem;">
-
-    <!-- Vital Signs Chart -->
-    <div class="card">
-        <div class="card-header">
-            <h2>Vital Signs</h2>
+<!-- Clinical Vitals — Tabbed chart card -->
+<div class="card" id="vitals-card" style="margin-top: 1rem;">
+    <div class="card-header" style="flex-wrap: wrap; gap: 0.75rem;">
+        <h2>Clinical Vitals</h2>
+        <div class="tab-bar">
+            <button class="tab-btn active" data-tab="cardio">Cardiovascular</button>
+            <button class="tab-btn" data-tab="resp">Respiratory</button>
+            <button class="tab-btn" data-tab="labs">Labs</button>
+            <button class="tab-btn" data-tab="sofa">SOFA Score</button>
         </div>
-        <div id="vitals-chart" style="width: 100%; min-height: 750px;"></div>
+    </div>
+
+    <div class="tab-panel active" id="tab-cardio">
         {% if current_hour < 0 %}
-        <p class="text-muted">Use the simulation clock (top-right) to start collecting vital signs.</p>
+        <p class="text-muted chart-empty-msg">Use the simulation clock (top-right) to start collecting vital signs.</p>
+        {% else %}
+        <div id="chart-cardio" style="width:100%; position:relative;"></div>
         {% endif %}
     </div>
 
-    <!-- Procedure Events Log -->
-    <div class="card">
-        <div class="card-header">
-            <h2>Procedure Events</h2>
-            <span class="badge">{{ procedures_count }} event{{ procedures_count|pluralize }}</span>
-        </div>
-        <div id="procedures-log" style="max-height: 750px; overflow-y: auto;">
-            {% if procedures %}
-                {% for proc in procedures %}
-                <div style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">
-                    <div style="display: flex; justify-content: space-between; align-items: baseline;">
-                        <strong style="color: #2c5282; font-size: 0.9rem;">{{ proc.item_label|default:"-" }}</strong>
-                        <span class="text-muted" style="font-size: 0.8rem; white-space: nowrap; margin-left: 0.5rem;">
-                            {{ proc.charttime_hour|date:"H:i"|default:"-" }}
-                        </span>
-                    </div>
-                    {% if proc.value %}
-                    <div style="font-size: 0.85rem; margin-top: 0.25rem;">
-                        Value: {{ proc.value }} {{ proc.valueuom|default:"" }}
-                    </div>
-                    {% endif %}
-                    {% if proc.ordercategoryname %}
-                    <div style="font-size: 0.8rem; color: #718096; margin-top: 0.15rem;">
-                        {{ proc.ordercategoryname }}{% if proc.statusdescription %} &middot; {{ proc.statusdescription }}{% endif %}
-                    </div>
-                    {% endif %}
-                </div>
-                {% endfor %}
-            {% else %}
-                <p class="text-muted" style="padding: 1rem;">
-                    {% if current_hour < 0 %}
-                        Use the simulation clock to start collecting data.
-                    {% else %}
-                        No procedure events recorded yet.
-                    {% endif %}
-                </p>
-            {% endif %}
-        </div>
+    <div class="tab-panel" id="tab-resp">
+        {% if current_hour < 0 %}
+        <p class="text-muted chart-empty-msg">Use the simulation clock (top-right) to start collecting vital signs.</p>
+        {% else %}
+        <div id="chart-resp" style="width:100%; position:relative;"></div>
+        {% endif %}
     </div>
 
+    <div class="tab-panel" id="tab-labs">
+        {% if current_hour < 0 %}
+        <p class="text-muted chart-empty-msg">Use the simulation clock (top-right) to start collecting data.</p>
+        {% else %}
+        <div id="chart-labs" style="width:100%; position:relative;"></div>
+        {% endif %}
+    </div>
+
+    <div class="tab-panel" id="tab-sofa">
+        {% if current_hour < 0 %}
+        <p class="text-muted chart-empty-msg">Use the simulation clock (top-right) to start the simulation.</p>
+        {% else %}
+        <div id="chart-sofa" style="width:100%; position:relative;"></div>
+        {% endif %}
+    </div>
 </div>
 
-<!-- Predictions: risk_score + comorbidity_group -->
+<!-- Procedure Events Log -->
+<div class="card" style="margin-top: 1rem;">
+    <div class="card-header">
+        <h2>Procedure Events</h2>
+        <span class="badge">{{ procedures_count }} event{{ procedures_count|pluralize }}</span>
+    </div>
+    <div id="procedures-log" style="max-height: 400px; overflow-y: auto;">
+        {% if procedures %}
+            {% for proc in procedures %}
+            <div style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">
+                <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                    <strong style="color: #2c5282; font-size: 0.9rem;">{{ proc.item_label|default:"-" }}</strong>
+                    <span class="text-muted" style="font-size: 0.8rem; white-space: nowrap; margin-left: 0.5rem;">
+                        {{ proc.charttime_hour|date:"H:i"|default:"-" }}
+                    </span>
+                </div>
+                {% if proc.value %}
+                <div style="font-size: 0.85rem; margin-top: 0.25rem;">
+                    Value: {{ proc.value }} {{ proc.valueuom|default:"" }}
+                </div>
+                {% endif %}
+                {% if proc.ordercategoryname %}
+                <div style="font-size: 0.8rem; color: #718096; margin-top: 0.15rem;">
+                    {{ proc.ordercategoryname }}{% if proc.statusdescription %} &middot; {{ proc.statusdescription }}{% endif %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        {% else %}
+            <p class="text-muted" style="padding: 1rem;">
+                {% if current_hour < 0 %}
+                    Use the simulation clock to start collecting data.
+                {% else %}
+                    No procedure events recorded yet.
+                {% endif %}
+            </p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Predictions -->
 <div class="card" style="margin-top: 1rem;">
     <div class="card-header">
         <h2>Predictions</h2>
@@ -123,11 +151,11 @@
         {% if prediction_as_of_iso %}
         <div>
             <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.25rem;">Risk Score</p>
-            <p id="risk-score" style="font-size: 1.25rem; font-weight: 600;">...</p>
+            <p id="risk-score" style="font-size: 1.25rem; font-weight: 600;">Loading&hellip;</p>
         </div>
         <div>
             <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.25rem;">Comorbidity Group</p>
-            <p id="comorbidity-group" style="font-size: 1.25rem; font-weight: 600;">...</p>
+            <p id="comorbidity-group" style="font-size: 1.25rem; font-weight: 600;">Loading&hellip;</p>
         </div>
         {% else %}
         <p class="text-muted">Use the simulation clock to start the simulation and load predictions.</p>
@@ -135,137 +163,961 @@
     </div>
 </div>
 
-<!-- Plotly.js from CDN -->
-<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
-
+<!-- Data payloads -->
 <script type="application/json" id="vitalsigns-data">{{ vitalsigns_json|safe }}</script>
+<script type="application/json" id="sofa-data">{{ sofa_json|safe }}</script>
+<script type="application/json" id="chemistry-data">{{ chemistry_json|safe }}</script>
+<script type="application/json" id="coagulation-data">{{ coagulation_json|safe }}</script>
+
 <div id="page-config" style="display:none"
      {% if prediction_as_of_iso %}data-prediction-url="{% url 'patients:prediction' patient.subject_id patient.stay_id patient.hadm_id %}?as_of={{ prediction_as_of_iso|urlencode }}&window_hours=24"{% endif %}>
 </div>
 
+<!-- D3.js v7 (~280 KB vs Plotly's ~3.4 MB) -->
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+
+<style>
+/* ── D3 tooltip ───────────────────────────────────────────────────────────── */
+.d3-tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: #1a365d;
+    color: white;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+    z-index: 200;
+    min-width: 150px;
+    white-space: nowrap;
+}
+.tt-hour {
+    font-weight: 700;
+    font-size: 13px;
+    margin-bottom: 6px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid rgba(255,255,255,0.25);
+}
+.tt-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+    line-height: 1.4;
+}
+.tt-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    border: 1.5px solid rgba(255,255,255,0.5);
+}
+.tt-name { flex: 1; opacity: 0.88; font-size: 11px; }
+.tt-val  { font-weight: 700; font-size: 12px; text-align: right; }
+</style>
+
 <script>
-(function() {
-    // =========================================================================
-    // Plotly Vitalsigns Chart
-    // =========================================================================
-    const vitalsData = JSON.parse(document.getElementById('vitalsigns-data').textContent || '[]');
+(function () {
 
-    if (vitalsData.length > 0) {
-        const times = vitalsData.map(v => v.hour_label);
+// =============================================================================
+// HELPERS (unchanged from previous version)
+// =============================================================================
 
-        const traces = [
-            // --- Row 1: Heart Rate ---
-            {
-                x: times, y: vitalsData.map(v => v.heart_rate),
-                name: 'Heart Rate', type: 'scatter', mode: 'lines+markers',
-                line: { color: '#e53e3e', width: 2 }, marker: { size: 5 },
-                xaxis: 'x', yaxis: 'y',
-            },
-            // --- Row 2: Blood Pressure (SBP / DBP / MBP) ---
-            {
-                x: times, y: vitalsData.map(v => v.sbp),
-                name: 'SBP', type: 'scatter', mode: 'lines+markers',
-                line: { color: '#3182ce', width: 2 }, marker: { size: 4 },
-                xaxis: 'x2', yaxis: 'y2',
-            },
-            {
-                x: times, y: vitalsData.map(v => v.dbp),
-                name: 'DBP', type: 'scatter', mode: 'lines+markers',
-                line: { color: '#90cdf4', width: 2 }, marker: { size: 4 },
-                xaxis: 'x2', yaxis: 'y2',
-            },
-            {
-                x: times, y: vitalsData.map(v => v.mbp),
-                name: 'MBP', type: 'scatter', mode: 'lines+markers',
-                line: { color: '#2b6cb0', width: 2, dash: 'dash' }, marker: { size: 4 },
-                xaxis: 'x2', yaxis: 'y2',
-            },
-            // --- Row 3: SpO2 ---
-            {
-                x: times, y: vitalsData.map(v => v.spo2),
-                name: 'SpO2', type: 'scatter', mode: 'lines+markers',
-                line: { color: '#38a169', width: 2 }, marker: { size: 5 },
-                xaxis: 'x3', yaxis: 'y3',
-            },
-            // --- Row 4: Respiratory Rate ---
-            {
-                x: times, y: vitalsData.map(v => v.resp_rate),
-                name: 'Resp Rate', type: 'scatter', mode: 'lines+markers',
-                line: { color: '#d69e2e', width: 2 }, marker: { size: 5 },
-                xaxis: 'x4', yaxis: 'y4',
-            },
-            // --- Row 5: Temperature ---
-            {
-                x: times, y: vitalsData.map(v => v.temperature),
-                name: 'Temperature', type: 'scatter', mode: 'lines+markers',
-                line: { color: '#805ad5', width: 2 }, marker: { size: 5 },
-                xaxis: 'x5', yaxis: 'y5',
-            },
-            // --- Row 6: Glucose ---
-            {
-                x: times, y: vitalsData.map(v => v.glucose),
-                name: 'Glucose', type: 'scatter', mode: 'lines+markers',
-                line: { color: '#805ad5', width: 2 }, marker: { size: 5 },
-                xaxis: 'x6', yaxis: 'y6',
+function parseJSON(id) {
+    try { return JSON.parse(document.getElementById(id).textContent || '[]'); }
+    catch (e) { return []; }
+}
+
+function isEmpty(arr) { return !arr || arr.length === 0; }
+
+function showEmptyState(divId, msg) {
+    var el = document.getElementById(divId);
+    if (!el) return;
+    el.innerHTML = '<p style="padding:2rem 1rem; color:#718096;">' + msg + '</p>';
+}
+
+// =============================================================================
+// TAB SWITCHING (Plotly.relayout removed)
+// =============================================================================
+
+var deferredRenders = {};
+
+document.querySelectorAll('.tab-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+        document.querySelectorAll('.tab-btn').forEach(function (b) { b.classList.remove('active'); });
+        document.querySelectorAll('.tab-panel').forEach(function (p) { p.classList.remove('active'); });
+        btn.classList.add('active');
+        var panel = document.getElementById('tab-' + btn.dataset.tab);
+        if (panel) {
+            panel.classList.add('active');
+            // Trigger deferred render for tabs that were hidden on first load
+            var fn = deferredRenders[btn.dataset.tab];
+            if (fn) {
+                delete deferredRenders[btn.dataset.tab];
+                fn();
             }
-        ];
+        }
+    });
+});
 
-        const layout = {
-            height: 825,
-            showlegend: true,
-            legend: { orientation: 'h', y: 1.05, x: 0, font: { size: 11 } },
-            grid: { rows: 6, columns: 1, pattern: 'independent', roworder: 'top to bottom' },
+// =============================================================================
+// DATA
+// =============================================================================
 
-            // Row 1 – Heart Rate
-            xaxis:  { showticklabels: false },
-            yaxis:  { title: { text: 'HR (bpm)', font: { size: 11 } }, tickfont: { size: 10 } },
+var vitalsData = parseJSON('vitalsigns-data');
+var sofaData   = parseJSON('sofa-data');
+var chemData   = parseJSON('chemistry-data');
+var coagData   = parseJSON('coagulation-data');
 
-            // Row 2 – Blood Pressure
-            xaxis2: { showticklabels: false },
-            yaxis2: { title: { text: 'BP (mmHg)', font: { size: 11 } }, tickfont: { size: 10 } },
+// =============================================================================
+// D3 CONSTANTS
+// =============================================================================
 
-            // Row 3 – SpO2
-            xaxis3: { showticklabels: false },
-            yaxis3: { title: { text: 'SpO2 (%)', font: { size: 11 } }, tickfont: { size: 10 } },
+var CHART_FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+var M          = { top: 40, right: 95, bottom: 58, left: 72 };
+var PANEL_H    = 150;  // px per panel row
 
-            // Row 4 – Respiratory Rate
-            xaxis4: { showticklabels: false },
-            yaxis4: { title: { text: 'Resp (/min)', font: { size: 11 } }, tickfont: { size: 10 } },
+// Return chart container width, falling back to the card width for hidden tabs
+function getChartWidth(containerId) {
+    var el = document.getElementById(containerId);
+    if (!el) return 800;
+    if (el.offsetWidth > 0) return el.offsetWidth;
+    // Tab is hidden — measure from the visible card instead
+    var card = document.getElementById('vitals-card');
+    if (card && card.offsetWidth > 0) return card.offsetWidth - 48; // subtract card padding
+    return 800;
+}
 
-            // Row 5 – Temperature
-            xaxis5: { title: { text: 'Hour', font: { size: 11 } }, tickfont: { size: 10 } },
-            yaxis5: { title: { text: 'Temp (\u00b0C)', font: { size: 11 } }, tickfont: { size: 10 } },
+// =============================================================================
+// buildMultiPanel — reusable D3 multi-panel line chart
+//
+// cfg = {
+//   hours:  string[],
+//   panels: [{
+//     label:         string,          // left y-axis label
+//     rightLabel?:   string,          // right y-axis label (dual-axis panels)
+//     yDomain?:      [min, max],      // left axis domain (auto if omitted)
+//     yDomainRight?: [min, max],      // right axis domain (auto if omitted)
+//     normalBands?:  [{y0,y1,color?,axis?}],
+//     warningBands?: [{y0,y1,color?,axis?}],
+//     series: [{
+//       name:      string,
+//       values:    (number|null)[],
+//       color:     string,
+//       yAxis?:    'left'|'right',    // default 'left'
+//       dash?:     string,            // SVG stroke-dasharray e.g. '5,3'
+//       width?:    number,            // stroke-width, default 2.5
+//       unit?:     string,            // shown in tooltip
+//       decimals?: number,            // tooltip decimal places
+//     }],
+//   }],
+// }
+// =============================================================================
 
-            // Row 6 – Glucose
-            xaxis6: { title: { text: 'Hour', font: { size: 11 } }, tickfont: { size: 10 } },
-            yaxis6: { title: { text: 'Glucose (mg/dL)', font: { size: 11 } }, tickfont: { size: 10 } },
+function buildMultiPanel(containerId, cfg) {
+    var container = document.getElementById(containerId);
+    if (!container) return;
 
-            margin: { l: 60, r: 20, t: 30, b: 40 },
-        };
+    // Clear any previous render
+    d3.select(container).selectAll('*').remove();
 
-        Plotly.newPlot('vitals-chart', traces, layout, { responsive: true });
+    var hours  = cfg.hours;
+    var panels = cfg.panels;
+    var n      = panels.length;
+
+    var W    = getChartWidth(containerId);
+    var iW   = W - M.left - M.right;
+    var iH   = PANEL_H * n;
+    var totH = iH + M.top + M.bottom;
+
+    // -- Tooltip div ----------------------------------------------------------
+    var ttDiv = d3.select(container)
+        .append('div')
+        .attr('class', 'd3-tooltip')
+        .style('display', 'none');
+
+    // -- SVG ------------------------------------------------------------------
+    var svg = d3.select(container)
+        .append('svg')
+        .attr('width', W)
+        .attr('height', totH);
+
+    var root = svg.append('g')
+        .attr('transform', 'translate(' + M.left + ',' + M.top + ')');
+
+    // Chart background
+    root.append('rect')
+        .attr('width', iW).attr('height', iH)
+        .attr('fill', '#fafafa')
+        .attr('stroke', '#e2e8f0').attr('stroke-width', 0.5);
+
+    // -- Shared X scale (categorical, evenly spaced) --------------------------
+    var xScale = d3.scalePoint()
+        .domain(hours)
+        .range([0, iW]);
+
+    // Vertical gridlines (one per hour, behind everything)
+    var xGridG = root.append('g').attr('class', 'x-grid');
+    hours.forEach(function (h) {
+        xGridG.append('line')
+            .attr('x1', xScale(h)).attr('x2', xScale(h))
+            .attr('y1', 0).attr('y2', iH)
+            .attr('stroke', '#e2e8f0').attr('stroke-width', 0.5);
+    });
+
+    // Horizontal panel separators
+    for (var pi = 1; pi < n; pi++) {
+        root.append('line')
+            .attr('x1', 0).attr('x2', iW)
+            .attr('y1', pi * PANEL_H).attr('y2', pi * PANEL_H)
+            .attr('stroke', '#e2e8f0').attr('stroke-width', 1);
     }
 
-    // =========================================================================
-    // Prediction: fetch risk_score + comorbidity_group
-    // =========================================================================
-    const predUrl = document.getElementById('page-config').dataset.predictionUrl;
-    if (predUrl) {
-        fetch(predUrl)
-            .then(response => response.json())
-            .then(data => {
-                const riskEl  = document.getElementById('risk-score');
-                const groupEl = document.getElementById('comorbidity-group');
-                if (riskEl)  riskEl.textContent  = data.risk_score != null ? data.risk_score.toFixed(2) : '-';
-                if (groupEl) groupEl.textContent = data.comorbidity_group || '-';
-            })
-            .catch(() => {
-                const riskEl  = document.getElementById('risk-score');
-                const groupEl = document.getElementById('comorbidity-group');
-                if (riskEl)  riskEl.textContent  = '-';
-                if (groupEl) groupEl.textContent = 'Error';
+    // -- Per-panel rendering --------------------------------------------------
+    var yScalesLeft  = [];
+    var yScalesRight = [];
+
+    function autoDomain(seriesArr, axisFilter) {
+        var vals = [];
+        seriesArr.forEach(function (s) {
+            if ((s.yAxis || 'left') === axisFilter) {
+                s.values.forEach(function (v) { if (v != null) vals.push(+v); });
+            }
+        });
+        if (!vals.length) return [0, 1];
+        var ext = d3.extent(vals);
+        var pad = (ext[1] - ext[0]) * 0.18 || 5;
+        return [ext[0] - pad, ext[1] + pad];
+    }
+
+    panels.forEach(function (panel, pi) {
+        var pg = root.append('g')
+            .attr('transform', 'translate(0,' + (pi * PANEL_H) + ')');
+
+        var leftSeries  = panel.series.filter(function (s) { return (s.yAxis || 'left') === 'left'; });
+        var rightSeries = panel.series.filter(function (s) { return s.yAxis === 'right'; });
+
+        var domL = panel.yDomain      || autoDomain(panel.series, 'left');
+        var domR = panel.yDomainRight || autoDomain(panel.series, 'right');
+
+        var yScL = d3.scaleLinear().domain(domL).range([PANEL_H - 2, 2]).nice();
+        var yScR = rightSeries.length > 0
+            ? d3.scaleLinear().domain(domR).range([PANEL_H - 2, 2]).nice()
+            : null;
+
+        yScalesLeft.push(yScL);
+        yScalesRight.push(yScR);
+
+        // Normal bands
+        (panel.normalBands || []).forEach(function (band) {
+            var sc = (band.axis === 'right' && yScR) ? yScR : yScL;
+            var dom = (band.axis === 'right' && yScR) ? yScR.domain() : yScL.domain();
+            var y1c = sc(Math.min(band.y1, dom[1]));
+            var y0c = sc(Math.max(band.y0, dom[0]));
+            if (y0c > y1c) {
+                pg.append('rect')
+                    .attr('x', 0).attr('width', iW)
+                    .attr('y', y1c).attr('height', y0c - y1c)
+                    .attr('fill', band.color || '#48bb78').attr('opacity', 0.12);
+            }
+        });
+
+        // Warning bands
+        (panel.warningBands || []).forEach(function (band) {
+            var sc = (band.axis === 'right' && yScR) ? yScR : yScL;
+            var y1c = sc(Math.min(band.y1, yScL.domain()[1]));
+            var y0c = sc(Math.max(band.y0, yScL.domain()[0]));
+            if (y0c > y1c) {
+                pg.append('rect')
+                    .attr('x', 0).attr('width', iW)
+                    .attr('y', y1c).attr('height', y0c - y1c)
+                    .attr('fill', band.color || '#fc8181').attr('opacity', 0.09);
+            }
+        });
+
+        // Lines + dots
+        panel.series.forEach(function (s) {
+            var yScale = (s.yAxis === 'right' && yScR) ? yScR : yScL;
+
+            var lineGen = d3.line()
+                .defined(function (d) { return d != null; })
+                .x(function (d, i) { return xScale(hours[i]); })
+                .y(function (d) { return yScale(+d); });
+
+            pg.append('path')
+                .datum(s.values)
+                .attr('fill', 'none')
+                .attr('stroke', s.color)
+                .attr('stroke-width', s.width || 2.5)
+                .attr('stroke-dasharray', s.dash || null)
+                .attr('stroke-linejoin', 'round')
+                .attr('stroke-linecap', 'round')
+                .attr('d', lineGen);
+
+            pg.selectAll(null)
+                .data(s.values.map(function (v, i) { return { v: v, i: i }; })
+                    .filter(function (d) { return d.v != null; }))
+                .enter().append('circle')
+                .attr('cx', function (d) { return xScale(hours[d.i]); })
+                .attr('cy', function (d) { return yScale(+d.v); })
+                .attr('r', 3.5)
+                .attr('fill', s.color)
+                .attr('stroke', 'white').attr('stroke-width', 1.5);
+        });
+
+        // Left Y axis
+        var yAxisLG = pg.append('g')
+            .call(d3.axisLeft(yScL).ticks(4).tickSizeOuter(0).tickSize(-iW));
+        yAxisLG.select('.domain').remove();
+        yAxisLG.selectAll('.tick line')
+            .attr('stroke', '#e2e8f0').attr('stroke-dasharray', '2,2');
+        yAxisLG.selectAll('.tick text')
+            .attr('font-size', 10).attr('fill', '#718096');
+
+        // Left Y label
+        pg.append('text')
+            .attr('transform', 'rotate(-90)')
+            .attr('x', -(PANEL_H / 2))
+            .attr('y', -M.left + 14)
+            .attr('text-anchor', 'middle')
+            .attr('font-size', 11).attr('fill', '#4a5568')
+            .attr('font-family', CHART_FONT)
+            .text(panel.label);
+
+        // Right Y axis (dual-axis panels)
+        if (yScR) {
+            var yAxisRG = pg.append('g')
+                .attr('transform', 'translate(' + iW + ',0)')
+                .call(d3.axisRight(yScR).ticks(4).tickSizeOuter(0));
+            yAxisRG.select('.domain').remove();
+            yAxisRG.selectAll('.tick line').remove();
+            yAxisRG.selectAll('.tick text')
+                .attr('font-size', 10).attr('fill', '#a0aec0');
+
+            if (panel.rightLabel) {
+                pg.append('text')
+                    .attr('transform', 'rotate(90)')
+                    .attr('x', PANEL_H / 2)
+                    .attr('y', -(iW + M.right - 14))
+                    .attr('text-anchor', 'middle')
+                    .attr('font-size', 10).attr('fill', '#a0aec0')
+                    .attr('font-family', CHART_FONT)
+                    .text(panel.rightLabel);
+            }
+        }
+    });
+
+    // -- Shared X axis (drawn once at the bottom) -----------------------------
+    var tickEvery = hours.length > 12 ? 3 : (hours.length > 6 ? 2 : 1);
+    var tickVals  = hours.filter(function (h, i) { return i % tickEvery === 0; });
+
+    var xAxisG = root.append('g')
+        .attr('transform', 'translate(0,' + iH + ')')
+        .call(d3.axisBottom(xScale).tickValues(tickVals).tickSizeOuter(0));
+    xAxisG.select('.domain').attr('stroke', '#cbd5e0');
+    xAxisG.selectAll('.tick line').remove();
+    xAxisG.selectAll('.tick text').attr('font-size', 10).attr('fill', '#718096');
+
+    root.append('text')
+        .attr('x', iW / 2).attr('y', iH + M.bottom - 10)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', 12).attr('fill', '#4a5568')
+        .attr('font-family', CHART_FONT)
+        .text('Hour of Day');
+
+    // -- Legend (top margin) --------------------------------------------------
+    var allSeries = [];
+    panels.forEach(function (p) { p.series.forEach(function (s) { allSeries.push(s); }); });
+    var legItemW = Math.min(160, iW / allSeries.length);
+    var legG = root.append('g').attr('transform', 'translate(0,' + (-M.top + 8) + ')');
+
+    allSeries.forEach(function (s, idx) {
+        var lx = idx * legItemW;
+        legG.append('line')
+            .attr('x1', lx).attr('x2', lx + 18)
+            .attr('y1', 6).attr('y2', 6)
+            .attr('stroke', s.color).attr('stroke-width', 2)
+            .attr('stroke-dasharray', s.dash || null);
+        legG.append('circle')
+            .attr('cx', lx + 9).attr('cy', 6).attr('r', 3)
+            .attr('fill', s.color);
+        legG.append('text')
+            .attr('x', lx + 22).attr('y', 10)
+            .attr('font-size', 10).attr('fill', '#4a5568')
+            .attr('font-family', CHART_FONT)
+            .text(s.name + (s.unit ? ' (' + s.unit + ')' : ''));
+    });
+
+    // -- Crosshair + unified tooltip ------------------------------------------
+    var crosshairG = root.append('g').style('display', 'none').style('pointer-events', 'none');
+
+    crosshairG.append('line')
+        .attr('class', 'ch-line')
+        .attr('y1', 0).attr('y2', iH)
+        .attr('stroke', '#1a365d').attr('stroke-width', 1)
+        .attr('stroke-dasharray', '4,2').attr('opacity', 0.6);
+
+    var crosshairDots = [];
+    panels.forEach(function (panel, pi) {
+        panel.series.forEach(function (s) {
+            var useRight = (s.yAxis === 'right' && yScalesRight[pi] != null);
+            var dot = crosshairG.append('circle')
+                .attr('r', 5).attr('fill', s.color)
+                .attr('stroke', 'white').attr('stroke-width', 2);
+            crosshairDots.push({ pi: pi, s: s, dot: dot, useRight: useRight });
+        });
+    });
+
+    // Transparent overlay rect (must be last = on top)
+    root.append('rect')
+        .attr('width', iW).attr('height', iH)
+        .attr('fill', 'transparent')
+        .on('mousemove', function (event) {
+            var mx = d3.pointer(event)[0];
+
+            // Snap to nearest hour index
+            var step = hours.length > 1 ? iW / (hours.length - 1) : iW;
+            var idx  = Math.round(mx / step);
+            idx = Math.max(0, Math.min(hours.length - 1, idx));
+            var hour = hours[idx];
+            var cx   = xScale(hour);
+
+            // Move crosshair line
+            crosshairG.style('display', null);
+            crosshairG.select('.ch-line').attr('x1', cx).attr('x2', cx);
+
+            // Move dots
+            crosshairDots.forEach(function (cd) {
+                var ysc = cd.useRight ? yScalesRight[cd.pi] : yScalesLeft[cd.pi];
+                var val = cd.s.values[idx];
+                if (val != null && ysc) {
+                    cd.dot.style('display', null)
+                        .attr('cx', cx)
+                        .attr('cy', cd.pi * PANEL_H + ysc(+val));
+                } else {
+                    cd.dot.style('display', 'none');
+                }
             });
+
+            // Build tooltip HTML
+            var html = '<div class="tt-hour">' + hour + '</div>';
+            panels.forEach(function (panel) {
+                panel.series.forEach(function (s) {
+                    var val = s.values[idx];
+                    var dec = s.decimals != null ? s.decimals : 1;
+                    var fmt = val != null ? (+val).toFixed(dec) : '\u2013';
+                    html += '<div class="tt-row">'
+                        + '<span class="tt-dot" style="background:' + s.color + '"></span>'
+                        + '<span class="tt-name">' + s.name + '</span>'
+                        + '<span class="tt-val">' + fmt + (s.unit ? '\u00a0' + s.unit : '') + '</span>'
+                        + '</div>';
+                });
+            });
+
+            ttDiv.style('display', 'block').html(html);
+
+            // Position tooltip (flip left if near right edge)
+            var ttW = ttDiv.node().offsetWidth;
+            var ttH = ttDiv.node().offsetHeight;
+            var tx  = cx + M.left + 14;
+            var ty  = event.offsetY - ttH / 2;
+            if (tx + ttW > W - 4)       tx = cx + M.left - ttW - 14;
+            if (ty < 2)                 ty = 2;
+            if (ty + ttH > totH - 2)    ty = totH - ttH - 2;
+            ttDiv.style('left', tx + 'px').style('top', ty + 'px');
+        })
+        .on('mouseleave', function () {
+            crosshairG.style('display', 'none');
+            ttDiv.style('display', 'none');
+        });
+}
+
+// =============================================================================
+// buildSofaChart — colored bar (total) + stacked bar (organ components)
+// =============================================================================
+
+function buildSofaChart(containerId, data) {
+    var container = document.getElementById(containerId);
+    if (!container) return;
+
+    d3.select(container).selectAll('*').remove();
+
+    var SOFA_PANEL_H = 185;
+    var n = 2;
+
+    var W    = getChartWidth(containerId);
+    var iW   = W - M.left - M.right;
+    var iH   = SOFA_PANEL_H * n;
+    var totH = iH + M.top + M.bottom;
+
+    var components = [
+        { key: 'respiration',    label: 'Respiration',    color: '#4299e1' },
+        { key: 'coagulation',    label: 'Coagulation',    color: '#ed8936' },
+        { key: 'liver',          label: 'Liver',          color: '#ecc94b' },
+        { key: 'cardiovascular', label: 'Cardiovascular', color: '#e53e3e' },
+        { key: 'cns',            label: 'CNS',            color: '#9f7aea' },
+        { key: 'renal',          label: 'Renal',          color: '#38b2ac' },
+    ];
+
+    var hours = data.map(function (d) { return d.hour_label; });
+
+    // Sanitize: replace null component values with 0 for stacking
+    var cleanData = data.map(function (d) {
+        var obj = { hour_label: d.hour_label, sofa_24hours: d.sofa_24hours != null ? d.sofa_24hours : 0 };
+        components.forEach(function (c) { obj[c.key] = d[c.key] != null ? d[c.key] : 0; });
+        return obj;
+    });
+
+    // -- Tooltip div ----------------------------------------------------------
+    var ttDiv = d3.select(container)
+        .append('div')
+        .attr('class', 'd3-tooltip')
+        .style('display', 'none');
+
+    // -- SVG ------------------------------------------------------------------
+    var svg = d3.select(container)
+        .append('svg')
+        .attr('width', W)
+        .attr('height', totH);
+
+    var root = svg.append('g')
+        .attr('transform', 'translate(' + M.left + ',' + M.top + ')');
+
+    root.append('rect')
+        .attr('width', iW).attr('height', iH)
+        .attr('fill', '#fafafa')
+        .attr('stroke', '#e2e8f0').attr('stroke-width', 0.5);
+
+    // -- X scale (band for bars) ----------------------------------------------
+    var xScale = d3.scaleBand()
+        .domain(hours)
+        .range([0, iW])
+        .padding(0.25);
+
+    var bw = xScale.bandwidth();
+
+    // Panel separator
+    root.append('line')
+        .attr('x1', 0).attr('x2', iW)
+        .attr('y1', SOFA_PANEL_H).attr('y2', SOFA_PANEL_H)
+        .attr('stroke', '#e2e8f0').attr('stroke-width', 1);
+
+    // ── Panel 1: Total SOFA (color-coded bars) ────────────────────────────────
+    var p1 = root.append('g');
+
+    var y1 = d3.scaleLinear().domain([0, 24]).range([SOFA_PANEL_H - 2, 2]);
+
+    // Gridlines
+    y1.ticks(6).forEach(function (t) {
+        p1.append('line')
+            .attr('x1', 0).attr('x2', iW)
+            .attr('y1', y1(t)).attr('y2', y1(t))
+            .attr('stroke', '#e2e8f0').attr('stroke-dasharray', '2,2').attr('stroke-width', 0.8);
+    });
+
+    // Bars
+    p1.selectAll('.bar-total')
+        .data(cleanData)
+        .enter().append('rect')
+        .attr('class', 'bar-total')
+        .attr('x', function (d) { return xScale(d.hour_label); })
+        .attr('width', bw)
+        .attr('y', function (d) { return y1(d.sofa_24hours); })
+        .attr('height', function (d) { return Math.max(0, SOFA_PANEL_H - 2 - y1(d.sofa_24hours)); })
+        .attr('fill', function (d) {
+            var s = d.sofa_24hours;
+            if (s <= 5)  return '#48bb78';
+            if (s <= 10) return '#ed8936';
+            return '#e53e3e';
+        })
+        .attr('rx', 2);
+
+    // Sepsis-3 threshold line at SOFA = 2
+    p1.append('line')
+        .attr('x1', 0).attr('x2', iW)
+        .attr('y1', y1(2)).attr('y2', y1(2))
+        .attr('stroke', '#e53e3e').attr('stroke-width', 1.5)
+        .attr('stroke-dasharray', '5,3');
+
+    p1.append('text')
+        .attr('x', iW + 4).attr('y', y1(2) + 4)
+        .attr('font-size', 9).attr('fill', '#e53e3e')
+        .attr('font-family', CHART_FONT)
+        .text('Sepsis-3');
+
+    // Y axis
+    var y1AxisG = p1.append('g')
+        .call(d3.axisLeft(y1).ticks(6).tickSizeOuter(0).tickSize(-iW));
+    y1AxisG.select('.domain').remove();
+    y1AxisG.selectAll('.tick line')
+        .attr('stroke', '#e2e8f0').attr('stroke-dasharray', '2,2');
+    y1AxisG.selectAll('.tick text').attr('font-size', 10).attr('fill', '#718096');
+
+    p1.append('text')
+        .attr('transform', 'rotate(-90)')
+        .attr('x', -(SOFA_PANEL_H / 2)).attr('y', -M.left + 14)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', 11).attr('fill', '#4a5568')
+        .attr('font-family', CHART_FONT)
+        .text('SOFA Score (0\u201324)');
+
+    // Color legend (green/amber/red)
+    var legG1 = p1.append('g').attr('transform', 'translate(0,' + (-M.top + 8) + ')');
+    [['#48bb78', 'Low (0\u20135)'], ['#ed8936', 'Moderate (6\u201310)'], ['#e53e3e', 'High (11+)']].forEach(function (item, i) {
+        legG1.append('rect').attr('x', i * 130).attr('y', 0).attr('width', 12).attr('height', 12)
+            .attr('fill', item[0]).attr('rx', 2);
+        legG1.append('text').attr('x', i * 130 + 16).attr('y', 10)
+            .attr('font-size', 10).attr('fill', '#4a5568').attr('font-family', CHART_FONT)
+            .text(item[1]);
+    });
+
+    // ── Panel 2: Stacked organ components ────────────────────────────────────
+    var p2 = root.append('g').attr('transform', 'translate(0,' + SOFA_PANEL_H + ')');
+
+    var y2 = d3.scaleLinear().domain([0, 25]).range([SOFA_PANEL_H - 2, 2]);
+
+    var stackGen  = d3.stack().keys(components.map(function (c) { return c.key; }));
+    var stackData = stackGen(cleanData);
+
+    stackData.forEach(function (layer, ci) {
+        p2.selectAll(null)
+            .data(layer)
+            .enter().append('rect')
+            .attr('x', function (d, i) { return xScale(hours[i]); })
+            .attr('width', bw)
+            .attr('y', function (d) { return y2(d[1]); })
+            .attr('height', function (d) { return Math.max(0, y2(d[0]) - y2(d[1])); })
+            .attr('fill', components[ci].color)
+            .attr('rx', 1);
+    });
+
+    var y2AxisG = p2.append('g')
+        .call(d3.axisLeft(y2).ticks(5).tickSizeOuter(0).tickSize(-iW));
+    y2AxisG.select('.domain').remove();
+    y2AxisG.selectAll('.tick line')
+        .attr('stroke', '#e2e8f0').attr('stroke-dasharray', '2,2');
+    y2AxisG.selectAll('.tick text').attr('font-size', 10).attr('fill', '#718096');
+
+    p2.append('text')
+        .attr('transform', 'rotate(-90)')
+        .attr('x', -(SOFA_PANEL_H / 2)).attr('y', -M.left + 14)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', 11).attr('fill', '#4a5568')
+        .attr('font-family', CHART_FONT)
+        .text('Organ Score (0\u20134 each)');
+
+    // Component legend
+    var legG2 = p2.append('g').attr('transform', 'translate(0,' + (SOFA_PANEL_H + 5) + ')');
+    components.forEach(function (c, i) {
+        legG2.append('rect').attr('x', i * (iW / 6)).attr('y', 0)
+            .attr('width', 10).attr('height', 10).attr('fill', c.color).attr('rx', 2);
+        legG2.append('text')
+            .attr('x', i * (iW / 6) + 13).attr('y', 9)
+            .attr('font-size', 9).attr('fill', '#4a5568').attr('font-family', CHART_FONT)
+            .text(c.label);
+    });
+
+    // -- Shared X axis --------------------------------------------------------
+    var tickEvery = hours.length > 12 ? 3 : (hours.length > 6 ? 2 : 1);
+    var tickVals  = hours.filter(function (h, i) { return i % tickEvery === 0; });
+
+    var xAxisG = root.append('g')
+        .attr('transform', 'translate(0,' + iH + ')')
+        .call(d3.axisBottom(xScale).tickValues(tickVals).tickSizeOuter(0));
+    xAxisG.select('.domain').attr('stroke', '#cbd5e0');
+    xAxisG.selectAll('.tick line').remove();
+    xAxisG.selectAll('.tick text').attr('font-size', 10).attr('fill', '#718096');
+
+    root.append('text')
+        .attr('x', iW / 2).attr('y', iH + M.bottom - 10)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', 12).attr('fill', '#4a5568')
+        .attr('font-family', CHART_FONT)
+        .text('Hour of Day');
+
+    // -- Crosshair + tooltip --------------------------------------------------
+    var crosshairG = root.append('g').style('display', 'none').style('pointer-events', 'none');
+    crosshairG.append('line')
+        .attr('class', 'ch-line')
+        .attr('y1', 0).attr('y2', iH)
+        .attr('stroke', '#1a365d').attr('stroke-width', 1)
+        .attr('stroke-dasharray', '4,2').attr('opacity', 0.6);
+
+    root.append('rect')
+        .attr('width', iW).attr('height', iH)
+        .attr('fill', 'transparent')
+        .on('mousemove', function (event) {
+            var mx  = d3.pointer(event)[0];
+            var idx = Math.max(0, Math.min(hours.length - 1,
+                Math.floor(mx / xScale.step())));
+            var hour = hours[idx];
+            var cx   = xScale(hour) + bw / 2;
+
+            crosshairG.style('display', null);
+            crosshairG.select('.ch-line').attr('x1', cx).attr('x2', cx);
+
+            var row  = data[idx];
+            var html = '<div class="tt-hour">' + hour + '</div>';
+            html += '<div class="tt-row"><span class="tt-name" style="font-weight:700;">SOFA Total</span>'
+                + '<span class="tt-val">' + (row.sofa_24hours != null ? row.sofa_24hours : '\u2013') + '</span></div>';
+            components.forEach(function (c) {
+                html += '<div class="tt-row">'
+                    + '<span class="tt-dot" style="background:' + c.color + '"></span>'
+                    + '<span class="tt-name">' + c.label + '</span>'
+                    + '<span class="tt-val">' + (row[c.key] != null ? row[c.key] : '\u2013') + '</span>'
+                    + '</div>';
+            });
+
+            ttDiv.style('display', 'block').html(html);
+
+            var ttW = ttDiv.node().offsetWidth;
+            var ttH = ttDiv.node().offsetHeight;
+            var tx  = cx + M.left + 14;
+            var ty  = event.offsetY - ttH / 2;
+            if (tx + ttW > W - 4)       tx = cx + M.left - ttW - 14;
+            if (ty < 2)                 ty = 2;
+            if (ty + ttH > totH - 2)    ty = totH - ttH - 2;
+            ttDiv.style('left', tx + 'px').style('top', ty + 'px');
+        })
+        .on('mouseleave', function () {
+            crosshairG.style('display', 'none');
+            ttDiv.style('display', 'none');
+        });
+}
+
+// =============================================================================
+// TAB 1 — CARDIOVASCULAR
+// =============================================================================
+
+(function renderCardio() {
+    if (isEmpty(vitalsData)) {
+        showEmptyState('chart-cardio', 'No vitals data available yet. Advance the simulation to populate data.');
+        return;
     }
+    var hours = vitalsData.map(function (v) { return v.hour_label; });
+    buildMultiPanel('chart-cardio', {
+        hours: hours,
+        panels: [
+            {
+                label: 'HR (bpm)',
+                yDomain: [40, 160],
+                normalBands: [{ y0: 60, y1: 100, color: '#48bb78' }],
+                series: [
+                    { name: 'Heart Rate',
+                      values: vitalsData.map(function (v) { return v.heart_rate; }),
+                      color: '#e53e3e', unit: 'bpm', decimals: 0 },
+                ],
+            },
+            {
+                label: 'BP (mmHg)',
+                normalBands: [{ y0: 90, y1: 140, color: '#48bb78' }],
+                series: [
+                    { name: 'SBP',
+                      values: vitalsData.map(function (v) { return v.sbp; }),
+                      color: '#3182ce', unit: 'mmHg', decimals: 0 },
+                    { name: 'DBP',
+                      values: vitalsData.map(function (v) { return v.dbp; }),
+                      color: '#63b3ed', unit: 'mmHg', decimals: 0 },
+                    { name: 'MBP',
+                      values: vitalsData.map(function (v) { return v.mbp; }),
+                      color: '#2b6cb0', unit: 'mmHg', decimals: 0, dash: '5,3', width: 2 },
+                ],
+            },
+        ],
+    });
+})();
+
+// =============================================================================
+// TAB 2 — RESPIRATORY
+// =============================================================================
+
+function renderResp() {
+    if (isEmpty(vitalsData)) {
+        showEmptyState('chart-resp', 'No vitals data available yet. Advance the simulation to populate data.');
+        return;
+    }
+    var hours = vitalsData.map(function (v) { return v.hour_label; });
+    buildMultiPanel('chart-resp', {
+        hours: hours,
+        panels: [
+            {
+                label: 'SpO\u2082 (%)',
+                yDomain: [84, 100],
+                normalBands:  [{ y0: 95, y1: 100, color: '#48bb78' }],
+                warningBands: [{ y0: 88, y1: 95,  color: '#fc8181' }],
+                series: [
+                    { name: 'SpO\u2082',
+                      values: vitalsData.map(function (v) { return v.spo2; }),
+                      color: '#38a169', unit: '%', decimals: 1 },
+                ],
+            },
+            {
+                label: 'RR (/min)',
+                normalBands: [{ y0: 12, y1: 20, color: '#48bb78' }],
+                series: [
+                    { name: 'Resp Rate',
+                      values: vitalsData.map(function (v) { return v.resp_rate; }),
+                      color: '#d69e2e', unit: '/min', decimals: 0 },
+                ],
+            },
+            {
+                label: 'Temp (\u00b0C)',
+                normalBands: [{ y0: 36.5, y1: 37.5, color: '#48bb78' }],
+                series: [
+                    { name: 'Temperature',
+                      values: vitalsData.map(function (v) { return v.temperature; }),
+                      color: '#ed8936', unit: '\u00b0C', decimals: 1 },
+                ],
+            },
+        ],
+    });
+}
+
+// Resp tab is hidden on first load — defer until first shown
+var respTab = document.getElementById('tab-resp');
+if (respTab && respTab.classList.contains('active')) {
+    renderResp();
+} else {
+    deferredRenders['resp'] = renderResp;
+}
+
+// =============================================================================
+// TAB 3 — LABS
+// =============================================================================
+
+function renderLabs() {
+    var hasVitals = !isEmpty(vitalsData);
+    var hasChem   = !isEmpty(chemData);
+    var hasCoag   = !isEmpty(coagData);
+
+    if (!hasVitals && !hasChem && !hasCoag) {
+        showEmptyState('chart-labs', 'No lab data recorded yet. Advance the simulation to populate data.');
+        return;
+    }
+
+    // Build a unified hours array covering all data sources
+    var hourSet = {};
+    if (hasVitals) vitalsData.forEach(function (v) { hourSet[v.hour_label] = true; });
+    if (hasChem)   chemData.forEach(function (c)   { hourSet[c.hour_label] = true; });
+    if (hasCoag)   coagData.forEach(function (c)   { hourSet[c.hour_label] = true; });
+    var hours = Object.keys(hourSet).sort();
+
+    // Helper: look up a field value by hour from a dataset
+    function byHour(dataset, field) {
+        var map = {};
+        dataset.forEach(function (d) { map[d.hour_label] = d[field]; });
+        return hours.map(function (h) { return map[h] != null ? map[h] : null; });
+    }
+
+    var panels = [];
+
+    if (hasVitals) {
+        panels.push({
+            label: 'Glucose (mg/dL)',
+            normalBands: [{ y0: 70, y1: 140, color: '#48bb78' }],
+            series: [
+                { name: 'Glucose',
+                  values: byHour(vitalsData, 'glucose'),
+                  color: '#805ad5', unit: 'mg/dL', decimals: 0 },
+            ],
+        });
+    }
+
+    if (hasChem) {
+        panels.push({
+            label: 'Na / HCO\u2083 (mEq/L)',
+            rightLabel: 'K / Ca (mEq/L)',
+            normalBands: [
+                { y0: 135, y1: 145, color: '#48bb78', axis: 'left' },
+                { y0: 3.5, y1: 5.0, color: '#48bb78', axis: 'right' },
+            ],
+            series: [
+                { name: 'Sodium',
+                  values: byHour(chemData, 'sodium'),
+                  color: '#3182ce', unit: 'mEq/L', decimals: 1, yAxis: 'left' },
+                { name: 'Bicarbonate',
+                  values: byHour(chemData, 'bicarbonate'),
+                  color: '#319795', unit: 'mEq/L', decimals: 1, yAxis: 'left', dash: '4,2', width: 2 },
+                { name: 'Potassium',
+                  values: byHour(chemData, 'potassium'),
+                  color: '#e67e22', unit: 'mEq/L', decimals: 1, yAxis: 'right' },
+                { name: 'Calcium',
+                  values: byHour(chemData, 'calcium'),
+                  color: '#b7791f', unit: 'mg/dL', decimals: 1, yAxis: 'right', dash: '4,2', width: 2 },
+            ],
+        });
+    }
+
+    if (hasCoag) {
+        panels.push({
+            label: 'INR',
+            rightLabel: 'PTT (s)',
+            normalBands: [{ y0: 0.8, y1: 1.2, color: '#48bb78', axis: 'left' }],
+            series: [
+                { name: 'INR',
+                  values: byHour(coagData, 'inr'),
+                  color: '#e53e3e', decimals: 2, yAxis: 'left' },
+                { name: 'PTT',
+                  values: byHour(coagData, 'ptt'),
+                  color: '#6b46c1', unit: 's', decimals: 0, yAxis: 'right' },
+            ],
+        });
+    }
+
+    buildMultiPanel('chart-labs', { hours: hours, panels: panels });
+}
+
+var labsTab = document.getElementById('tab-labs');
+if (labsTab && labsTab.classList.contains('active')) {
+    renderLabs();
+} else {
+    deferredRenders['labs'] = renderLabs;
+}
+
+// =============================================================================
+// TAB 4 — SOFA SCORE
+// =============================================================================
+
+function renderSofa() {
+    if (isEmpty(sofaData)) {
+        showEmptyState('chart-sofa',
+            'SOFA data not available. Check that the <code>sofa_hourly</code> view is present '
+            + 'in the database and that the simulation has been advanced.');
+        return;
+    }
+    buildSofaChart('chart-sofa', sofaData);
+}
+
+var sofaTab = document.getElementById('tab-sofa');
+if (sofaTab && sofaTab.classList.contains('active')) {
+    renderSofa();
+} else {
+    deferredRenders['sofa'] = renderSofa;
+}
+
+// =============================================================================
+// PREDICTIONS (unchanged)
+// =============================================================================
+
+var predUrl = document.getElementById('page-config').dataset.predictionUrl;
+if (predUrl) {
+    fetch(predUrl)
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            var riskEl  = document.getElementById('risk-score');
+            var groupEl = document.getElementById('comorbidity-group');
+            if (riskEl)  riskEl.textContent  = data.risk_score != null ? data.risk_score.toFixed(3) : '-';
+            if (groupEl) groupEl.textContent = data.comorbidity_group || '-';
+        })
+        .catch(function () {
+            var riskEl  = document.getElementById('risk-score');
+            var groupEl = document.getElementById('comorbidity-group');
+            if (riskEl)  riskEl.textContent  = '-';
+            if (groupEl) groupEl.textContent = 'Error';
+        });
+}
+
 })();
 </script>
 {% endblock %}
