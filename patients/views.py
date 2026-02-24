@@ -44,16 +44,27 @@ def _display_time(current_hour):
         return f"March 13, 2025 {display_hour:02d}:00"
 
 
-def _prediction_as_of_dt(current_hour):
+def _prediction_as_of_dt(current_hour, patient_intime=None):
     """
     Backend timestamp used for model scoring per simulation hour.
-    Mirrors frontend display mapping (+1 hour offset).
+    
+    Always returns normalized 2025-03-13 timestamps for consistency,
+    even though the database contains patients from various years.
+    The actual DB queries are year-agnostic (filter by month/day only).
+    
+    Args:
+        current_hour: Hour of simulation (0-23)
+        patient_intime: Not used anymore (kept for API compatibility)
     """
     if current_hour < 0:
         return None
+    
+    # Always use normalized 2025-03-13 for predictions
+    year, month, day = 2025, 3, 13
+    
     if current_hour >= 23:
         return datetime(2025, 3, 14, 0, 0, 0)
-    return datetime(2025, 3, 13, current_hour + 1, 0, 0)
+    return datetime(year, month, day, current_hour + 1, 0, 0)
 
 
 def _get_cohort_patients():
@@ -168,7 +179,8 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
             'ordercategoryname', 'statusdescription',
         ))
 
-    # Prediction "as_of" time for the API (matches simulation clock)
+    # Prediction "as_of" time for the API (normalized to 2025-03-13)
+    # Database queries are year-agnostic, display is normalized for consistency
     if current_hour < 0:
         prediction_as_of_iso = None
     elif current_hour >= 23:
@@ -264,6 +276,7 @@ def advance_time(request):
         ))
 
     # --- 5. Score ALL admitted patients at this hour ---
+    # Use normalized 2025-03-13 timestamp (DB queries are year-agnostic)
     model_scoring_table = []
     as_of_dt = _prediction_as_of_dt(current_hour)
     if as_of_dt is not None:

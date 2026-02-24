@@ -1,6 +1,9 @@
+import logging
 from datetime import datetime, timedelta, timezone
 import json
 from django.db import connection
+
+logger = logging.getLogger(__name__)
 
 # Use the same candidate list, but mapped to string names
 DERIVED_TABLE_CANDIDATES = {
@@ -316,7 +319,19 @@ def _get_s3_client(settings):
     return boto3.client("s3", **client_kwargs), None
 
 
-def _write_json_to_s3(s3, bucket, key, payload):
+def _s3_key_exists(s3, bucket, key):
+    """Check if an S3 object exists without downloading it."""
+    try:
+        s3.head_object(Bucket=bucket, Key=key)
+        return True
+    except Exception:
+        return False
+
+
+def _write_json_to_s3(s3, bucket, key, payload, skip_if_exists=False):
+    """Write JSON to S3. If skip_if_exists=True, do nothing when key already exists."""
+    if skip_if_exists and _s3_key_exists(s3, bucket, key):
+        return
     s3.put_object(
         Bucket=bucket,
         Key=key,
@@ -361,6 +376,8 @@ def _extract_current_hour_vector(wide_rows, as_of):
 
 
 def _prediction_payload(subject_id, stay_id, hadm_id, as_of, current_row, history_rows):
+    current_serialized = _serialize_row(current_row)
+    history_serialized = [_serialize_row(r) for r in history_rows]
     return {
         "patient": {
             "subject_id": subject_id,
@@ -368,20 +385,24 @@ def _prediction_payload(subject_id, stay_id, hadm_id, as_of, current_row, histor
             "hadm_id": hadm_id,
         },
         "as_of": as_of.isoformat(),
-        "current_feature_vector": _serialize_row(current_row),
+        "records": history_serialized + [current_serialized],
+        "current_feature_vector": current_serialized,
         "source_keys": {
             source: {
                 "subject_id": source_row.get("subject_id"),
                 "stay_id": source_row.get("stay_id"),
-                "charttime_hour": source_row.get("charttime_hour"),
+                "charttime_hour": (source_row.get("charttime_hour").isoformat()
+                    if source_row.get("charttime_hour") is not None else None),
             }
             for source, source_row in current_row.items()
         },
-        "history_feature_vectors": [_serialize_row(r) for r in history_rows],
+        "history_feature_vectors": history_serialized,
     }
 
 
 def _prediction_payload_feature_matrix(subject_id, stay_id, hadm_id, as_of, current_row, history_rows):
+    current_serialized = _serialize_row(current_row)
+    history_serialized = [_serialize_row(r) for r in history_rows]
     return {
         "patient": {
             "subject_id": subject_id,
@@ -389,13 +410,15 @@ def _prediction_payload_feature_matrix(subject_id, stay_id, hadm_id, as_of, curr
             "hadm_id": hadm_id,
         },
         "as_of": as_of.isoformat(),
-        "current_feature_vector": _serialize_row(current_row),
+        "records": history_serialized + [current_serialized],
+        "current_feature_vector": current_serialized,
         "source_keys": {
             "subject_id": current_row.get("subject_id"),
             "stay_id": current_row.get("stay_id"),
-            "charttime_hour": current_row.get("charttime_hour"),
+            "charttime_hour": (current_row.get("charttime_hour").isoformat()
+                if current_row.get("charttime_hour") is not None else None),
         },
-        "history_feature_vectors": [_serialize_row(r) for r in history_rows],
+        "history_feature_vectors": history_serialized,
     }
 
 
@@ -421,11 +444,7 @@ def _row_sort_time(row):
 def _fetch_required_model_sources(subject_id, stay_id, start, end, limit=50000):
     """
     Fetch required hourly source tables for predictions.
-    Uses year-agnostic filtering (month, day, hour) since MIMIC-IV dates are shifted.
-    
-    Args:
-        start: datetime with normalized year (2025), used for month/day/hour
-        end: datetime with normalized year (2025), used for month/day/hour
+    Uses timestamp range (start/end must use patient's actual year for DB queries).
     """
     required_sources = {
         "vitals_hourly": DERIVED_TABLE_CANDIDATES["vitals_hourly"],
@@ -435,10 +454,6 @@ def _fetch_required_model_sources(subject_id, stay_id, start, end, limit=50000):
         "sofa_hourly": DERIVED_TABLE_CANDIDATES["sofa_hourly"],
     }
 
-    # Extract month/day/hour from normalized timestamps for year-agnostic filtering
-    start_month, start_day, start_hour = start.month, start.day, start.hour
-    end_month, end_day, end_hour = end.month, end.day, end.hour
-    
     source_rows = {}
     for source_name, candidates in required_sources.items():
         table = _pick_first_existing(candidates)
@@ -450,18 +465,14 @@ def _fetch_required_model_sources(subject_id, stay_id, start, end, limit=50000):
             where_sql=(
                 "subject_id = %(subject_id)s "
                 "AND stay_id = %(stay_id)s "
-                "AND EXTRACT(MONTH FROM charttime_hour) = %(start_month)s "
-                "AND EXTRACT(DAY FROM charttime_hour) = %(start_day)s "
-                "AND EXTRACT(HOUR FROM charttime_hour) >= %(start_hour)s "
-                "AND EXTRACT(HOUR FROM charttime_hour) <= %(end_hour)s"
+                "AND charttime_hour >= %(start)s "
+                "AND charttime_hour <= %(end)s"
             ),
             params={
                 "subject_id": subject_id,
                 "stay_id": stay_id,
-                "start_month": start_month,
-                "start_day": start_day,
-                "start_hour": start_hour,
-                "end_hour": end_hour,
+                "start": start,
+                "end": end,
             },
             order_sql="charttime_hour",
             limit=limit,
@@ -520,37 +531,25 @@ def _build_current_vector_from_sources(source_rows, as_of):
 def _fetch_feature_matrix_rows(subject_id, stay_id, start, end, limit=50000):
     """
     Fetch feature matrix rows for a patient within a time window.
-    Uses year-agnostic filtering (month, day, hour) since MIMIC-IV dates are shifted.
-    
-    Args:
-        start: datetime with normalized year (2025), used for month/day/hour
-        end: datetime with normalized year (2025), used for month/day/hour
+    Uses year from start/end (caller must pass real patient year for DB queries).
     """
     table = _pick_first_existing(DERIVED_TABLE_CANDIDATES["feature_matrix_hourly"])
     if not table:
         return None, "No feature matrix table found"
 
-    # Extract month/day/hour from normalized timestamps for year-agnostic filtering
-    start_month, start_day, start_hour = start.month, start.day, start.hour
-    end_month, end_day, end_hour = end.month, end.day, end.hour
-    
     fetched = _fetch_rows(
         table=table,
         where_sql=(
             "subject_id = %(subject_id)s "
             "AND stay_id = %(stay_id)s "
-            "AND EXTRACT(MONTH FROM charttime_hour) = %(start_month)s "
-            "AND EXTRACT(DAY FROM charttime_hour) = %(start_day)s "
-            "AND EXTRACT(HOUR FROM charttime_hour) >= %(start_hour)s "
-            "AND EXTRACT(HOUR FROM charttime_hour) <= %(end_hour)s"
+            "AND charttime_hour >= %(start)s "
+            "AND charttime_hour <= %(end)s"
         ),
         params={
             "subject_id": subject_id,
             "stay_id": stay_id,
-            "start_month": start_month,
-            "start_day": start_day,
-            "start_hour": start_hour,
-            "end_hour": end_hour,
+            "start": start,
+            "end": end,
         },
         order_sql="charttime_hour",
         limit=limit,
@@ -610,8 +609,13 @@ def get_prediction(subject_id, stay_id, hadm_id, as_of, window_hours=24):
 
     When MODEL_SERVICE_URL is set: fetches features, POSTs to model service, returns result.
     When not set: returns error indicating model service is not configured.
+
+    The as_of param uses normalized 2025-03-13 for display. For DB queries we look up
+    the patient's actual admission year (MIMIC-IV uses shifted dates) and use that
+    so we fetch the correct rows from vitals/chemistry/etc.
     """
     from django.conf import settings
+    from .models import UniquePatientProfile
 
     model_url = getattr(settings, "MODEL_SERVICE_URL", "") or ""
     if not model_url:
@@ -624,14 +628,26 @@ def get_prediction(subject_id, stay_id, hadm_id, as_of, window_hours=24):
     s3_prefix = getattr(settings, "MODEL_S3_PREFIX", "model-io") or "model-io"
     history_hours = int(getattr(settings, "MODEL_HISTORY_HOURS", 6) or 6)
 
-    start = as_of - timedelta(hours=window_hours)
+    # Look up patient's actual admission year for DB queries (MIMIC-IV dates are shifted)
+    try:
+        patient = UniquePatientProfile.objects.get(
+            subject_id=subject_id, stay_id=stay_id, hadm_id=hadm_id
+        )
+        patient_year = patient.intime.year if patient.intime else 2025
+    except UniquePatientProfile.DoesNotExist:
+        patient_year = 2025
+
+    # Build start/end with patient's actual year for DB queries
+    start_normalized = as_of - timedelta(hours=window_hours)
+    start = start_normalized.replace(year=patient_year)
+    end = as_of.replace(year=patient_year)
 
     using_feature_matrix = False
     local_history_rows = []
-    matrix_rows, matrix_err = _fetch_feature_matrix_rows(subject_id, stay_id, start, as_of)
+    matrix_rows, matrix_err = _fetch_feature_matrix_rows(subject_id, stay_id, start, end)
     if matrix_rows:
         using_feature_matrix = True
-        current_row = _latest_row_at_or_before(matrix_rows, as_of)
+        current_row = _latest_row_at_or_before(matrix_rows, end)
         if not current_row:
             return {"ok": False, "error": "No feature matrix row at or before as_of"}
         current_hour = _normalize_hour(current_row.get("charttime_hour"))
@@ -641,10 +657,10 @@ def get_prediction(subject_id, stay_id, hadm_id, as_of, window_hours=24):
             and _normalize_hour(row.get("charttime_hour")) < current_hour
         ]
     else:
-        source_rows, source_err = _fetch_required_model_sources(subject_id, stay_id, start, as_of)
+        source_rows, source_err = _fetch_required_model_sources(subject_id, stay_id, start, end)
         if source_err:
             return {"ok": False, "error": f"{matrix_err}; fallback failed: {source_err}"}
-        current_row, current_err = _build_current_vector_from_sources(source_rows, as_of)
+        current_row, current_err = _build_current_vector_from_sources(source_rows, end)
         if current_err:
             return {"ok": False, "error": current_err}
 
@@ -671,7 +687,7 @@ def get_prediction(subject_id, stay_id, hadm_id, as_of, window_hours=24):
             "feature_vector": _serialize_row(current_row),
         }
         try:
-            _write_json_to_s3(s3, s3_bucket, current_feature_key, feature_payload)
+            _write_json_to_s3(s3, s3_bucket, current_feature_key, feature_payload, skip_if_exists=True)
             history_rows = _load_history_vectors_from_s3(
                 s3, s3_bucket, patient_prefix, history_hours, current_feature_key
             )
@@ -679,7 +695,7 @@ def get_prediction(subject_id, stay_id, hadm_id, as_of, window_hours=24):
         except Exception as e:
             return {"ok": False, "error": f"S3 IO failed: {e}"}
     else:
-        # Fallback without S3: use local DB rows from feature matrix when available.
+        # No S3: use DB-derived history from feature matrix when available
         history_rows = local_history_rows[-history_hours:] if using_feature_matrix else []
 
     if using_feature_matrix:
@@ -712,6 +728,7 @@ def get_prediction(subject_id, stay_id, hadm_id, as_of, window_hours=24):
             )
             resp.raise_for_status()
             data = resp.json()
+            logger.warning("Model service raw response: %s", data)
     except httpx.TimeoutException as e:
         return {"ok": False, "error": f"Model service timeout: {e}"}
     except httpx.HTTPStatusError as e:
@@ -719,8 +736,13 @@ def get_prediction(subject_id, stay_id, hadm_id, as_of, window_hours=24):
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
-    risk_score = data.get("risk_score")
-    comorbidity_group = data.get("comorbidity_group")
+    # Model returns {"predictions": [float, ...]} - one per record; use last as current risk
+    predictions = data.get("predictions")
+    if predictions is None:
+        risk_score = data.get("risk_score")  # fallback to legacy format
+    else:
+        risk_score = float(predictions[-1]) if predictions else None
+
     if risk_score is None:
         return {"ok": False, "error": "Model response missing risk_score"}
 
@@ -748,6 +770,7 @@ def get_prediction(subject_id, stay_id, hadm_id, as_of, window_hours=24):
                     "risk_score": float(risk_score),
                     "comorbidity_group": str(comorbidity_group),
                 },
+                skip_if_exists=True,
             )
             io_key = f"{patient_prefix}/io/{_as_of_key(as_of)}.json"
             _write_json_to_s3(
@@ -755,6 +778,7 @@ def get_prediction(subject_id, stay_id, hadm_id, as_of, window_hours=24):
                 s3_bucket,
                 io_key,
                 {"request": payload, "response": data},
+                skip_if_exists=True,
             )
         except Exception:
             # Do not fail prediction response for audit write failures.

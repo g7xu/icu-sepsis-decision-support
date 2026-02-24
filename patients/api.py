@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timedelta
 from django.http import JsonResponse
 from django.utils.dateparse import parse_datetime
@@ -9,6 +10,8 @@ from .services import (
     assemble_hourly_wide_table,
     get_prediction,
 )
+
+logger = logging.getLogger(__name__)
 
 def _resolve_time_window(request, window_hours_default=6):
     start_str = request.GET.get('start')
@@ -151,7 +154,9 @@ def get_prediction_view(request, subject_id, stay_id, hadm_id):
         window_hours=window_hours,
     )
     if not result.get("ok"):
-        return JsonResponse({"error": result.get("error", "Prediction failed")}, status=500)
+        error_msg = result.get("error", "Prediction failed")
+        logger.error(f"Prediction failed for patient {subject_id}/{stay_id}/{hadm_id}: {error_msg}")
+        return JsonResponse({"error": error_msg}, status=500)
 
     return JsonResponse({
         "patient": {"subject_id": subject_id, "stay_id": stay_id, "hadm_id": hadm_id},

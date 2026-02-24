@@ -72,6 +72,12 @@ MODEL_S3_PREFIX=model-io
 MODEL_HISTORY_HOURS=6
 ```
 
+**S3 behavior:**
+- Feature vectors and predictions are written to S3. If an object already exists (e.g. from a re-run), it is **not overwritten** to avoid duplicates.
+- To start fresh and clear stale data: `python manage.py clear_model_s3`
+- To wipe one patient only: `python manage.py clear_model_s3 --prefix model-io/patients/13129329_32482524_23992308`
+- Dry run: `python manage.py clear_model_s3 --dry-run`
+
 ### EC2 model contract
 
 The EC2 service must expose:
