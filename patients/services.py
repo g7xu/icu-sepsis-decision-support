@@ -746,11 +746,12 @@ def get_prediction(subject_id, stay_id, hadm_id, as_of, window_hours=24):
     if risk_score is None:
         return {"ok": False, "error": "Model response missing risk_score"}
 
-    # Comorbidity group should be returned first time. If omitted later, keep first.
+    # Comorbidity group: use S3 cached value, model response, or placeholder until model team adds it
+    comorbidity_group = data.get("comorbidity_group")
     if first_group:
         comorbidity_group = first_group
     elif comorbidity_group is None:
-        return {"ok": False, "error": "Model response missing comorbidity_group for first prediction"}
+        comorbidity_group = "unknown"  # placeholder until model returns comorbidity_group
 
     # Persist prediction output for audit/replay
     if s3 and s3_bucket:
