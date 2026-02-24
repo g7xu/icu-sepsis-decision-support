@@ -259,14 +259,23 @@ if (vitalsData.length > 0) {
             .then(data => {
                 const riskEl = document.getElementById('risk-score');
                 const groupEl = document.getElementById('comorbidity-group');
-                if (riskEl) riskEl.textContent = data.risk_score != null ? data.risk_score.toFixed(2) : '-';
-                if (groupEl) groupEl.textContent = data.comorbidity_group || '-';
+                
+                // Check if response contains an error
+                if (data.error) {
+                    if (riskEl) riskEl.textContent = 'N/A';
+                    if (groupEl) groupEl.textContent = 'Not configured';
+                    console.warn('Prediction error:', data.error);
+                } else {
+                    if (riskEl) riskEl.textContent = data.risk_score != null ? data.risk_score.toFixed(2) : '-';
+                    if (groupEl) groupEl.textContent = data.comorbidity_group || '-';
+                }
             })
-            .catch(() => {
+            .catch((error) => {
                 const riskEl = document.getElementById('risk-score');
                 const groupEl = document.getElementById('comorbidity-group');
-                if (riskEl) riskEl.textContent = '-';
+                if (riskEl) riskEl.textContent = 'N/A';
                 if (groupEl) groupEl.textContent = 'Error';
+                console.error('Prediction fetch error:', error);
             });
     }
 
