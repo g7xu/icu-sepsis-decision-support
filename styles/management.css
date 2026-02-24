@@ -1,0 +1,63 @@
+/**
+ * Management view styles - Patient Index (list) page.
+ * Edit these to change the patient list table and pagination.
+ */
+
+/* =============================================================================
+   Tables
+   ============================================================================= */
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.table th,
+.table td {
+    padding: 0.4rem 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.table th {
+    background: #f7fafc;
+    font-weight: 600;
+    color: #4a5568;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.table tbody tr:hover {
+    background: #f7fafc;
+}
+
+/* =============================================================================
+   Pagination
+   ============================================================================= */
+
+.pagination {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+    margin-top: 0.75rem;
+}
+
+.pagination a,
+.pagination span {
+    padding: 0.5rem 1rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    text-decoration: none;
+    color: #4a5568;
+}
+
+.pagination a:hover {
+    background: #e2e8f0;
+}
+
+.pagination .current {
+    background: #3182ce;
+    color: white;
+    border-color: #3182ce;
+}

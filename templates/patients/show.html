@@ -1,70 +1,75 @@
 {% extends 'base.html' %}
+{% load static %}
 
-{% block title %}Patient {{ patient.subject_id }} - ICU Sepsis Decision Support{% endblock %}
+{% block title %}{{ patient.display_name }} - ICU Sepsis Decision Support{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'patient.css' %}">
+{% endblock %}
+
+{% block navbar_clock %}
+<div class="app-navbar__clock">
+    <a href="{% url 'patients:index' %}" class="btn btn-primary btn-sm">&larr; Back to List</a>
+    <span id="current-time" class="sim-time">{{ current_time_display }}</span>
+    <button id="advance-btn" class="btn btn-primary">+1</button>
+</div>
+{% endblock %}
 
 {% block content %}
 <!-- Patient Details -->
 <div class="card">
     <div class="card-header">
         <h2>Patient Details</h2>
-        <div style="display: flex; align-items: center; gap: 1rem;">
-            <a href="{% url 'patients:index' %}" class="btn btn-primary btn-sm">&larr; Back to List</a>
-            <span id="current-time" class="badge" style="background: #1a365d; color: white; font-size: 1rem; padding: 0.4rem 1rem;">
-                {{ current_time_display }}
-            </span>
-            <button id="advance-btn" class="btn btn-primary" style="font-size: 1.1rem; font-weight: 700; cursor: pointer; border: none;">
-                +1
-            </button>
-        </div>
     </div>
     
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem;">
+    <div class="patient-detail-grid">
         <div>
-            <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.25rem;">Subject ID</p>
-            <p style="font-size: 1.25rem; font-weight: 600;">{{ patient.subject_id }}</p>
+            <p class="patient-field-label">Patient</p>
+            <p class="patient-field-value">{{ patient.display_name }}</p>
         </div>
         <div>
-            <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.25rem;">Stay ID</p>
-            <p style="font-size: 1.25rem; font-weight: 600;">{{ patient.stay_id }}</p>
+            <p class="patient-field-label">Age</p>
+            <p class="patient-field-value">{{ patient.anchor_age|default:"-" }}</p>
         </div>
         <div>
-            <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.25rem;">HADM ID</p>
-            <p style="font-size: 1.25rem; font-weight: 600;">{{ patient.hadm_id }}</p>
-        </div>
-        <div>
-            <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.25rem;">Age</p>
-            <p style="font-size: 1.25rem; font-weight: 600;">{{ patient.anchor_age|default:"-" }}</p>
-        </div>
-        <div>
-            <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.25rem;">Gender</p>
-            <p style="font-size: 1.25rem; font-weight: 600;">
+            <p class="patient-field-label">Gender</p>
+            <p class="patient-field-value">
                 {% if patient.gender == 'M' %}Male{% elif patient.gender == 'F' %}Female{% else %}{{ patient.gender|default:"-" }}{% endif %}
             </p>
         </div>
         <div>
-            <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.25rem;">Race</p>
-            <p style="font-size: 1.25rem; font-weight: 600;">{{ patient.race|default:"-" }}</p>
+            <p class="patient-field-label">Race</p>
+            <p class="patient-field-value">{{ patient.race|default:"-" }}</p>
         </div>
         <div>
-            <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.25rem;">First Care Unit</p>
-            <p style="font-size: 1.25rem; font-weight: 600;">{{ patient.first_careunit|default:"-" }}</p>
+            <p class="patient-field-label">First Care Unit</p>
+            <p class="patient-field-value">{{ patient.first_careunit|default:"-" }}</p>
         </div>
         <div>
-            <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.25rem;">Admission Time</p>
-            <p style="font-size: 1.25rem; font-weight: 600;">{{ patient.intime|date:"M d, Y H:i"|default:"-" }}</p>
+            <p class="patient-field-label">Admission Time</p>
+            <p class="patient-field-value">{{ patient.intime|time:"H:i"|default:"-" }}</p>
         </div>
     </div>
 </div>
 
 <!-- Clinical Data: Vitals + Procedures side by side -->
-<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; margin-top: 1rem;">
+<div class="clinical-grid">
 
     <!-- Vital Signs Chart -->
     <div class="card">
         <div class="card-header">
             <h2>Vital Signs</h2>
         </div>
-        <div id="vitals-chart" style="width: 100%; min-height: 750px;"></div>
+        <div class="vitals-controls">
+            <label><input type="radio" name="vital" value="hr" checked>Heart Rate</label>
+            <label><input type="radio" name="vital" value="bp">Blood Pressure</label>
+            <label><input type="radio" name="vital" value="spo2">SpO2</label>
+            <label><input type="radio" name="vital" value="resp">Resp Rate</label>
+            <label><input type="radio" name="vital" value="temp">Temperature</label>
+            <label><input type="radio" name="vital" value="glucose">Glucose</label>
+          </div>
+          
+        <div id="vitals-chart" class="vitals-chart"></div>
         {% if current_hour < 0 %}
         <p class="text-muted">Press <strong>+1</strong> to start collecting vital signs.</p>
         {% endif %}
@@ -74,32 +79,35 @@
     <div class="card">
         <div class="card-header">
             <h2>Procedure Events</h2>
-            <span class="badge">{{ procedures_count }} event{{ procedures_count|pluralize }}</span>
         </div>
-        <div id="procedures-log" style="max-height: 750px; overflow-y: auto;">
+        <div id="procedures-log" class="procedures-log">
             {% if procedures %}
                 {% for proc in procedures %}
-                <div style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">
-                    <div style="display: flex; justify-content: space-between; align-items: baseline;">
-                        <strong style="color: #2c5282; font-size: 0.9rem;">{{ proc.item_label|default:"-" }}</strong>
-                        <span class="text-muted" style="font-size: 0.8rem; white-space: nowrap; margin-left: 0.5rem;">
-                            {{ proc.charttime_hour|date:"H:i"|default:"-" }}
-                        </span>
-                    </div>
-                    {% if proc.value %}
-                    <div style="font-size: 0.85rem; margin-top: 0.25rem;">
-                        Value: {{ proc.value }} {{ proc.valueuom|default:"" }}
-                    </div>
-                    {% endif %}
-                    {% if proc.ordercategoryname %}
-                    <div style="font-size: 0.8rem; color: #718096; margin-top: 0.15rem;">
-                        {{ proc.ordercategoryname }}{% if proc.statusdescription %} &middot; {{ proc.statusdescription }}{% endif %}
-                    </div>
-                    {% endif %}
-                </div>
+                    {% with has_event=proc.item_label %}
+                        <div class="procedure-item {% if not has_event %}procedure-item--empty{% endif %}">
+                            {% if proc.item_label %}
+                            <div class="procedure-item__header">
+                                <strong class="procedure-item__label">{{ proc.item_label|default:"-" }}</strong>
+                                <span class="procedure-item__time text-muted">{{ proc.charttime_hour|date:"H:i" }}</span>
+                            </div>
+                            {% endif %}
+                    
+                            {% if proc.value %}
+                            <div class="procedure-item__value">
+                                Value: {{ proc.value }} || Unit of Measurement (if provided): {{ proc.valueuom|default:"" }}
+                            </div>
+                            {% endif %}
+                    
+                            {% if proc.ordercategoryname %}
+                            <div class="procedure-item__meta">
+                                {{ proc.ordercategoryname }} {% if proc.statusdescription %} || {{ proc.statusdescription }}{% endif %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    {% endwith %}
                 {% endfor %}
             {% else %}
-                <p class="text-muted" style="padding: 1rem;">
+                <p class="procedures-empty text-muted">
                     {% if current_hour < 0 %}
                         Press <strong>+1</strong> to start collecting data.
                     {% else %}
@@ -113,19 +121,19 @@
 </div>
 
 <!-- Predictions: risk_score + comorbidity_group -->
-<div class="card" style="margin-top: 1rem;">
+<div class="card prediction-card">
     <div class="card-header">
         <h2>Predictions</h2>
     </div>
-    <div id="prediction-panel" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem;">
+    <div id="prediction-panel" class="prediction-panel">
         {% if prediction_as_of_iso %}
         <div>
-            <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.25rem;">Risk Score</p>
-            <p id="risk-score" style="font-size: 1.25rem; font-weight: 600;">...</p>
+            <p class="prediction-field-label">Risk Score</p>
+            <p id="risk-score" class="prediction-field-value">...</p>
         </div>
         <div>
-            <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.25rem;">Comorbidity Group</p>
-            <p id="comorbidity-group" style="font-size: 1.25rem; font-weight: 600;">...</p>
+            <p class="prediction-field-label">Comorbidity Group</p>
+            <p id="comorbidity-group" class="prediction-field-value">...</p>
         </div>
         {% else %}
         <p class="text-muted">Press <strong>+1</strong> to start the simulation and load predictions.</p>
@@ -137,110 +145,101 @@
 <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
 
 <script type="application/json" id="vitalsigns-data">{{ vitalsigns_json|safe }}</script>
-<div id="page-config" style="display:none" data-csrf-token="{{ csrf_token }}" data-advance-url="{% url 'patients:advance_time' %}" {% if prediction_as_of_iso %}data-prediction-url="{% url 'patients:prediction' patient.subject_id patient.stay_id patient.hadm_id %}?as_of={{ prediction_as_of_iso|urlencode }}&window_hours=24"{% endif %}></div>
+<div id="page-config" class="hidden" data-csrf-token="{{ csrf_token }}" data-advance-url="{% url 'patients:advance_time' %}" {% if prediction_as_of_iso %}data-prediction-url="{% url 'patients:prediction' patient.subject_id patient.stay_id patient.hadm_id %}?as_of={{ prediction_as_of_iso|urlencode }}&window_hours=24"{% endif %}></div>
 
 <script>
 (function() {
-    // =========================================================================
-    // Plotly Vitalsigns Chart
-    // =========================================================================
-    const vitalsData = JSON.parse(document.getElementById('vitalsigns-data').textContent || '[]');
 
-    if (vitalsData.length > 0) {
-        const times = vitalsData.map(v => v.hour_label);
+// =========================================================================
+// Plotly Vitalsigns Chart (single chart + radio selection)
+// =========================================================================
+const vitalsData = JSON.parse(document.getElementById('vitalsigns-data').textContent || '[]');
 
-        const traces = [
-            // --- Row 1: Heart Rate ---
-            {
-                x: times, y: vitalsData.map(v => v.heart_rate),
-                name: 'Heart Rate', type: 'scatter', mode: 'lines+markers',
-                line: { color: '#e53e3e', width: 2 }, marker: { size: 5 },
-                xaxis: 'x', yaxis: 'y',
-            },
-            // --- Row 2: Blood Pressure (SBP / DBP / MBP) ---
-            {
-                x: times, y: vitalsData.map(v => v.sbp),
-                name: 'SBP', type: 'scatter', mode: 'lines+markers',
-                line: { color: '#3182ce', width: 2 }, marker: { size: 4 },
-                xaxis: 'x2', yaxis: 'y2',
-            },
-            {
-                x: times, y: vitalsData.map(v => v.dbp),
-                name: 'DBP', type: 'scatter', mode: 'lines+markers',
-                line: { color: '#90cdf4', width: 2 }, marker: { size: 4 },
-                xaxis: 'x2', yaxis: 'y2',
-            },
-            {
-                x: times, y: vitalsData.map(v => v.mbp),
-                name: 'MBP', type: 'scatter', mode: 'lines+markers',
-                line: { color: '#2b6cb0', width: 2, dash: 'dash' }, marker: { size: 4 },
-                xaxis: 'x2', yaxis: 'y2',
-            },
-            // --- Row 3: SpO2 ---
-            {
-                x: times, y: vitalsData.map(v => v.spo2),
-                name: 'SpO2', type: 'scatter', mode: 'lines+markers',
-                line: { color: '#38a169', width: 2 }, marker: { size: 5 },
-                xaxis: 'x3', yaxis: 'y3',
-            },
-            // --- Row 4: Respiratory Rate ---
-            {
-                x: times, y: vitalsData.map(v => v.resp_rate),
-                name: 'Resp Rate', type: 'scatter', mode: 'lines+markers',
-                line: { color: '#d69e2e', width: 2 }, marker: { size: 5 },
-                xaxis: 'x4', yaxis: 'y4',
-            },
-            // --- Row 5: Temperature ---
-            {
-                x: times, y: vitalsData.map(v => v.temperature),
-                name: 'Temperature', type: 'scatter', mode: 'lines+markers',
-                line: { color: '#805ad5', width: 2 }, marker: { size: 5 },
-                xaxis: 'x5', yaxis: 'y5',
-            },
-            // --- Row 6: Glucose ---
-            {
-                x: times, y: vitalsData.map(v => v.glucose),
-                name: 'Glucose', type: 'scatter', mode: 'lines+markers',
-                line: { color: '#805ad5', width: 2 }, marker: { size: 5 },
-                xaxis: 'x6', yaxis: 'y6',
-            }
-        ];
+if (vitalsData.length > 0) {
+    const times = vitalsData.map(v => v.hour_label);
 
+    // 1) One base trace definition for ALL series (since all are scatter lines+markers)
+    const BASE_TRACE = {
+        type: 'scatter',
+        mode: 'lines+markers'
+    };
+
+    // 2) Centralized styling (not duplicated 6 times)
+    // NOTE: This is Plotly config (cannot be moved to CSS), but it’s centralized here.
+    const TRACE_STYLES = {
+        heart_rate: {name: 'Heart Rate', line: {color: '#e53e3e', width: 2}, marker: {size: 10}},
+        sbp: {name: 'SBP', line: {color: '#3182ce', width: 2}, marker: {size: 5}},
+        dbp: {name: 'DBP', line: {color: '#90cdf4', width: 2}, marker: {size: 5}},
+        mbp: {name: 'MBP', line: {color: '#2b6cb0', width: 2, dash: 'dash'}, marker: {size: 5}},
+        spo2: {name: 'SpO2', line: {color: '#38a169', width: 2 }, marker: {size: 10}},
+        resp_rate: {name: 'Resp Rate', line: {color: '#d69e2e', width: 2}, marker: {size: 10}},
+        temperature:{name: 'Temperature', line: {color: '#805ad5', width: 2}, marker: {size: 10}},
+        glucose: {name: 'Glucose', line: {color: '#805ad5', width: 2}, marker: {size: 10}}
+    };
+
+    // 3) Define each radio "chart" in terms of:
+    //    - title
+    //    - y axis label
+    //    - which series keys to include
+    const CHARTS = {
+        hr: {title: 'Heart Rate', yTitle: 'HR (bpm)', series: ['heart_rate'] },
+        bp: {title: 'Blood Pressure', yTitle: 'BP (mmHg)', series: ['sbp', 'dbp', 'mbp'] },
+        spo2: {title: 'SpO2', yTitle: 'SpO2 (%)', series: ['spo2'] },
+        resp: {title: 'Respiratory Rate', yTitle: 'Resp (/min)', series: ['resp_rate'] },
+        temp: {title: 'Temperature', yTitle: 'Temp (\u00b0C)', series: ['temperature'] },
+        glucose: {title: 'Glucose', yTitle: 'Glucose (mg/dL)', series: ['glucose'] }
+    };
+
+    function buildTraces(seriesKeys) {
+        return seriesKeys.map(key => {
+            const style = TRACE_STYLES[key] || { name: key };
+            return {
+                BASE_TRACE,
+                x: times,
+                y: vitalsData.map(v => v[key]),
+                name: style.name,
+                line: style.line,
+                marker: style.marker
+            };
+        });
+    }
+
+    const baseLayout = {
+        height: 325,
+        showlegend: true,
+        legend: { orientation: 'h', y: 1.35, x: 0.45, font: { size: 12 } },
+        margin: { l: 60, r: 20, t: 50, b: 45 },
+        xaxis: { title: { text: 'Hour', font: { size: 12 } }, tickfont: { size: 10 }, automargin: true },
+        yaxis: { tickfont: { size: 10 }, automargin: true, autorange: true }
+    };
+
+    function renderChart(chartKey) {
+        const chart = CHARTS[chartKey] || CHARTS.hr;
+
+        const traces = buildTraces(chart.series);
         const layout = {
-            height: 825,
-            showlegend: true,
-            legend: { orientation: 'h', y: 1.05, x: 0, font: { size: 11 } },
-            grid: { rows: 6, columns: 1, pattern: 'independent', roworder: 'top to bottom' },
-
-            // Row 1 – Heart Rate
-            xaxis:  { showticklabels: false },
-            yaxis:  { title: { text: 'HR (bpm)', font: { size: 11 } }, tickfont: { size: 10 } },
-
-            // Row 2 – Blood Pressure
-            xaxis2: { showticklabels: false },
-            yaxis2: { title: { text: 'BP (mmHg)', font: { size: 11 } }, tickfont: { size: 10 } },
-
-            // Row 3 – SpO2
-            xaxis3: { showticklabels: false },
-            yaxis3: { title: { text: 'SpO2 (%)', font: { size: 11 } }, tickfont: { size: 10 } },
-
-            // Row 4 – Respiratory Rate
-            xaxis4: { showticklabels: false },
-            yaxis4: { title: { text: 'Resp (/min)', font: { size: 11 } }, tickfont: { size: 10 } },
-
-            // Row 5 – Temperature  (bottom row shows x-axis labels)
-            xaxis5: { title: { text: 'Hour', font: { size: 11 } }, tickfont: { size: 10 } },
-            yaxis5: { title: { text: 'Temp (\u00b0C)', font: { size: 11 } }, tickfont: { size: 10 } },
-
-            // Row 5 – Temperature  (bottom row shows x-axis labels)
-            xaxis6: { title: { text: 'Hour', font: { size: 11 } }, tickfont: { size: 10 } },
-            yaxis6: { title: { text: 'Glucose (mg/dL)', font: { size: 11 } }, tickfont: { size: 10 } },
-
-            margin: { l: 60, r: 20, t: 30, b: 40 },
+            ...baseLayout,
+            title: { text: chart.title, x: 0.025, xanchor: 'left', font: { size: 14 } },
+            yaxis: {
+                ...baseLayout.yaxis,
+                title: { text: chart.yTitle, font: { size: 11 } },
+                autorange: true // force rescale per selection
+            }
         };
 
         Plotly.newPlot('vitals-chart', traces, layout, { responsive: true });
     }
+
+    // initial render
+    renderChart('hr');
+
+    // radio handlers
+    document.querySelectorAll('input[name="vital"]').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            if (e.target && e.target.checked) renderChart(e.target.value);
+        });
+    });
+}
 
     // =========================================================================
     // +1 Button — advance time, then reload to refresh chart + log
