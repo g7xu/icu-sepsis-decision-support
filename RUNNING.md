@@ -53,11 +53,14 @@ Input vector rule (latest ERD):
 - It intersects by `(subject_id, stay_id, charttime_hour)` and selects the latest common hour at or before `as_of`.
 - This ensures each model call includes source key triples from every required table.
 
-**Stub mode (default):**
-- Leave `MODEL_SERVICE_URL` empty.
-- Prediction uses deterministic local stub.
+**Configuration modes:**
 
-**Live mode (`.env`):**
+When `MODEL_SERVICE_URL` is **empty** (default):
+- Prediction endpoint returns an error: "Model service not configured"
+- The UI will show "N/A" for risk score and "Not configured" for comorbidity group
+- This prevents confusion from showing fake/stub data
+
+When `MODEL_SERVICE_URL` is **set** (`.env`):
 ```bash
 MODEL_SERVICE_URL=https://your-ec2-model-endpoint.example.com
 MODEL_SERVICE_TIMEOUT=30
@@ -125,12 +128,11 @@ Response:
 ## Test the prediction endpoint
 
 ```bash
-# Stub mode (MODEL_SERVICE_URL empty)
+# Without MODEL_SERVICE_URL configured (will return error)
 curl "http://localhost:8000/patients/10000032/39553978/29079034/prediction?as_of=2025-03-13T12:00:00&window_hours=24"
-```
+# Response: {"error": "Model service not configured. Set MODEL_SERVICE_URL in .env to enable predictions."}
 
-Live mode (with EC2 + S3 configured in `.env`):
-```bash
+# With MODEL_SERVICE_URL configured (requires EC2 + S3 setup in .env)
 curl "http://localhost:8000/patients/10000032/39553978/29079034/prediction?as_of=2025-03-13T12:00:00&window_hours=24"
 ```
 

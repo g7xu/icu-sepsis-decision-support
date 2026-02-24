@@ -419,6 +419,14 @@ def _row_sort_time(row):
 
 
 def _fetch_required_model_sources(subject_id, stay_id, start, end, limit=50000):
+    """
+    Fetch required hourly source tables for predictions.
+    Uses year-agnostic filtering (month, day, hour) since MIMIC-IV dates are shifted.
+    
+    Args:
+        start: datetime with normalized year (2025), used for month/day/hour
+        end: datetime with normalized year (2025), used for month/day/hour
+    """
     required_sources = {
         "vitals_hourly": DERIVED_TABLE_CANDIDATES["vitals_hourly"],
         "procedures_hourly": DERIVED_TABLE_CANDIDATES["procedures_hourly"],
@@ -427,6 +435,10 @@ def _fetch_required_model_sources(subject_id, stay_id, start, end, limit=50000):
         "sofa_hourly": DERIVED_TABLE_CANDIDATES["sofa_hourly"],
     }
 
+    # Extract month/day/hour from normalized timestamps for year-agnostic filtering
+    start_month, start_day, start_hour = start.month, start.day, start.hour
+    end_month, end_day, end_hour = end.month, end.day, end.hour
+    
     source_rows = {}
     for source_name, candidates in required_sources.items():
         table = _pick_first_existing(candidates)
@@ -438,14 +450,18 @@ def _fetch_required_model_sources(subject_id, stay_id, start, end, limit=50000):
             where_sql=(
                 "subject_id = %(subject_id)s "
                 "AND stay_id = %(stay_id)s "
-                "AND charttime_hour >= %(start)s "
-                "AND charttime_hour <= %(end)s"
+                "AND EXTRACT(MONTH FROM charttime_hour) = %(start_month)s "
+                "AND EXTRACT(DAY FROM charttime_hour) = %(start_day)s "
+                "AND EXTRACT(HOUR FROM charttime_hour) >= %(start_hour)s "
+                "AND EXTRACT(HOUR FROM charttime_hour) <= %(end_hour)s"
             ),
             params={
                 "subject_id": subject_id,
                 "stay_id": stay_id,
-                "start": start,
-                "end": end,
+                "start_month": start_month,
+                "start_day": start_day,
+                "start_hour": start_hour,
+                "end_hour": end_hour,
             },
             order_sql="charttime_hour",
             limit=limit,
@@ -502,23 +518,39 @@ def _build_current_vector_from_sources(source_rows, as_of):
 
 
 def _fetch_feature_matrix_rows(subject_id, stay_id, start, end, limit=50000):
+    """
+    Fetch feature matrix rows for a patient within a time window.
+    Uses year-agnostic filtering (month, day, hour) since MIMIC-IV dates are shifted.
+    
+    Args:
+        start: datetime with normalized year (2025), used for month/day/hour
+        end: datetime with normalized year (2025), used for month/day/hour
+    """
     table = _pick_first_existing(DERIVED_TABLE_CANDIDATES["feature_matrix_hourly"])
     if not table:
         return None, "No feature matrix table found"
 
+    # Extract month/day/hour from normalized timestamps for year-agnostic filtering
+    start_month, start_day, start_hour = start.month, start.day, start.hour
+    end_month, end_day, end_hour = end.month, end.day, end.hour
+    
     fetched = _fetch_rows(
         table=table,
         where_sql=(
             "subject_id = %(subject_id)s "
             "AND stay_id = %(stay_id)s "
-            "AND charttime_hour >= %(start)s "
-            "AND charttime_hour <= %(end)s"
+            "AND EXTRACT(MONTH FROM charttime_hour) = %(start_month)s "
+            "AND EXTRACT(DAY FROM charttime_hour) = %(start_day)s "
+            "AND EXTRACT(HOUR FROM charttime_hour) >= %(start_hour)s "
+            "AND EXTRACT(HOUR FROM charttime_hour) <= %(end_hour)s"
         ),
         params={
             "subject_id": subject_id,
             "stay_id": stay_id,
-            "start": start,
-            "end": end,
+            "start_month": start_month,
+            "start_day": start_day,
+            "start_hour": start_hour,
+            "end_hour": end_hour,
         },
         order_sql="charttime_hour",
         limit=limit,
@@ -577,13 +609,16 @@ def get_prediction(subject_id, stay_id, hadm_id, as_of, window_hours=24):
     Get model prediction: risk_score and comorbidity_group for a patient at a given time.
 
     When MODEL_SERVICE_URL is set: fetches features, POSTs to model service, returns result.
-    When not set: returns stub data for local dev.
+    When not set: returns error indicating model service is not configured.
     """
     from django.conf import settings
 
     model_url = getattr(settings, "MODEL_SERVICE_URL", "") or ""
     if not model_url:
-        return _get_prediction_stub(subject_id, stay_id, hadm_id, as_of)
+        return {
+            "ok": False,
+            "error": "Model service not configured. Set MODEL_SERVICE_URL in .env to enable predictions."
+        }
 
     s3_bucket = getattr(settings, "MODEL_S3_BUCKET", "") or ""
     s3_prefix = getattr(settings, "MODEL_S3_PREFIX", "model-io") or "model-io"
