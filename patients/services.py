@@ -22,10 +22,6 @@ DERIVED_TABLE_CANDIDATES = {
     "sofa_hourly": [
         "fisi9t_sofa_hourly",
         "mimiciv_derived.fisi9t_sofa_hourly",
-        "sofa_hourly",
-        "mimiciv_derived.sofa_hourly",
-        "sofa",
-        "mimiciv_derived.sofa",
     ],
     "feature_matrix_hourly": [
         "fisi9t_feature_matrix_hourly",
@@ -34,14 +30,10 @@ DERIVED_TABLE_CANDIDATES = {
     "chemistry_hourly": [
         "fisi9t_chemistry_hourly",
         "mimiciv_derived.fisi9t_chemistry_hourly",
-        "chemistry_hourly",
-        "mimiciv_derived.chemistry_hourly",
     ],
     "coagulation_hourly": [
         "fisi9t_coagulation_hourly",
         "mimiciv_derived.fisi9t_coagulation_hourly",
-        "coagulation_hourly",
-        "mimiciv_derived.coagulation_hourly",
     ],
 }
 
