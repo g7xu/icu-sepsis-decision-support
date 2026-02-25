@@ -47,8 +47,8 @@ COHORT_STAY_IDS = [stay_id for _, stay_id, _ in PATIENT_STAYS]
 # Map stay_id → (subject_id, hadm_id) for joins that need it
 STAY_TO_IDS = {stay_id: (subject_id, hadm_id) for subject_id, stay_id, hadm_id in PATIENT_STAYS}
 
-# Simulation display date — used for normalizing stored charttime_hour values
-SIM_YEAR, SIM_MONTH, SIM_DAY = 2025, 3, 13
+# Simulation display date — imported from utils so the date is defined in one place
+from .utils import SIM_YEAR, SIM_MONTH, SIM_DAY, display_time as _display_time
 
 
 # ---------------------------------------------------------------------------
@@ -168,15 +168,6 @@ def rewind_hour(hour_to_remove: int) -> None:
 # ---------------------------------------------------------------------------
 # Private helpers — all read from sim_cache_* tables (tiny, indexed, fast)
 # ---------------------------------------------------------------------------
-
-def _display_time(current_hour: int) -> str:
-    display_hour = current_hour + 1
-    if display_hour <= 0:
-        return "March 13, 2025 00:00"
-    elif display_hour >= 24:
-        return "March 14, 2025 00:00"
-    return f"March 13, 2025 {display_hour:02d}:00"
-
 
 def _fetch_new_admissions(current_hour: int) -> list:
     """

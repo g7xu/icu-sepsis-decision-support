@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Django web application for ICU sepsis early warning. It reads from a MIMIC-IV PostgreSQL database (materialized views), runs a time-stepped ICU simulation, serves ML feature bundles via JSON API, and calls an optional external EC2 prediction service.
 
-**Stack**: Python 3.11 · Django 4.2 · PostgreSQL 14 · Docker Compose · boto3 (S3) · httpx (EC2 model service)
+**Stack**: Python 3.11 · Django 4.2 · PostgreSQL 14 · Docker Compose · boto3 (S3) · httpx (EC2 model service) · D3.js v7 (frontend charts)
 
 ## Commands
 
@@ -26,9 +26,10 @@ python manage.py runserver
 
 ### Django management
 ```bash
-python manage.py migrate           # Apply Django auth/session migrations only
-python manage.py shell             # Open Django shell
-python manage.py check             # Validate settings/config
+python manage.py migrate                # Apply Django auth/session + simulation table migrations
+python manage.py preload_cohort_cache   # Pre-populate sim_cache_* tables from MIMIC (run once after setup)
+python manage.py shell                  # Open Django shell
+python manage.py check                  # Validate settings/config
 ```
 
 ### Curl test recipes
@@ -41,12 +42,22 @@ curl "http://localhost:8000/patients/10000032/39553978/29079034/features/static"
 
 # Hourly-wide ML table
 curl "http://localhost:8000/patients/10000032/39553978/29079034/features/hourly-wide?as_of=2025-03-13T12:00:00&window_hours=24"
+
+# Simulation control
+curl -X POST http://localhost:8000/patients/advance-time/
+curl -X POST http://localhost:8000/patients/rewind-time/
+curl -X POST http://localhost:8000/patients/play/
+curl -X POST http://localhost:8000/patients/pause/
+curl -X POST http://localhost:8000/patients/reset/
+curl http://localhost:8000/patients/simulation-status/
 ```
 
 ## Architecture
 
-### Database: read-only materialized views
-All application data comes from pre-existing MIMIC-IV PostgreSQL materialized views in the `mimiciv_derived` schema (controlled by `DB_SCHEMA` env var). **Django never writes to these views.** All Django models in `patients/models.py` use `managed = False`. No application migrations touch MIMIC-IV data.
+### Database: two-tier (read-only MIMIC + writable simulation)
+
+**MIMIC-IV materialized views** (read-only, `managed=False` in Django):
+All raw clinical data comes from pre-existing MIMIC-IV PostgreSQL materialized views in the `mimiciv_derived` schema (controlled by `DB_SCHEMA` env var). Django never writes to these views.
 
 Required materialized views (created by SQL in `scripts/`):
 - `fisi9t_unique_patient_profile` — patient index (demographics, ICU stay times)
@@ -56,18 +67,50 @@ Required materialized views (created by SQL in `scripts/`):
 - `fisi9t_coagulation_hourly` — hourly coag panel
 - `sofa_hourly` (or `sofa`) — hourly SOFA scores
 
+**Simulation tables** (writable, `managed=True` in Django, `simulation` schema):
+Django manages these tables via migrations. They are populated incrementally by `pipeline.py` as the simulation advances:
+- `sim_patients` — admitted patients (one row per admission)
+- `sim_vitalsign_hourly` — hourly vitals
+- `sim_procedureevents_hourly` — hourly procedures
+- `sim_chemistry_hourly` — hourly chemistry labs
+- `sim_coagulation_hourly` — hourly coagulation labs
+- `sim_sofa_hourly` — hourly SOFA scores
+
+**Cache tables** (writable, pre-populated by `preload_cohort_cache` management command):
+Small (~60-row) indexed snapshots of MIMIC data for the March 13 cohort. `pipeline.py` reads from these during simulation to avoid full-table scans of the large MIMIC views:
+- `sim_cache_patients`, `sim_cache_vitalsign_hourly`, `sim_cache_procedureevents_hourly`, etc.
+
 ### Dynamic table resolution in `services.py`
-Because the schema prefix can vary, `services.py` maintains a `DERIVED_TABLE_CANDIDATES` dict of fallback table names. `_pick_first_existing()` probes Postgres at runtime and returns the first match. All data fetching goes through `_fetch_rows()` which runs raw parameterized SQL (Django cursor, `%(name)s` style).
+`services.py` maintains a `DERIVED_TABLE_CANDIDATES` dict of fallback table names. `_pick_first_existing()` probes Postgres at runtime and returns the first match (simulation tables are tried before MIMIC views). All data fetching goes through `_fetch_rows()` which runs raw parameterized SQL (Django cursor, `%(name)s` style).
 
 ### Patient identity triple
 Every patient is uniquely identified by `(subject_id, stay_id, hadm_id)`. All URL patterns, ORM filters, and API responses use this triple. Django's composite PK limitation is worked around by using `subject_id` as the ORM primary key while always filtering on all three fields.
 
-### Simulation clock (in-memory)
-`patients/views.py` holds a module-level `_simulation` dict with `current_hour` (−1 = not started). `POST /patients/advance-time/` increments it. This state resets on server restart. The simulation is scoped to **March 13** data only (patients admitted on month=3, day=13).
+### Simulation clock (in-memory + background thread)
+`patients/views.py` holds a module-level `_simulation` dict:
+- `current_hour`: −1 (not started) to 23 (23:00)
+- `auto_play`: Boolean for auto-advance loop
+- `speed_seconds`: Real seconds per simulated hour (default 5.0)
+- `direction`: `'forward'` or `'backward'`
+- `_thread`: Background thread handle for auto-play
+
+The simulation dock (fixed top-right UI in `base.html`) exposes these controls:
+- **+1 / −1**: Manual single-step forward or backward
+- **Play / Pause**: Auto-advance in background thread at the configured speed
+- **Speed selector**: 1 / 5 / 10 / 30 seconds per simulated hour
+- **Reset**: Clears all `sim_*` tables and resets clock to −1
+
+The simulation is scoped to **March 13** data only (patients admitted on month=3, day=13). State resets on server restart.
+
+### Pipeline (`patients/pipeline.py`)
+`advance_hour(current_hour)` and `rewind_hour(current_hour)` are the core simulation primitives:
+- `advance_hour`: reads the next hour's data from `sim_cache_*` tables, bulk-inserts into `sim_*` tables
+- `rewind_hour`: deletes the last hour's data from `sim_*` tables
+- These are called by `views.py` on each clock tick; each call processes ~60 rows (one per cohort patient)
 
 ### Cohort configuration
 Edit `patients/cohort.py` to change which patients appear in the simulation:
-- `PATIENT_STAYS` — list of `(subject_id, stay_id, hadm_id)` tuples (takes priority)
+- `PATIENT_STAYS` — list of `(subject_id, stay_id, hadm_id)` tuples (takes priority; currently 60 hardcoded March 13 patients)
 - `SUBJECT_IDS` — simpler list of `subject_id` integers
 - Set both to empty/`None` to show all patients
 
@@ -84,14 +127,27 @@ Controlled by `MODEL_SERVICE_URL` in `.env`:
 5. Persist prediction + IO audit to S3 under `.../predictions/` and `.../io/`
 6. For subsequent calls, reuse the first stored `comorbidity_group` from S3
 
+### Frontend: D3.js charts (`templates/patients/show.html`)
+Patient detail page uses D3.js v7 (loaded from CDN) for all clinical charts. Data is embedded as JSON in hidden `<script>` tags by the server and parsed on page load.
+
+Four tabbed chart panels (tabs are lazy-rendered on first click):
+- **Cardiovascular**: Heart rate (bpm), SBP / DBP / MBP (mmHg)
+- **Respiratory**: SpO2 (%), respiratory rate (/min), temperature (°C)
+- **Labs**: Glucose (mg/dL), chemistry panel (Na, HCO3, K, Ca), coagulation (INR, PTT)
+- **SOFA Score**: Total SOFA bar chart (color-coded by severity) + stacked organ-component breakdown with Sepsis-3 threshold line at SOFA=2
+
+The `buildMultiPanel()` helper supports stacked panels, dual Y-axes, normal/warning bands, and a unified crosshair tooltip. `buildSofaChart()` renders the SOFA visualization.
+
 ### Request flow
 ```
 URL → patients/urls.py
-        ├── views.py  (HTML: patient_list, patient_detail, advance_time)
+        ├── views.py  (HTML: patient_list, patient_detail)
+        ├── views.py  (Simulation JSON: advance_time, rewind_time, play, pause, reset, simulation_status)
         └── api.py    (JSON: get_static_features, get_hourly_features,
                               get_hourly_wide_features, get_feature_bundle,
                               get_prediction_view)
                          └── services.py  (raw SQL + S3 + EC2 calls)
+                                └── pipeline.py  (advance_hour / rewind_hour)
 ```
 
 ### Infrastructure
@@ -100,24 +156,22 @@ URL → patients/urls.py
 ## Known Issues / Future Work
 
 ### 1. Manual view setup (TODO: automate)
-**Current state:** The SQL scripts in `scripts/` (01–09) must be run manually against the database via `psql`. Django does not create or manage these views; it only queries them.
+**Current state:** The SQL scripts in `scripts/` (01–09) must be run manually against the database via `psql`. Django does not create or manage these views; it only queries them. After running the scripts, `python manage.py preload_cohort_cache` must also be run to populate the cache tables.
 
 **Proposed fix:** Add an automated mechanism so the app can bootstrap its own schema, e.g.:
 - Django management command (e.g. `python manage.py setup_views`) that connects to the DB and executes the scripts in order
 - Or: run scripts on first startup / `migrate` (with a flag to skip if views already exist)
-- Or: include scripts in a migration-like system that checks for view presence and creates them if missing
 
 **Goal:** Eliminate manual `psql` steps; `docker compose up` or `runserver` should be sufficient for a working setup.
 
 ### 2. Real-time simulation mechanism (TODO)
-**Context:** This is intended as a real-time ICU sepsis decision support system. The current simulation uses an in-memory clock (`_simulation['current_hour']` in `patients/views.py`) that advances only when the user clicks "+1" — it is not truly real-time.
+**Current state:** The simulation supports manual step-through (+1/−1) and auto-play (background thread advancing at a configurable speed). It is wall-clock-based but not truly tied to real ICU time.
 
-**Proposed direction:** Introduce a mechanism that simulates real-time progression, e.g.:
-- Wall-clock–based simulation: advance `current_hour` (or equivalent) based on elapsed real time (e.g. 1 simulated hour = N real minutes)
-- Optional "live" mode: backend advances time automatically; frontend polls or uses WebSockets for updates
+**Proposed direction:** Introduce a mechanism that simulates real-time progression more faithfully, e.g.:
+- Live mode: backend advances time automatically; frontend polls or uses WebSockets for updates
 - Configuration for simulation speed (e.g. `SIMULATION_SPEED=60` → 1 sim hour per 60 real seconds)
 
-**Goal:** Support both manual step-through (current behavior) and automated real-time–like simulation for demos, testing, and eventual live deployment patterns.
+**Goal:** Support eventual live deployment patterns where `current_hour` tracks real elapsed ICU time.
 
 ## Environment Variables
 
