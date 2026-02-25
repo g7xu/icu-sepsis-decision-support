@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Django web application for ICU sepsis early warning. It reads from a MIMIC-IV PostgreSQL database (materialized views), runs a time-stepped ICU simulation, serves ML feature bundles via JSON API, and calls an optional external EC2 prediction service.
+Django web application for ICU sepsis early warning. It reads from a MIMIC-IV PostgreSQL database (materialized views), runs a time-stepped ICU simulation, serves ML feature bundles via JSON API, and runs sepsis prediction in-process via joblib-loaded sklearn artifacts.
 
-**Stack**: Python 3.11 · Django 4.2 · PostgreSQL 14 · Docker Compose · boto3 (S3) · httpx (EC2 model service) · D3.js v7 (frontend charts)
+**Stack**: Python 3.11 · Django 4.2 · PostgreSQL 14 · Docker Compose · joblib · scikit-learn · D3.js v7 (frontend charts)
 
 ## Commands
 
@@ -34,7 +34,7 @@ python manage.py check                  # Validate settings/config
 
 ### Curl test recipes
 ```bash
-# Stub prediction (no MODEL_SERVICE_URL required)
+# Prediction (uses in-process model if artifacts present, else stub)
 curl "http://localhost:8000/patients/10000032/39553978/29079034/prediction?as_of=2025-03-13T12:00:00&window_hours=24"
 
 # Static features
@@ -114,18 +114,14 @@ Edit `patients/cohort.py` to change which patients appear in the simulation:
 - `SUBJECT_IDS` — simpler list of `subject_id` integers
 - Set both to empty/`None` to show all patients
 
-### Prediction pipeline (two modes)
-Controlled by `MODEL_SERVICE_URL` in `.env`:
+### Prediction pipeline (in-process joblib)
+Predictions run inside the Django process. No external model API or S3.
 
-**Stub mode** (`MODEL_SERVICE_URL` empty): `_get_prediction_stub()` in `services.py` returns a deterministic hash-based risk score. No DB or network calls beyond the wide-table assembly.
-
-**Live mode** (`MODEL_SERVICE_URL` set): `get_prediction()` in `services.py` executes this sequence:
-1. Fetch all five required hourly source tables from Postgres for the patient/time window
-2. Intersect `charttime_hour` values across all five sources; select the latest common hour ≤ `as_of`
-3. If `MODEL_S3_BUCKET` is set: write the current feature vector to `s3://<bucket>/<prefix>/patients/<ids>/features/<hour>.json`, load prior vectors for history
-4. POST to `<MODEL_SERVICE_URL>/predict` with the feature bundle (see RUNNING.md for full contract)
-5. Persist prediction + IO audit to S3 under `.../predictions/` and `.../io/`
-6. For subsequent calls, reuse the first stored `comorbidity_group` from S3
+- **Artifacts**: Place `sepsis_rf_pipeline.joblib` and `feature_cols.joblib` in `patients/model_artifacts/` (or set `MODEL_ARTIFACTS_DIR`). They are loaded once at startup in `patients/apps.PatientsConfig.ready()` via `model_local.load_model()`.
+- **When artifacts are present**: `get_prediction()` in `services.py` fetches source tables, builds the current feature vector with `_build_current_vector_from_sources()`, then calls `model_local.predict(current_row)` to run the sklearn pipeline and return `risk_score` and `latent_class`.
+- **When artifacts are missing**: `_get_prediction_stub()` returns a deterministic hash-based risk score (no DB beyond wide-table assembly).
+- **Data sources for prediction**: Only `vitals_hourly` is required. Chemistry, procedures, coagulation, and SOFA are optional (sparse data — many patients lack rows in a given window). Missing columns are filled with NaN; the sklearn pipeline tolerates this.
+- **Known issue — `latent_class` always null**: The model expects a `latent_class` input feature (likely from an upstream LCA/clustering step during training), but this value is not present in any MIMIC source table or simulation table. It is always NaN at inference time. The model still predicts (RandomForest handles NaN), but the UI shows "—" for Latent Class. To fix: determine how `latent_class` was computed during training and replicate that computation at inference time, or retrain the model without it.
 
 ### Frontend: D3.js charts (`templates/patients/show.html`)
 Patient detail page uses D3.js v7 (loaded from CDN) for all clinical charts. Data is embedded as JSON in hidden `<script>` tags by the server and parsed on page load.
@@ -146,7 +142,7 @@ URL → patients/urls.py
         └── api.py    (JSON: get_static_features, get_hourly_features,
                               get_hourly_wide_features, get_feature_bundle,
                               get_prediction_view)
-                         └── services.py  (raw SQL + S3 + EC2 calls)
+                         └── services.py  (raw SQL + model_local)
                                 └── pipeline.py  (advance_hour / rewind_hour)
 ```
 
@@ -181,7 +177,4 @@ Copy `.env.example` to `.env`. Key variables:
 |---|---|---|
 | `DB_NAME` | `sepsis` | Postgres database name |
 | `DB_SCHEMA` | `mimiciv_derived` | Postgres search_path schema |
-| `MODEL_SERVICE_URL` | `` (empty) | EC2 model endpoint; empty = stub mode |
-| `MODEL_S3_BUCKET` | `` (empty) | S3 bucket for feature/prediction persistence |
-| `MODEL_HISTORY_HOURS` | `6` | Hours of history vectors sent to model |
-| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | `` | Required for S3 in live mode |
+| `MODEL_ARTIFACTS_DIR` | `patients/model_artifacts` | Directory with `sepsis_rf_pipeline.joblib` and `feature_cols.joblib`; unset or missing = stub mode |

@@ -151,11 +151,12 @@ def get_prediction_view(request, subject_id, stay_id, hadm_id):
         window_hours=window_hours,
     )
     if not result.get("ok"):
-        return JsonResponse({"error": result.get("error", "Prediction failed")}, status=500)
+        # Missing data (e.g. patient not yet simulated) is a 404, not a 500.
+        return JsonResponse({"error": result.get("error", "Prediction failed")}, status=404)
 
     return JsonResponse({
         "patient": {"subject_id": subject_id, "stay_id": stay_id, "hadm_id": hadm_id},
         "as_of": as_of_str,
         "risk_score": result["risk_score"],
-        "comorbidity_group": result["comorbidity_group"],
+        "latent_class": result["latent_class"],
     })

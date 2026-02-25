@@ -883,18 +883,21 @@ if (sofaTab && sofaTab.classList.contains('active')) {
 var predUrl = document.getElementById('page-config').dataset.predictionUrl;
 if (predUrl) {
     fetch(predUrl)
-        .then(function (r) { return r.json(); })
+        .then(function (r) {
+            if (!r.ok) throw new Error('prediction not available');
+            return r.json();
+        })
         .then(function (data) {
             var riskEl  = document.getElementById('risk-score');
-            var groupEl = document.getElementById('comorbidity-group');
+            var classEl = document.getElementById('latent-class');
             if (riskEl)  riskEl.textContent  = data.risk_score != null ? data.risk_score.toFixed(3) : '-';
-            if (groupEl) groupEl.textContent = data.comorbidity_group || '-';
+            if (classEl) classEl.textContent = data.latent_class != null ? data.latent_class : '-';
         })
         .catch(function () {
             var riskEl  = document.getElementById('risk-score');
-            var groupEl = document.getElementById('comorbidity-group');
+            var classEl = document.getElementById('latent-class');
             if (riskEl)  riskEl.textContent  = '-';
-            if (groupEl) groupEl.textContent = 'Error';
+            if (classEl) classEl.textContent = '-';
         });
 }
 
