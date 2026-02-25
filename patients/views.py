@@ -12,7 +12,7 @@ from django.db.models import Q
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 
-from .models import UniquePatientProfile, VitalsignHourly, ProcedureeventsHourly
+from .models import UniquePatientProfile, VitalsignHourly, ProcedureeventsHourly, ChemistryHourly
 from .cohort import get_cohort_filter
 from .services import get_prediction
 from .display_names import get_display_name_mapping
@@ -151,6 +151,7 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
 
     current_hour = _simulation['current_hour']
     vitalsigns_json = '[]'
+    chemistry_json = '[]'
     procedures = []
 
     if current_hour >= 0:
@@ -174,6 +175,26 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
             vitalsigns_list.append(row)
 
         vitalsigns_json = json.dumps(vitalsigns_list, cls=DjangoJSONEncoder)
+
+        # --- Chemistry for Plotly chart ---
+        chemistry_qs = ChemistryHourly.objects.filter(
+            subject_id=subject_id,
+            stay_id=stay_id,
+            charttime_hour__month=3,
+            charttime_hour__day=13,
+            charttime_hour__hour__lte=current_hour,
+        ).order_by('charttime_hour')
+
+        chemistry_list = []
+        for row in chemistry_qs.values(
+            'charttime_hour',
+            'bicarbonate', 'calcium', 'sodium', 'potassium',
+        ):
+            # Add a clean hour label for the Plotly x-axis
+            row['hour_label'] = f"{row['charttime_hour'].hour:02d}:00"
+            chemistry_list.append(row)
+
+        chemistry_json = json.dumps(chemistry_list, cls=DjangoJSONEncoder)
 
         # --- Procedure events for the log ---
         procedures = list(ProcedureeventsHourly.objects.filter(
@@ -208,6 +229,7 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
     context = {
         'patient': patient,
         'vitalsigns_json': vitalsigns_json,
+        'chemistry_json': chemistry_json,
         'procedures': procedures,
         'procedures_count': len(procedures),
         'current_hour': current_hour,
