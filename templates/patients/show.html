@@ -8,6 +8,7 @@
 {% endblock %}
 
 {% block sim_state %}
+{% if show_sim_dock %}
 <div id="sim-initial-state" style="display:none"
      data-current-hour="{{ current_hour }}"
      data-current-time="{{ current_time_display }}"
@@ -15,6 +16,7 @@
      data-speed-seconds="{{ speed_seconds|default:5 }}"
      data-csrf="{{ csrf_token }}">
 </div>
+{% endif %}
 {% endblock %}
 
 {% block content %}
@@ -22,7 +24,11 @@
 <div class="card">
     <div class="card-header">
         <h2>Patient Details</h2>
+        {% if demo_mode_view %}
+        <a href="{% url 'demo:index' %}" class="btn btn-primary btn-sm">&larr; Back to List</a>
+        {% else %}
         <a href="{% url 'patients:index' %}" class="btn btn-primary btn-sm">&larr; Back to List</a>
+        {% endif %}
     </div>
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem;">
         <div>
@@ -75,7 +81,7 @@
     </div>
 
     <div class="tab-panel active" id="tab-cardio">
-        {% if current_hour < 0 %}
+        {% if show_sim_dock and current_hour < 0 %}
         <p class="text-muted chart-empty-msg">Use the simulation clock (top-right) to start collecting vital signs.</p>
         {% else %}
         <div id="chart-cardio" style="width:100%; position:relative;"></div>
@@ -83,7 +89,7 @@
     </div>
 
     <div class="tab-panel" id="tab-resp">
-        {% if current_hour < 0 %}
+        {% if show_sim_dock and current_hour < 0 %}
         <p class="text-muted chart-empty-msg">Use the simulation clock (top-right) to start collecting vital signs.</p>
         {% else %}
         <div id="chart-resp" style="width:100%; position:relative;"></div>
@@ -91,7 +97,7 @@
     </div>
 
     <div class="tab-panel" id="tab-labs">
-        {% if current_hour < 0 %}
+        {% if show_sim_dock and current_hour < 0 %}
         <p class="text-muted chart-empty-msg">Use the simulation clock (top-right) to start collecting data.</p>
         {% else %}
         <div id="chart-labs" style="width:100%; position:relative;"></div>
@@ -99,7 +105,7 @@
     </div>
 
     <div class="tab-panel" id="tab-sofa">
-        {% if current_hour < 0 %}
+        {% if show_sim_dock and current_hour < 0 %}
         <p class="text-muted chart-empty-msg">Use the simulation clock (top-right) to start the simulation.</p>
         {% else %}
         <div id="chart-sofa" style="width:100%; position:relative;"></div>
@@ -137,7 +143,7 @@
             {% endfor %}
         {% else %}
             <p class="text-muted" style="padding: 1rem;">
-                {% if current_hour < 0 %}
+                {% if show_sim_dock and current_hour < 0 %}
                     Use the simulation clock to start collecting data.
                 {% else %}
                     No procedure events recorded yet.
@@ -163,7 +169,13 @@
             <p id="comorbidity-group" style="font-size: 1.25rem; font-weight: 600;">Loading&hellip;</p>
         </div>
         {% else %}
-        <p class="text-muted">Use the simulation clock to start the simulation and load predictions.</p>
+        <p class="text-muted">
+            {% if show_sim_dock %}
+                Use the simulation clock to start the simulation and load predictions.
+            {% else %}
+                No prediction data available.
+            {% endif %}
+        </p>
         {% endif %}
     </div>
 </div>

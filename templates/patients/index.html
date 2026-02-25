@@ -3,6 +3,7 @@
 {% block title %}Patient List - ICU Sepsis Decision Support{% endblock %}
 
 {% block sim_state %}
+{% if show_sim_dock %}
 <div id="sim-initial-state" style="display:none"
      data-current-hour="{{ current_hour }}"
      data-current-time="{{ current_time_display }}"
@@ -10,6 +11,7 @@
      data-speed-seconds="{{ speed_seconds|default:5 }}"
      data-csrf="{{ csrf_token }}">
 </div>
+{% endif %}
 {% endblock %}
 
 {% block content %}
@@ -60,8 +62,13 @@
                 <td>{{ patient.first_careunit|default:"-" }}</td>
                 <td class="text-muted">{{ patient.intime|date:"M d, Y H:i"|default:"-" }}</td>
                 <td>
+                    {% if demo_mode_view %}
+                    <a href="{% url 'demo:detail' patient.subject_id patient.stay_id patient.hadm_id %}"
+                       class="btn btn-primary btn-sm">View</a>
+                    {% else %}
                     <a href="{% url 'patients:detail' patient.subject_id patient.stay_id patient.hadm_id %}"
                        class="btn btn-primary btn-sm">View</a>
+                    {% endif %}
                 </td>
             </tr>
             {% endfor %}
@@ -86,10 +93,12 @@
     </div>
     {% else %}
     <p class="text-muted">
-        {% if current_hour < 0 %}
+        {% if show_sim_dock and current_hour < 0 %}
             Simulation has not started. Use the simulation clock (top-right) to begin.
-        {% else %}
+        {% elif show_sim_dock %}
             No patients admitted yet at {{ current_time_display }}.
+        {% else %}
+            No patients found.
         {% endif %}
     </p>
     {% endif %}
