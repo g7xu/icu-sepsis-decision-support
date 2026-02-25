@@ -109,7 +109,7 @@
             {% else %}
                 <p class="procedures-empty text-muted">
                     {% if current_hour < 0 %}
-                        Press <strong>+1</strong> to start collecting data.
+                        Press <strong>+1</strong> to start collecting procedure data.
                     {% else %}
                         No procedure events recorded yet.
                     {% endif %}
@@ -118,6 +118,24 @@
         </div>
     </div>
 
+</div>
+
+<!-- Chemistry Chart -->
+<div class="card">
+    <div class="card-header">
+        <h2>Chemistry Values</h2>
+    </div>
+    <div class="chemistry-controls">
+        <label><input type="radio" name="chemistry" value="bicarbonate" checked>Bicarbonate</label>
+        <label><input type="radio" name="chemistry" value="calcium">Calcium</label>
+        <label><input type="radio" name="chemistry" value="sodium">Sodium</label>
+        <label><input type="radio" name="chemistry" value="potassium">Potassium</label>
+    </div>
+    
+    <div id="chemistry-chart" class="chemistry-chart"></div>
+    {% if current_hour < 0 %}
+    <p class="text-muted">Press <strong>+1</strong> to start collecting chemistry data.</p>
+    {% endif %}
 </div>
 
 <!-- Predictions: risk_score + comorbidity_group -->
@@ -145,6 +163,7 @@
 <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
 
 <script type="application/json" id="vitalsigns-data">{{ vitalsigns_json|safe }}</script>
+<script type="application/json" id="chemistry-data">{{ chemistry_json|safe }}</script>
 <div id="page-config" class="hidden" data-csrf-token="{{ csrf_token }}" data-advance-url="{% url 'patients:advance_time' %}" {% if prediction_as_of_iso %}data-prediction-url="{% url 'patients:prediction' patient.subject_id patient.stay_id patient.hadm_id %}?as_of={{ prediction_as_of_iso|urlencode }}&window_hours=24"{% endif %}></div>
 
 <script>
@@ -237,6 +256,82 @@ if (vitalsData.length > 0) {
     document.querySelectorAll('input[name="vital"]').forEach(radio => {
         radio.addEventListener('change', (e) => {
             if (e.target && e.target.checked) renderChart(e.target.value);
+        });
+    });
+}
+
+// =========================================================================
+// Plotly Chemistry Chart (single chart + radio selection)
+// =========================================================================
+const chemistryData = JSON.parse(document.getElementById('chemistry-data').textContent || '[]');
+
+if (chemistryData.length > 0) {
+    const chemTimes = chemistryData.map(c => c.hour_label);
+
+    const CHEM_BASE_TRACE = {
+        type: 'scatter',
+        mode: 'lines+markers'
+    };
+
+    const CHEM_TRACE_STYLES = {
+        bicarbonate: {name: 'Bicarbonate', line: {color: '#e53e3e', width: 2}, marker: {size: 10}},
+        calcium: {name: 'Calcium', line: {color: '#3182ce', width: 2}, marker: {size: 10}},
+        sodium: {name: 'Sodium', line: {color: '#38a169', width: 2}, marker: {size: 10}},
+        potassium: {name: 'Potassium', line: {color: '#d69e2e', width: 2}, marker: {size: 10}}
+    };
+
+    const CHEM_CHARTS = {
+        bicarbonate: {title: 'Bicarbonate', yTitle: 'Bicarbonate (mEq/L)', series: ['bicarbonate']},
+        calcium: {title: 'Calcium', yTitle: 'Calcium (mg/dL)', series: ['calcium']},
+        sodium: {title: 'Sodium', yTitle: 'Sodium (mEq/L)', series: ['sodium']},
+        potassium: {title: 'Potassium', yTitle: 'Potassium (mEq/L)', series: ['potassium']}
+    };
+
+    function buildChemTraces(seriesKeys) {
+        return seriesKeys.map(key => {
+            const style = CHEM_TRACE_STYLES[key] || { name: key };
+            return {
+                CHEM_BASE_TRACE,
+                x: chemTimes,
+                y: chemistryData.map(c => c[key]),
+                name: style.name,
+                line: style.line,
+                marker: style.marker
+            };
+        });
+    }
+
+    const chemBaseLayout = {
+        height: 325,
+        showlegend: true,
+        legend: { orientation: 'h', y: 1.35, x: 0.45, font: { size: 12 } },
+        margin: { l: 60, r: 20, t: 50, b: 45 },
+        xaxis: { title: { text: 'Hour', font: { size: 12 } }, tickfont: { size: 10 }, automargin: true },
+        yaxis: { tickfont: { size: 10 }, automargin: true, autorange: true }
+    };
+
+    function renderChemChart(chartKey) {
+        const chart = CHEM_CHARTS[chartKey] || CHEM_CHARTS.bicarbonate;
+
+        const traces = buildChemTraces(chart.series);
+        const layout = {
+            ...chemBaseLayout,
+            title: { text: chart.title, x: 0.025, xanchor: 'left', font: { size: 14 } },
+            yaxis: {
+                ...chemBaseLayout.yaxis,
+                title: { text: chart.yTitle, font: { size: 11 } },
+                autorange: true
+            }
+        };
+
+        Plotly.newPlot('chemistry-chart', traces, layout, { responsive: true });
+    }
+
+    renderChemChart('bicarbonate');
+
+    document.querySelectorAll('input[name="chemistry"]').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            if (e.target && e.target.checked) renderChemChart(e.target.value);
         });
     });
 }
