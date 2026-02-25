@@ -146,6 +146,7 @@ DB_SCHEMA=mimiciv_derived
 SECRET_KEY=$TF_VAR_django_secret_key
 DEBUG=$DJANGO_DEBUG
 ALLOWED_HOSTS=$DOMAIN_NAME,$EC2_IP,localhost
+CSRF_TRUSTED_ORIGINS=https://$DOMAIN_NAME,http://localhost
 DEMO_MODE=$DJANGO_DEMO_MODE
 ENVEOF
 sudo chmod 600 /opt/icu-sepsis/.env
