@@ -20,6 +20,19 @@ DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
+# Trust X-Forwarded-Proto header from Nginx so Django knows the original request was HTTPS.
+# Required for correct CSRF validation when sitting behind a reverse proxy (Nginx → Cloudflare).
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# Explicitly trust the production domain for CSRF cross-origin checks.
+# Without this, Django's CSRF middleware rejects POST requests from HTTPS origins
+# when the app is served via a proxy.
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv('CSRF_TRUSTED_ORIGINS', 'http://localhost').split(',')
+    if origin.strip()
+]
+
 # Demo mode: enables per-session simulation at /demo/patients/
 DEMO_MODE = os.getenv('DEMO_MODE', 'false').lower() in ('true', '1', 'yes')
 
