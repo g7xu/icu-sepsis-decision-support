@@ -1,6 +1,7 @@
 (function() {
-    // URLs injected via data attributes on the dock element (resolved server-side by Django)
-    var dock    = document.getElementById('sim-dock');
+    var dock = document.getElementById('sim-dock');
+    if (!dock) return;
+
     var URLS = {
         status:  dock.dataset.urlStatus,
         pause:   dock.dataset.urlPause,
@@ -10,11 +11,14 @@
         reset:   dock.dataset.urlReset,
     };
 
+    var isDemoMode = dock.dataset.demoMode === 'true';
+
     // Seed initial state from hidden element provided by each page via the sim_state block
     const stateEl = document.getElementById('sim-initial-state');
     let autoPlay = stateEl ? stateEl.dataset.autoPlay === 'true' : false;
     let lastHour = stateEl ? parseInt(stateEl.dataset.currentHour, 10) : -1;
     const csrf   = stateEl ? stateEl.dataset.csrf : '';
+    let direction = 'forward';
 
     const timeEl    = document.getElementById('dock-time');
     const playBtn   = document.getElementById('dock-play');
@@ -48,7 +52,43 @@
 
     function setStatus(msg) { statusEl.textContent = msg; }
 
-    // ── Polling ───────────────────────────────────────────────────────────
+    // ── Client-side auto-play for demo mode ──────────────────────────────
+    // In demo mode, the frontend drives the clock loop via setInterval
+    // (no server-side background thread).
+    var autoPlayTimer = null;
+
+    function startAutoPlay() {
+        if (autoPlayTimer) return;
+        var speed = parseFloat(speedSel.value) * 1000;
+        autoPlayTimer = setInterval(function() {
+            var url = direction === 'forward' ? URLS.advance : URLS.rewind;
+            post(url).then(function(data) {
+                if (data.error) {
+                    stopAutoPlay();
+                    post(URLS.pause);
+                    setStatus(data.error);
+                    autoPlay = false;
+                    playBtn.innerHTML = '&#9654; Play';
+                    return;
+                }
+                lastHour = data.current_hour;
+                if (data.current_time) timeEl.textContent = data.current_time;
+                location.reload();
+            }).catch(function() {
+                stopAutoPlay();
+                setStatus('Network error.');
+            });
+        }, speed);
+    }
+
+    function stopAutoPlay() {
+        if (autoPlayTimer) {
+            clearInterval(autoPlayTimer);
+            autoPlayTimer = null;
+        }
+    }
+
+    // ── Polling (non-demo / fallback) ────────────────────────────────────
     let pollTimer = null;
     function startPolling() {
         if (pollTimer) return;
@@ -77,6 +117,7 @@
     // ── Play / Pause ──────────────────────────────────────────────────────
     playBtn.addEventListener('click', function() {
         if (autoPlay) {
+            stopAutoPlay();
             post(URLS.pause).then(data => {
                 autoPlay = false;
                 playBtn.innerHTML = '&#9654; Play';
@@ -85,30 +126,41 @@
                 location.reload();
             });
         } else {
+            direction = 'forward';
             post(URLS.play, 'speed_seconds=' + speedSel.value + '&direction=forward')
                 .then(() => {
                     autoPlay = true;
                     playBtn.innerHTML = '&#9646;&#9646; Pause';
                     setStatus('Playing forward\u2026');
-                    startPolling();
+                    if (isDemoMode) {
+                        startAutoPlay();
+                    } else {
+                        startPolling();
+                    }
                 });
         }
     });
 
     // ── Rewind (auto backward) ────────────────────────────────────────────
     rewindBtn.addEventListener('click', function() {
+        direction = 'backward';
         post(URLS.play, 'speed_seconds=' + speedSel.value + '&direction=backward')
             .then(data => {
                 if (data.status === 'already_playing') { setStatus('Pause first.'); return; }
                 autoPlay = true;
                 playBtn.innerHTML = '&#9646;&#9646; Pause';
                 setStatus('Rewinding\u2026');
-                startPolling();
+                if (isDemoMode) {
+                    startAutoPlay();
+                } else {
+                    startPolling();
+                }
             });
     });
 
-    // ── Fast forward (2×) ─────────────────────────────────────────────────
+    // ── Fast forward (2x) ─────────────────────────────────────────────────
     fwdBtn.addEventListener('click', function() {
+        direction = 'forward';
         const speed = Math.max(1, parseFloat(speedSel.value) / 2).toString();
         post(URLS.play, 'speed_seconds=' + speed + '&direction=forward')
             .then(data => {
@@ -116,7 +168,11 @@
                 autoPlay = true;
                 playBtn.innerHTML = '&#9646;&#9646; Pause';
                 setStatus('Fast-forward\u2026');
-                startPolling();
+                if (isDemoMode) {
+                    startAutoPlay();
+                } else {
+                    startPolling();
+                }
             });
     });
 
@@ -162,13 +218,20 @@
 
     // ── Reset ─────────────────────────────────────────────────────────────
     resetBtn.addEventListener('click', function() {
-        if (!confirm('Reset simulation? This will delete all simulated patient data.')) return;
+        if (!confirm('Reset simulation? This will reset the clock to the beginning.')) return;
         resetBtn.disabled = true;
+        stopAutoPlay();
         stopPolling();
         post(URLS.reset).then(() => location.reload())
             .catch(() => { resetBtn.disabled = false; });
     });
 
-    // Resume polling if auto-play was active on page load
-    if (autoPlay) startPolling();
+    // Resume auto-play if it was active on page load
+    if (autoPlay) {
+        if (isDemoMode) {
+            startAutoPlay();
+        } else {
+            startPolling();
+        }
+    }
 })();

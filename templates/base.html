@@ -12,6 +12,12 @@
     <nav class="navbar">
         <h1>ICU Sepsis Decision Support</h1>
         <span class="subtitle">Clinical Decision Support System</span>
+        {% if DEMO_MODE %}
+        <span class="nav-links" style="margin-left: auto; display: flex; gap: 0.75rem; align-items: center;">
+            <a href="{% url 'patients:index' %}" style="color: #cbd5e0; text-decoration: none; font-size: 0.9rem;">Production</a>
+            <a href="{% url 'demo:index' %}" style="color: #cbd5e0; text-decoration: none; font-size: 0.9rem;">Demo</a>
+        </span>
+        {% endif %}
     </nav>
 
     <div class="container">
@@ -21,15 +27,15 @@
     <!-- Hidden state element injected by each page template -->
     {% block sim_state %}{% endblock %}
 
-    <!-- Simulation Clock Dock — fixed top-right, shared across all pages -->
-    <!-- URL data attributes are resolved here (server-side) so sim-dock.js can remain a static file -->
-    <div class="sim-dock" id="sim-dock"
-         data-url-status="{% url 'patients:simulation_status' %}"
-         data-url-pause="{% url 'patients:pause' %}"
-         data-url-play="{% url 'patients:play' %}"
-         data-url-advance="{% url 'patients:advance_time' %}"
-         data-url-rewind="{% url 'patients:rewind_time' %}"
-         data-url-reset="{% url 'patients:reset' %}">
+    {% if show_sim_dock %}
+    <!-- Simulation Clock Dock — fixed top-right, shown only in demo mode views -->
+    <div class="sim-dock" id="sim-dock" data-demo-mode="true"
+         data-url-status="{% url 'demo:simulation_status' %}"
+         data-url-pause="{% url 'demo:pause' %}"
+         data-url-play="{% url 'demo:play' %}"
+         data-url-advance="{% url 'demo:advance_time' %}"
+         data-url-rewind="{% url 'demo:rewind_time' %}"
+         data-url-reset="{% url 'demo:reset' %}">
         <div class="sim-dock-controls">
             <span class="sim-dock-time" id="dock-time">–</span>
             <button class="dock-btn dock-btn-reset" id="dock-reset" title="Reset simulation">&#8635;</button>
@@ -49,5 +55,6 @@
     </div>
 
     <script src="{% static 'js/sim-dock.js' %}"></script>
+    {% endif %}
 </body>
 </html>
