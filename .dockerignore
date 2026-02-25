@@ -1,3 +1,16 @@
+# Large model artifacts (loaded via bind mount in dev)
+service_model/
+patients/model_artifacts/*.joblib
+
+# Infrastructure / secrets
+.env
+*.pem
+terraform/
+
+# Version control
+.git/
+
+# Python
 __pycache__/
 *.pyc
 *.pyo
@@ -5,9 +18,13 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
-.venv/
 venv/
+.venv/
 dist/
 build/
-.git/
+
+# OS / editor
 .DS_Store
+
+# Django collectstatic output (rebuilt in container)
+staticfiles/

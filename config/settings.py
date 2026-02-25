@@ -161,23 +161,12 @@ LOGGING = {
     },
 }
 
-# Model service (external HTTPS prediction API)
-# When MODEL_SERVICE_URL is empty, prediction falls back to stub data for local dev
-MODEL_SERVICE_URL = os.getenv('MODEL_SERVICE_URL', '').rstrip('/')
-MODEL_SERVICE_TIMEOUT = int(os.getenv('MODEL_SERVICE_TIMEOUT', '30'))
-MODEL_SERVICE_API_KEY = os.getenv('MODEL_SERVICE_API_KEY', '')
-
-# S3 storage for model IO (feature vectors/history/predictions)
-MODEL_S3_BUCKET = os.getenv('MODEL_S3_BUCKET', '')
-MODEL_S3_REGION = os.getenv('MODEL_S3_REGION', '')
-MODEL_S3_PREFIX = os.getenv('MODEL_S3_PREFIX', 'model-io')
-MODEL_HISTORY_HOURS = int(os.getenv('MODEL_HISTORY_HOURS', '6'))
-
-# Optional explicit AWS credentials (for temporary/shared accounts)
-# If empty, boto3 default credential chain is used.
-AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID', '')
-AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY', '')
-AWS_SESSION_TOKEN = os.getenv('AWS_SESSION_TOKEN', '')
+# In-process joblib model: directory containing sepsis_rf_pipeline.joblib and feature_cols.joblib
+# When missing or empty, prediction falls back to stub data.
+MODEL_ARTIFACTS_DIR = os.getenv(
+    'MODEL_ARTIFACTS_DIR',
+    str(BASE_DIR / 'patients' / 'model_artifacts'),
+)
 
 # Use signed-cookie sessions in demo mode (no django_session table needed)
 if DEMO_MODE:

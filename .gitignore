@@ -22,6 +22,10 @@ db.sqlite3-journal
 media/
 staticfiles/
 
+# Joblib model artifacts (place sepsis_rf_pipeline.joblib and feature_cols.joblib here; .gitkeep is committed)
+patients/model_artifacts/*
+!patients/model_artifacts/.gitkeep
+
 # MIMIC-IV Data (Large dataset - DO NOT commit)
 mimiciv/
 *.csv.gz

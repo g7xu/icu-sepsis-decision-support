@@ -3,7 +3,7 @@ psycopg2-binary>=2.9
 pandas>=2.0
 numpy>=1.26
 python-dotenv>=1.0
-httpx>=0.27
-boto3>=1.34
+joblib>=1.3
+scikit-learn==1.6.1
 gunicorn>=21.2
 whitenoise>=6.5

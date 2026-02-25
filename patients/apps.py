@@ -17,3 +17,8 @@ class PatientsConfig(AppConfig):
                 demo_cache.load()
             except Exception as exc:
                 logger.warning("[PatientsConfig] Failed to load demo cache: %s", exc)
+        try:
+            from . import model_local
+            model_local.load_model()
+        except Exception as exc:
+            logger.warning("[PatientsConfig] Failed to load prediction model: %s", exc)
