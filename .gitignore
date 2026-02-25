@@ -50,3 +50,6 @@ terraform/override.tf.json
 terraform/*_override.tf
 terraform/*_override.tf.json
 terraform/*.pem
+
+# SSL certificates (Cloudflare Origin Cert — never commit private keys)
+ssl/
