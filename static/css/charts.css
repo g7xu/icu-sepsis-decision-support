@@ -1,0 +1,38 @@
+/* ── D3 tooltip ───────────────────────────────────────────────────────────── */
+.d3-tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: #1a365d;
+    color: white;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+    z-index: 200;
+    min-width: 150px;
+    white-space: nowrap;
+}
+.tt-hour {
+    font-weight: 700;
+    font-size: 13px;
+    margin-bottom: 6px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid rgba(255,255,255,0.25);
+}
+.tt-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+    line-height: 1.4;
+}
+.tt-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    border: 1.5px solid rgba(255,255,255,0.5);
+}
+.tt-name { flex: 1; opacity: 0.88; font-size: 11px; }
+.tt-val  { font-weight: 700; font-size: 12px; text-align: right; }

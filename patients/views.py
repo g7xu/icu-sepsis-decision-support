@@ -30,6 +30,7 @@ from .models import (
 )
 from .pipeline import advance_hour, rewind_hour
 from .cohort import get_cohort_filter
+from .utils import display_time as _display_time, prediction_as_of_iso as _prediction_as_of_iso
 
 
 # =============================================================================
@@ -49,15 +50,6 @@ _sim_lock = threading.Lock()
 # =============================================================================
 # Helper functions
 # =============================================================================
-
-def _display_time(current_hour: int) -> str:
-    display_hour = current_hour + 1
-    if display_hour <= 0:
-        return "March 13, 2025 00:00"
-    elif display_hour >= 24:
-        return "March 14, 2025 00:00"
-    return f"March 13, 2025 {display_hour:02d}:00"
-
 
 def _auto_advance_loop() -> None:
     """Background thread for auto-play (forward or backward)."""
@@ -213,13 +205,6 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
             'ordercategoryname', 'statusdescription',
         ))
 
-    if current_hour < 0:
-        prediction_as_of_iso = None
-    elif current_hour >= 23:
-        prediction_as_of_iso = "2025-03-14T00:00:00"
-    else:
-        prediction_as_of_iso = f"2025-03-13T{current_hour + 1:02d}:00:00"
-
     context = {
         'patient': patient,
         'vitalsigns_json': vitalsigns_json,
@@ -230,7 +215,7 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
         'procedures_count': len(procedures),
         'current_hour': current_hour,
         'current_time_display': _display_time(current_hour),
-        'prediction_as_of_iso': prediction_as_of_iso,
+        'prediction_as_of_iso': _prediction_as_of_iso(current_hour),
         'auto_play': _simulation['auto_play'],
         'speed_seconds': _simulation['speed_seconds'],
     }
