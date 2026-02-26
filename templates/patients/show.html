@@ -138,6 +138,26 @@
     {% endif %}
 </div>
 
+<!-- Coagulation Chart -->
+<div class="card">
+    <div class="card-header">
+        <h2>Coagulation Values</h2>
+    </div>
+    <div class="coagulation-controls">
+        <label><input type="radio" name="coagulation" value="d_dimer" checked>D-Dimer</label>
+        <label><input type="radio" name="coagulation" value="fibrinogen">Fibrinogen</label>
+        <label><input type="radio" name="coagulation" value="thrombin">Thrombin</label>
+        <label><input type="radio" name="coagulation" value="inr">INR</label>
+        <label><input type="radio" name="coagulation" value="pt">PT</label>
+        <label><input type="radio" name="coagulation" value="ptt">PTT</label>
+    </div>
+
+    <div id="coagulation-chart" class="coagulation-chart"></div>
+    {% if current_hour < 0 %}
+    <p class="text-muted">Press <strong>+1</strong> to start collecting coagulation data.</p>
+    {% endif %}
+</div>
+
 <!-- Predictions: risk_score + comorbidity_group -->
 <div class="card prediction-card">
     <div class="card-header">
@@ -164,6 +184,7 @@
 
 <script type="application/json" id="vitalsigns-data">{{ vitalsigns_json|safe }}</script>
 <script type="application/json" id="chemistry-data">{{ chemistry_json|safe }}</script>
+<script type="application/json" id="coagulation-data">{{ coagulation_json|safe }}</script>
 <div id="page-config" class="hidden" data-csrf-token="{{ csrf_token }}" data-advance-url="{% url 'patients:advance_time' %}" {% if prediction_as_of_iso %}data-prediction-url="{% url 'patients:prediction' patient.subject_id patient.stay_id patient.hadm_id %}?as_of={{ prediction_as_of_iso|urlencode }}&window_hours=24"{% endif %}></div>
 
 <script>
@@ -332,6 +353,86 @@ if (chemistryData.length > 0) {
     document.querySelectorAll('input[name="chemistry"]').forEach(radio => {
         radio.addEventListener('change', (e) => {
             if (e.target && e.target.checked) renderChemChart(e.target.value);
+        });
+    });
+}
+
+// =========================================================================
+// Plotly Coagulation Chart (single chart + radio selection)
+// =========================================================================
+const coagulationData = JSON.parse(document.getElementById('coagulation-data').textContent || '[]');
+
+if (coagulationData.length > 0) {
+    const coagTimes = coagulationData.map(c => c.hour_label);
+
+    const COAG_BASE_TRACE = {
+        type: 'scatter',
+        mode: 'lines+markers'
+    };
+
+    const COAG_TRACE_STYLES = {
+        d_dimer: {name: 'D-Dimer', line: {color: '#e53e3e', width: 2}, marker: {size: 10}},
+        fibrinogen: {name: 'Fibrinogen', line: {color: '#3182ce', width: 2}, marker: {size: 10}},
+        thrombin: {name: 'Thrombin', line: {color: '#38a169', width: 2}, marker: {size: 10}},
+        inr: {name: 'INR', line: {color: '#d69e2e', width: 2}, marker: {size: 10}},
+        pt: {name: 'PT', line: {color: '#805ad5', width: 2}, marker: {size: 10}},
+        ptt: {name: 'PTT', line: {color: '#dd6b20', width: 2}, marker: {size: 10}}
+    };
+
+    const COAG_CHARTS = {
+        d_dimer: {title: 'D-Dimer', yTitle: 'D-Dimer (\u00b5g/mL)', series: ['d_dimer']},
+        fibrinogen: {title: 'Fibrinogen', yTitle: 'Fibrinogen (mg/dL)', series: ['fibrinogen']},
+        thrombin: {title: 'Thrombin', yTitle: 'Thrombin (sec)', series: ['thrombin']},
+        inr: {title: 'INR', yTitle: 'INR', series: ['inr']},
+        pt: {title: 'PT', yTitle: 'PT (sec)', series: ['pt']},
+        ptt: {title: 'PTT', yTitle: 'PTT (sec)', series: ['ptt']}
+    };
+
+    function buildCoagTraces(seriesKeys) {
+        return seriesKeys.map(key => {
+            const style = COAG_TRACE_STYLES[key] || { name: key };
+            return {
+                ...COAG_BASE_TRACE,
+                x: coagTimes,
+                y: coagulationData.map(c => c[key]),
+                name: style.name,
+                line: style.line,
+                marker: style.marker
+            };
+        });
+    }
+
+    const coagBaseLayout = {
+        height: 325,
+        showlegend: true,
+        legend: { orientation: 'h', y: 1.35, x: 0.45, font: { size: 12 } },
+        margin: { l: 60, r: 20, t: 50, b: 45 },
+        xaxis: { title: { text: 'Hour', font: { size: 12 } }, tickfont: { size: 10 }, automargin: true },
+        yaxis: { tickfont: { size: 10 }, automargin: true, autorange: true }
+    };
+
+    function renderCoagChart(chartKey) {
+        const chart = COAG_CHARTS[chartKey] || COAG_CHARTS.d_dimer;
+
+        const traces = buildCoagTraces(chart.series);
+        const layout = {
+            ...coagBaseLayout,
+            title: { text: chart.title, x: 0.025, xanchor: 'left', font: { size: 14 } },
+            yaxis: {
+                ...coagBaseLayout.yaxis,
+                title: { text: chart.yTitle, font: { size: 11 } },
+                autorange: true
+            }
+        };
+
+        Plotly.newPlot('coagulation-chart', traces, layout, { responsive: true });
+    }
+
+    renderCoagChart('d_dimer');
+
+    document.querySelectorAll('input[name="coagulation"]').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            if (e.target && e.target.checked) renderCoagChart(e.target.value);
         });
     });
 }

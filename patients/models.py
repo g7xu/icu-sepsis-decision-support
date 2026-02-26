@@ -165,3 +165,31 @@ class ChemistryHourly(models.Model):
 
     def __str__(self):
         return f"Chemistry for {self.subject_id} at {self.charttime_hour}"
+
+
+class CoagulationHourly(models.Model):
+    """
+    Maps to fisi9t_coagulation_hourly MATERIALIZED VIEW in mimiciv_derived schema.
+
+    Contains hourly coagulation measurements for patients.
+    Linked to UniquePatientProfile via (subject_id, stay_id).
+    """
+    # === Identifiers ===
+    subject_id = models.IntegerField()  # integer
+    stay_id = models.IntegerField()  # integer
+    charttime_hour = models.DateTimeField()  # timestamp without time zone
+
+    # === Coagulation measurements ===
+    d_dimer = models.FloatField(null=True, blank=True)  # double precision
+    fibrinogen = models.FloatField(null=True, blank=True)  # double precision
+    thrombin = models.FloatField(null=True, blank=True)  # double precision
+    inr = models.FloatField(null=True, blank=True)  # double precision
+    pt = models.FloatField(null=True, blank=True)  # double precision
+    ptt = models.FloatField(null=True, blank=True)  # double precision
+
+    class Meta:
+        managed = False
+        db_table = 'fisi9t_coagulation_hourly'
+
+    def __str__(self):
+        return f"Coagulation for {self.subject_id} at {self.charttime_hour}"
