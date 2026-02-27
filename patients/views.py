@@ -231,6 +231,13 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
             'ordercategoryname', 'statusdescription',
         ))
 
+        procedures = procedures[::-1]
+        
+        # Count non-empty procedures (those with item_label)
+        procedures_non_empty_count = sum(1 for p in procedures if p.get('item_label'))
+    else:
+        procedures_non_empty_count = 0
+
     # Prediction "as_of" time for the API (normalized to 2025-03-13)
     # Database queries are year-agnostic, display is normalized for consistency
     if current_hour < 0:
@@ -254,6 +261,7 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
         'coagulation_json': coagulation_json,
         'procedures': procedures,
         'procedures_count': len(procedures),
+        'procedures_non_empty_count': procedures_non_empty_count,
         'current_hour': current_hour,
         'current_time_display': _display_time(current_hour),
         'prediction_as_of_iso': prediction_as_of_iso,
