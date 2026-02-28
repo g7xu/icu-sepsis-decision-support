@@ -49,33 +49,75 @@
             <p class="patient-field-label">Admission Time</p>
             <p class="patient-field-value">{{ patient.intime|time:"H:i"|default:"-" }}</p>
         </div>
-        <div>
-            <p class="patient-field-label">Procedures</p>
-            <button id="open-procedures-drawer" class="patient-field-value procedure-events-btn">
-                {{ procedures_non_empty_count }}
-            </button>
-        </div>
     </div>
 </div>
 
-<!-- Vital Signs Chart (full width) -->
-<div class="card">
-    <div class="card-header">
-        <h2>Vital Signs</h2>
+<!-- Clinical Data: Vitals + Procedures side by side -->
+<div class="clinical-grid">
+
+    <!-- Vital Signs Chart -->
+    <div class="card">
+        <div class="card-header">
+            <h2>Vital Signs</h2>
+        </div>
+        <div class="vitals-controls">
+            <label><input type="radio" name="vital" value="hr" checked>Heart Rate</label>
+            <label><input type="radio" name="vital" value="bp">Blood Pressure</label>
+            <label><input type="radio" name="vital" value="spo2">SpO2</label>
+            <label><input type="radio" name="vital" value="resp">Resp Rate</label>
+            <label><input type="radio" name="vital" value="temp">Temperature</label>
+            <label><input type="radio" name="vital" value="glucose">Glucose</label>
+          </div>
+          
+        <div id="vitals-chart" class="vitals-chart"></div>
+        {% if current_hour < 0 %}
+        <p class="text-muted">Press <strong>+1</strong> to start collecting vital signs.</p>
+        {% endif %}
     </div>
-    <div class="vitals-controls">
-        <label><input type="radio" name="vital" value="hr" checked>Heart Rate</label>
-        <label><input type="radio" name="vital" value="bp">Blood Pressure</label>
-        <label><input type="radio" name="vital" value="spo2">SpO2</label>
-        <label><input type="radio" name="vital" value="resp">Resp Rate</label>
-        <label><input type="radio" name="vital" value="temp">Temperature</label>
-        <label><input type="radio" name="vital" value="glucose">Glucose</label>
-      </div>
-      
-    <div id="vitals-chart" class="vitals-chart"></div>
-    {% if current_hour < 0 %}
-    <p class="text-muted">Press <strong>+1</strong> to start collecting vital signs.</p>
-    {% endif %}
+
+    <!-- Procedure Events Log -->
+    <div class="card">
+        <div class="card-header">
+            <h2>Procedure Events</h2>
+        </div>
+        <div id="procedures-log" class="procedures-log">
+            {% if procedures %}
+                {% for proc in procedures %}
+                    {% with has_event=proc.item_label %}
+                        <div class="procedure-item {% if not has_event %}procedure-item--empty{% endif %}">
+                            {% if proc.item_label %}
+                            <div class="procedure-item__header">
+                                <strong class="procedure-item__label">{{ proc.item_label|default:"-" }}</strong>
+                                <span class="procedure-item__time text-muted">{{ proc.charttime_hour|date:"H:i" }}</span>
+                            </div>
+                            {% endif %}
+                    
+                            {% if proc.value %}
+                            <div class="procedure-item__value">
+                                Value: {{ proc.value }} || Unit of Measurement (if provided): {{ proc.valueuom|default:"" }}
+                            </div>
+                            {% endif %}
+                    
+                            {% if proc.ordercategoryname %}
+                            <div class="procedure-item__meta">
+                                {{ proc.ordercategoryname }} {% if proc.statusdescription %} || {{ proc.statusdescription }}{% endif %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    {% endwith %}
+                {% endfor %}
+            {% else %}
+                <p class="procedures-empty text-muted">
+                    {% if current_hour < 0 %}
+                        Press <strong>+1</strong> to start collecting procedure data.
+                    {% else %}
+                        No procedure events recorded yet.
+                    {% endif %}
+                </p>
+            {% endif %}
+        </div>
+    </div>
+
 </div>
 
 <!-- Chemistry Chart -->
@@ -134,50 +176,6 @@
         {% else %}
         <p class="text-muted">Press <strong>+1</strong> to start the simulation and load predictions.</p>
         {% endif %}
-    </div>
-</div>
-
-<!-- Procedure Events Drawer -->
-<div id="procedures-drawer" class="drawer-overlay">
-    <div class="drawer">
-        <div class="drawer-header">
-            <h2>Procedure Events</h2>
-            <button id="close-procedures-drawer" class="drawer-close">&times;</button>
-        </div>
-        <div class="drawer-content">
-            {% if procedures %}
-                {% for proc in procedures %}
-                    {% if proc.item_label %}
-                        <div class="procedure-item">
-                            <div class="procedure-item__header">
-                                <strong class="procedure-item__label">{{ proc.item_label|default:"-" }}</strong>
-                                <span class="procedure-item__time text-muted">{{ proc.charttime_hour|date:"H:i" }}</span>
-                            </div>
-                    
-                            {% if proc.value %}
-                            <div class="procedure-item__value">
-                                Value: {{ proc.value }} || Unit of Measurement (if provided): {{ proc.valueuom|default:"" }}
-                            </div>
-                            {% endif %}
-                    
-                            {% if proc.ordercategoryname %}
-                            <div class="procedure-item__meta">
-                                {{ proc.ordercategoryname }} {% if proc.statusdescription %} || {{ proc.statusdescription }}{% endif %}
-                            </div>
-                            {% endif %}
-                        </div>
-                    {% endif %}
-                {% endfor %}
-            {% else %}
-                <p class="procedures-empty text-muted">
-                    {% if current_hour < 0 %}
-                        Press <strong>+1</strong> to start collecting procedure data.
-                    {% else %}
-                        No procedure events recorded yet.
-                    {% endif %}
-                </p>
-            {% endif %}
-        </div>
     </div>
 </div>
 
@@ -499,31 +497,6 @@ if (coagulationData.length > 0) {
             advanceBtn.textContent = '+1';
         });
     });
-
-    // =========================================================================
-    // Procedure Events Drawer
-    // =========================================================================
-    const drawer = document.getElementById('procedures-drawer');
-    const openDrawerBtn = document.getElementById('open-procedures-drawer');
-    const closeDrawerBtn = document.getElementById('close-procedures-drawer');
-
-    if (openDrawerBtn && drawer) {
-        openDrawerBtn.addEventListener('click', function() {
-            drawer.classList.add('drawer-open');
-        });
-    }
-
-    if (closeDrawerBtn && drawer) {
-        closeDrawerBtn.addEventListener('click', function() {
-            drawer.classList.remove('drawer-open');
-        });
-
-        drawer.addEventListener('click', function(e) {
-            if (e.target === drawer) {
-                drawer.classList.remove('drawer-open');
-            }
-        });
-    }
 })();
 </script>
 {% endblock %}
