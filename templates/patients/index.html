@@ -43,7 +43,10 @@
         <tbody>
             {% for patient in page_obj %}
             <tr>
-                <td><strong>{{ patient.display_name }}</strong></td>
+                <td>
+                    <a href="{% url 'patients:detail' patient.subject_id patient.stay_id patient.hadm_id %}" 
+                       class="patient-name-link">{{ patient.display_name }}</a>
+                </td>
                 <td>{{ patient.anchor_age|default:"-" }}</td>
                 <td>
                     {% if patient.gender == 'M' %}
