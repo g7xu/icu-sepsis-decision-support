@@ -42,11 +42,11 @@ def _display_time(current_hour):
     """
     display_hour = current_hour + 1
     if display_hour <= 0:
-        return "March 13 00:00"
+        return "00:00"
     elif display_hour >= 24:
-        return "March 14 00:00"
+        return "00:00"
     else:
-        return f"March 13 {display_hour:02d}:00"
+        return f"{display_hour:02d}:00"
 
 
 def _prediction_as_of_dt(current_hour, patient_intime=None):
