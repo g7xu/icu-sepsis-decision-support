@@ -7,9 +7,16 @@
    Patient Detail - Field grid
    ============================================================================= */
 
+.sticky-card {
+    position: sticky;
+    top: 10;
+    z-index: 100;
+    background-color: white;
+}
+
 .patient-detail-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    display: flex;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 0.75rem 1.25rem;
 }
 
@@ -25,17 +32,54 @@
 }
 
 /* =============================================================================
-   Clinical Data - Vitals + Procedures layout
+   Main Content Grid - Charts (left) + Procedures (right)
    ============================================================================= */
 
-.clinical-grid {
+.main-content-grid {
     display: grid;
     grid-template-columns: 2fr 1fr;
     gap: 0.5rem;
     margin-top: 0.5rem;
 }
 
+.charts-column {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.procedures-column {
+    position: relative;
+}
+
+.sticky-procedures {
+    position: sticky;
+    top: 0;
+    height: calc(100vh - 1rem);
+    display: flex;
+    flex-direction: column;
+}
+
+.sticky-procedures .procedures-log {
+    flex: 1;
+    overflow-y: auto;
+}
+
+/* =============================================================================
+   Charts layout
+   ============================================================================= */
+
 .vitals-chart {
+    width: 100%;
+    height: 350px;
+}
+
+.chemistry-chart {
+    width: 100%;
+    height: 350px;
+}
+
+.coagulation-chart {
     width: 100%;
     height: 350px;
 }
@@ -50,7 +94,7 @@
     color: #2d3748;
 }
   
-  .vitals-controls label {
+.vitals-controls label {
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
@@ -58,9 +102,40 @@
     user-select: none;
 }  
 
-.procedures-log {
-    max-height: 350px;
-    overflow-y: auto;
+.chemistry-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: center;
+    margin: 0.25rem;
+    font-size: 1rem;
+    color: #2d3748;
+}
+
+.chemistry-controls label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    cursor: pointer;
+    user-select: none;
+}
+
+.coagulation-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: center;
+    margin: 0.25rem;
+    font-size: 1rem;
+    color: #2d3748;
+}
+
+.coagulation-controls label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    cursor: pointer;
+    user-select: none;
 }
 
 /* =============================================================================
@@ -68,7 +143,7 @@
    ============================================================================= */
 
 .procedure-item {
-    padding: 0.5rem;
+    padding: 0.75rem;
     border-bottom: 3px solid #e2e8f0;
 }
 
@@ -80,24 +155,24 @@
 
 .procedure-item__label {
     color: #e53e3e;
-    font-size: 1rem;
+    font-size: 1.25rem;
 }
 
 .procedure-item__time {
-    font-size: 0.8rem;
+    font-size: 0.85rem;
     white-space: nowrap;
     margin-left: 0.5rem;
     color: #e53e3e;
 }
 
 .procedure-item__value {
-    font-size: 0.90rem;
+    font-size: 1rem;
     color: #000000;
     margin-top: 0.25rem;
 }
 
 .procedure-item__meta {
-    font-size: 0.75rem;
+    font-size: 1rem;
     color: #000000;
     margin-top: 0.15rem;
 }

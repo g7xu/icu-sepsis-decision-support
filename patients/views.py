@@ -12,7 +12,7 @@ from django.db.models import Q
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 
-from .models import UniquePatientProfile, VitalsignHourly, ProcedureeventsHourly
+from .models import UniquePatientProfile, VitalsignHourly, ProcedureeventsHourly, ChemistryHourly, CoagulationHourly
 from .cohort import get_cohort_filter
 from .services import get_prediction
 from .display_names import get_display_name_mapping
@@ -151,6 +151,8 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
 
     current_hour = _simulation['current_hour']
     vitalsigns_json = '[]'
+    chemistry_json = '[]'
+    coagulation_json = '[]'
     procedures = []
 
     if current_hour >= 0:
@@ -175,6 +177,46 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
 
         vitalsigns_json = json.dumps(vitalsigns_list, cls=DjangoJSONEncoder)
 
+        # --- Chemistry for Plotly chart ---
+        chemistry_qs = ChemistryHourly.objects.filter(
+            subject_id=subject_id,
+            stay_id=stay_id,
+            charttime_hour__month=3,
+            charttime_hour__day=13,
+            charttime_hour__hour__lte=current_hour,
+        ).order_by('charttime_hour')
+
+        chemistry_list = []
+        for row in chemistry_qs.values(
+            'charttime_hour',
+            'bicarbonate', 'calcium', 'sodium', 'potassium',
+        ):
+            # Add a clean hour label for the Plotly x-axis
+            row['hour_label'] = f"{row['charttime_hour'].hour:02d}:00"
+            chemistry_list.append(row)
+
+        chemistry_json = json.dumps(chemistry_list, cls=DjangoJSONEncoder)
+
+        # --- Coagulation for Plotly chart ---
+        coagulation_qs = CoagulationHourly.objects.filter(
+            subject_id=subject_id,
+            stay_id=stay_id,
+            charttime_hour__month=3,
+            charttime_hour__day=13,
+            charttime_hour__hour__lte=current_hour,
+        ).order_by('charttime_hour')
+
+        coagulation_list = []
+        for row in coagulation_qs.values(
+            'charttime_hour',
+            'd_dimer', 'fibrinogen', 'thrombin', 'inr', 'pt', 'ptt',
+        ):
+            # Add a clean hour label for the Plotly x-axis
+            row['hour_label'] = f"{row['charttime_hour'].hour:02d}:00"
+            coagulation_list.append(row)
+
+        coagulation_json = json.dumps(coagulation_list, cls=DjangoJSONEncoder)
+
         # --- Procedure events for the log ---
         procedures = list(ProcedureeventsHourly.objects.filter(
             subject_id=subject_id,
@@ -188,6 +230,13 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
             'item_label', 'value', 'valueuom',
             'ordercategoryname', 'statusdescription',
         ))
+
+        procedures = procedures[::-1]
+        
+        # Count non-empty procedures (those with item_label)
+        procedures_non_empty_count = sum(1 for p in procedures if p.get('item_label'))
+    else:
+        procedures_non_empty_count = 0
 
     # Prediction "as_of" time for the API (normalized to 2025-03-13)
     # Database queries are year-agnostic, display is normalized for consistency
@@ -208,8 +257,11 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
     context = {
         'patient': patient,
         'vitalsigns_json': vitalsigns_json,
+        'chemistry_json': chemistry_json,
+        'coagulation_json': coagulation_json,
         'procedures': procedures,
         'procedures_count': len(procedures),
+        'procedures_non_empty_count': procedures_non_empty_count,
         'current_hour': current_hour,
         'current_time_display': _display_time(current_hour),
         'prediction_as_of_iso': prediction_as_of_iso,
