@@ -16,8 +16,8 @@
 {% endblock %}
 
 {% block content %}
-<!-- Patient Details -->
-<div class="card">
+<!-- Sticky Patient Details -->
+<div class="card sticky-card">
     <div class="card-header">
         <h2>Patient Details</h2>
     </div>
@@ -52,131 +52,136 @@
     </div>
 </div>
 
-<!-- Clinical Data: Vitals + Procedures side by side -->
-<div class="clinical-grid">
-
-    <!-- Vital Signs Chart -->
-    <div class="card">
-        <div class="card-header">
-            <h2>Vital Signs</h2>
-        </div>
-        <div class="vitals-controls">
-            <label><input type="radio" name="vital" value="hr" checked>Heart Rate</label>
-            <label><input type="radio" name="vital" value="bp">Blood Pressure</label>
-            <label><input type="radio" name="vital" value="spo2">SpO2</label>
-            <label><input type="radio" name="vital" value="resp">Resp Rate</label>
-            <label><input type="radio" name="vital" value="temp">Temperature</label>
-            <label><input type="radio" name="vital" value="glucose">Glucose</label>
-          </div>
-          
-        <div id="vitals-chart" class="vitals-chart"></div>
-        {% if current_hour < 0 %}
-        <p class="text-muted">Press <strong>+1</strong> to start collecting vital signs.</p>
-        {% endif %}
-    </div>
-
-    <!-- Procedure Events Log -->
-    <div class="card">
-        <div class="card-header">
-            <h2>Procedure Events</h2>
-        </div>
-        <div id="procedures-log" class="procedures-log">
-            {% if procedures %}
-                {% for proc in procedures %}
-                    {% with has_event=proc.item_label %}
-                        <div class="procedure-item {% if not has_event %}procedure-item--empty{% endif %}">
-                            {% if proc.item_label %}
-                            <div class="procedure-item__header">
-                                <strong class="procedure-item__label">{{ proc.item_label|default:"-" }}</strong>
-                                <span class="procedure-item__time text-muted">{{ proc.charttime_hour|date:"H:i" }}</span>
-                            </div>
-                            {% endif %}
-                    
-                            {% if proc.value %}
-                            <div class="procedure-item__value">
-                                Value: {{ proc.value }} || Unit of Measurement (if provided): {{ proc.valueuom|default:"" }}
-                            </div>
-                            {% endif %}
-                    
-                            {% if proc.ordercategoryname %}
-                            <div class="procedure-item__meta">
-                                {{ proc.ordercategoryname }} {% if proc.statusdescription %} || {{ proc.statusdescription }}{% endif %}
-                            </div>
-                            {% endif %}
-                        </div>
-                    {% endwith %}
-                {% endfor %}
-            {% else %}
-                <p class="procedures-empty text-muted">
-                    {% if current_hour < 0 %}
-                        Press <strong>+1</strong> to start collecting procedure data.
-                    {% else %}
-                        No procedure events recorded yet.
-                    {% endif %}
-                </p>
+<!-- Main Content Grid: Charts (left) + Procedures (right) -->
+<div class="main-content-grid">
+    
+    <!-- Left Column: Scrollable Charts -->
+    <div class="charts-column">
+        <!-- Vital Signs Chart -->
+        <div class="card">
+            <div class="card-header">
+                <h2>Vital Signs</h2>
+            </div>
+            <div class="vitals-controls">
+                <label><input type="radio" name="vital" value="hr" checked>Heart Rate</label>
+                <label><input type="radio" name="vital" value="bp">Blood Pressure</label>
+                <label><input type="radio" name="vital" value="spo2">SpO2</label>
+                <label><input type="radio" name="vital" value="resp">Resp Rate</label>
+                <label><input type="radio" name="vital" value="temp">Temperature</label>
+                <label><input type="radio" name="vital" value="glucose">Glucose</label>
+              </div>
+              
+            <div id="vitals-chart" class="vitals-chart"></div>
+            {% if current_hour < 0 %}
+            <p class="text-muted">Press <strong>+1</strong> to start collecting vital signs.</p>
             {% endif %}
         </div>
-    </div>
-
-</div>
 
 <!-- Chemistry Chart -->
-<div class="card">
-    <div class="card-header">
-        <h2>Chemistry Values</h2>
-    </div>
-    <div class="chemistry-controls">
-        <label><input type="radio" name="chemistry" value="bicarbonate" checked>Bicarbonate</label>
-        <label><input type="radio" name="chemistry" value="calcium">Calcium</label>
-        <label><input type="radio" name="chemistry" value="sodium">Sodium</label>
-        <label><input type="radio" name="chemistry" value="potassium">Potassium</label>
-    </div>
-    
-    <div id="chemistry-chart" class="chemistry-chart"></div>
-    {% if current_hour < 0 %}
-    <p class="text-muted">Press <strong>+1</strong> to start collecting chemistry data.</p>
-    {% endif %}
-</div>
+        <div class="card">
+            <div class="card-header">
+                <h2>Chemistry Values</h2>
+            </div>
+            <div class="chemistry-controls">
+                <label><input type="radio" name="chemistry" value="bicarbonate" checked>Bicarbonate</label>
+                <label><input type="radio" name="chemistry" value="calcium">Calcium</label>
+                <label><input type="radio" name="chemistry" value="sodium">Sodium</label>
+                <label><input type="radio" name="chemistry" value="potassium">Potassium</label>
+            </div>
+            
+            <div id="chemistry-chart" class="chemistry-chart"></div>
+            {% if current_hour < 0 %}
+            <p class="text-muted">Press <strong>+1</strong> to start collecting chemistry data.</p>
+            {% endif %}
+        </div>
 
 <!-- Coagulation Chart -->
-<div class="card">
-    <div class="card-header">
-        <h2>Coagulation Values</h2>
-    </div>
-    <div class="coagulation-controls">
-        <label><input type="radio" name="coagulation" value="d_dimer" checked>D-Dimer</label>
-        <label><input type="radio" name="coagulation" value="fibrinogen">Fibrinogen</label>
-        <label><input type="radio" name="coagulation" value="thrombin">Thrombin</label>
-        <label><input type="radio" name="coagulation" value="inr">INR</label>
-        <label><input type="radio" name="coagulation" value="pt">PT</label>
-        <label><input type="radio" name="coagulation" value="ptt">PTT</label>
-    </div>
+        <div class="card">
+            <div class="card-header">
+                <h2>Coagulation Values</h2>
+            </div>
+            <div class="coagulation-controls">
+                <label><input type="radio" name="coagulation" value="d_dimer" checked>D-Dimer</label>
+                <label><input type="radio" name="coagulation" value="fibrinogen">Fibrinogen</label>
+                <label><input type="radio" name="coagulation" value="thrombin">Thrombin</label>
+                <label><input type="radio" name="coagulation" value="inr">INR</label>
+                <label><input type="radio" name="coagulation" value="pt">PT</label>
+                <label><input type="radio" name="coagulation" value="ptt">PTT</label>
+            </div>
 
-    <div id="coagulation-chart" class="coagulation-chart"></div>
-    {% if current_hour < 0 %}
-    <p class="text-muted">Press <strong>+1</strong> to start collecting coagulation data.</p>
-    {% endif %}
-</div>
+            <div id="coagulation-chart" class="coagulation-chart"></div>
+            {% if current_hour < 0 %}
+            <p class="text-muted">Press <strong>+1</strong> to start collecting coagulation data.</p>
+            {% endif %}
+        </div>
 
 <!-- Predictions: risk_score + comorbidity_group -->
-<div class="card prediction-card">
-    <div class="card-header">
-        <h2>Predictions</h2>
-    </div>
-    <div id="prediction-panel" class="prediction-panel">
-        {% if prediction_as_of_iso %}
-        <div>
-            <p class="prediction-field-label">Risk Score</p>
-            <p id="risk-score" class="prediction-field-value">...</p>
+        <div class="card prediction-card">
+            <div class="card-header">
+                <h2>Predictions</h2>
+            </div>
+            <div id="prediction-panel" class="prediction-panel">
+                {% if prediction_as_of_iso %}
+                <div>
+                    <p class="prediction-field-label">Risk Score</p>
+                    <p id="risk-score" class="prediction-field-value">...</p>
+                </div>
+                <div>
+                    <p class="prediction-field-label">Comorbidity Group</p>
+                    <p id="comorbidity-group" class="prediction-field-value">...</p>
+                </div>
+                {% else %}
+                <p class="text-muted">Press <strong>+1</strong> to start the simulation and load predictions.</p>
+                {% endif %}
+            </div>
         </div>
-        <div>
-            <p class="prediction-field-label">Comorbidity Group</p>
-            <p id="comorbidity-group" class="prediction-field-value">...</p>
-        </div>
-        {% else %}
-        <p class="text-muted">Press <strong>+1</strong> to start the simulation and load predictions.</p>
-        {% endif %}
     </div>
+
+    <!-- Right Column: Sticky Procedure Events -->
+    <div class="procedures-column">
+        <div class="card sticky-procedures">
+            <div class="card-header">
+                <h2>Procedure Events</h2>
+            </div>
+            <div id="procedures-log" class="procedures-log">
+                {% if procedures %}
+                    {% for proc in procedures %}
+                        {% with has_event=proc.item_label %}
+                            <div class="procedure-item {% if not has_event %}procedure-item--empty{% endif %}">
+                                {% if proc.item_label %}
+                                <div class="procedure-item__header">
+                                    <strong class="procedure-item__label">{{ proc.item_label|default:"-" }}</strong>
+                                    <span class="procedure-item__time text-muted">{{ proc.charttime_hour|date:"H:i" }}</span>
+                                </div>
+                                {% endif %}
+                        
+                                {% if proc.value %}
+                                <div class="procedure-item__value">
+                                    Value: {{ proc.value }} || Unit of Measurement (if provided): {{ proc.valueuom|default:"" }}
+                                </div>
+                                {% endif %}
+                        
+                                {% if proc.ordercategoryname %}
+                                <div class="procedure-item__meta">
+                                    {{ proc.ordercategoryname }} {% if proc.statusdescription %} || {{ proc.statusdescription }}{% endif %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        {% endwith %}
+                    {% endfor %}
+                {% else %}
+                    <p class="procedures-empty text-muted">
+                        {% if current_hour < 0 %}
+                            Press <strong>+1</strong> to start collecting procedure data.
+                        {% else %}
+                            No procedure events recorded yet.
+                        {% endif %}
+                    </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
 </div>
 
 <!-- Plotly.js from CDN -->
