@@ -648,14 +648,21 @@ def get_prediction(subject_id, stay_id, hadm_id, as_of, window_hours=24):
         patient = UniquePatientProfile.objects.get(
             subject_id=subject_id, stay_id=stay_id, hadm_id=hadm_id
         )
-        patient_year = patient.intime.year if patient.intime else 2025
     except UniquePatientProfile.DoesNotExist:
-        patient_year = 2025
+        patient = None
 
-    # Build start/end with patient's actual year for DB queries
-    start_normalized = as_of - timedelta(hours=window_hours)
-    start = start_normalized.replace(year=patient_year)
-    end = as_of.replace(year=patient_year)
+    # If as_of looks like display time (March 13/14), map to patient's actual charttime
+    if patient and patient.intime and as_of.month == 3 and as_of.day in (13, 14):
+        # 2025-03-13T09:00 = end of sim hour 8; 2025-03-14T00:00 = end of sim hour 23
+        sim_hour = 23 if (as_of.day == 14 and as_of.hour == 0) else (as_of.hour - 1) % 24
+        adm_hour = patient.intime.hour
+        if sim_hour >= adm_hour:
+            base = patient.intime.replace(minute=0, second=0, microsecond=0)
+            as_of = base + timedelta(hours=(sim_hour - adm_hour + 1))
+
+    # Build start/end for DB queries (use as_of as-is; it's now patient's actual time)
+    start = as_of - timedelta(hours=window_hours)
+    end = as_of
 
     using_feature_matrix = False
     local_history_rows = []
