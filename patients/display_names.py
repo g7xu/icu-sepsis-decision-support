@@ -48,9 +48,7 @@ def get_display_name_mapping():
         tuples = sorted(cohort['values'])
     elif cohort['type'] == 'subject_ids':
         qs = UniquePatientProfile.objects.filter(
-            subject_id__in=cohort['values'],
-            intime__month=3,
-            intime__day=13
+            subject_id__in=cohort['values']
         ).values_list('subject_id', 'stay_id', 'hadm_id')
         tuples = sorted(set(qs))
     else:

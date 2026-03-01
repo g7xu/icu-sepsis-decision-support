@@ -1,9 +1,13 @@
 """
 Patient views - handles patient list, detail pages, and simulation clock API.
+
+Demo date alignment: We display "March 13" for the simulation, but patients may be
+from any admission date. Data queries use each patient's actual intime to map
+simulation hour -> charttime_hour (hours since admission).
 """
 
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from django.shortcuts import render, get_object_or_404
 from django.core.paginator import Paginator
@@ -89,7 +93,8 @@ def _prediction_as_of_dt(current_hour, patient_intime=None):
 
 def _get_cohort_patients():
     """
-    Get the base queryset of cohort patients admitted on March 13 (any year).
+    Get the base queryset of cohort patients.
+    No date filter: cohort may include patients from any admission date.
     """
     patients = UniquePatientProfile.objects.all()
 
@@ -103,20 +108,51 @@ def _get_cohort_patients():
                 conditions |= Q(subject_id=subject_id, stay_id=stay_id, hadm_id=hadm_id)
             patients = patients.filter(conditions)
 
-    # Only patients admitted on March 13 (ignore year)
-    patients = patients.filter(intime__month=3, intime__day=13)
     return patients
 
 
 def _get_admitted_patients(current_hour):
     """
-    Get patients whose admission hour is <= current_hour on March 13.
+    Get patients whose admission hour-of-day is <= current_hour.
+    Works for any admission date: we use intime.hour (0-23) as simulation arrival hour.
     Returns an empty queryset if simulation hasn't started (hour < 0).
     """
     if current_hour < 0:
         return UniquePatientProfile.objects.none()
 
     return _get_cohort_patients().filter(intime__hour__lte=current_hour)
+
+
+def _patient_charttime_range(patient_intime, current_hour):
+    """
+    Map simulation hour to patient's actual charttime_hour range.
+    Returns (start_hour, end_hour) for filtering vitals/procedures.
+    """
+    if not patient_intime or current_hour < 0:
+        return None, None
+    base = patient_intime.replace(minute=0, second=0, microsecond=0)
+    adm_hour = patient_intime.hour
+    if current_hour < adm_hour:
+        return None, None
+    hours_since_adm = current_hour - adm_hour
+    start_hour = base
+    end_hour = base + timedelta(hours=hours_since_adm)
+    return start_hour, end_hour
+
+
+def _patient_as_of_dt(patient_intime, current_hour):
+    """
+    Map simulation hour to patient's actual as_of timestamp for predictions.
+    Returns end of current hour in patient's timeline.
+    """
+    if not patient_intime or current_hour < 0:
+        return None
+    base = patient_intime.replace(minute=0, second=0, microsecond=0)
+    adm_hour = patient_intime.hour
+    if current_hour < adm_hour:
+        return None
+    # End of hour (current_hour - adm_hour) of stay
+    return base + timedelta(hours=current_hour - adm_hour + 1)
 
 
 # =============================================================================
@@ -196,15 +232,17 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
 
     if current_hour >= 0:
         # --- Vitalsigns for Plotly chart ---
-        # Display shows (current_hour + 1):00 — include data up to that hour
-        chart_hour = current_hour + 1
-        vitalsigns_qs = VitalsignHourly.objects.filter(
-            subject_id=subject_id,
-            stay_id=stay_id,
-            charttime_hour__month=3,
-            charttime_hour__day=13,
-            charttime_hour__hour__lte=chart_hour,
-        ).order_by('charttime_hour')
+        # Use patient's actual intime to map simulation hour -> charttime range
+        start_hour, end_hour = _patient_charttime_range(patient.intime, current_hour)
+        if start_hour is not None and end_hour is not None:
+            vitalsigns_qs = VitalsignHourly.objects.filter(
+                subject_id=subject_id,
+                stay_id=stay_id,
+                charttime_hour__gte=start_hour,
+                charttime_hour__lte=end_hour,
+            ).order_by('charttime_hour')
+        else:
+            vitalsigns_qs = VitalsignHourly.objects.none()
 
         vitalsigns_list = []
         for row in vitalsigns_qs.values(
@@ -219,13 +257,15 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
         vitalsigns_json = json.dumps(vitalsigns_list, cls=DjangoJSONEncoder)
 
         # --- Chemistry for Plotly chart ---
-        chemistry_qs = ChemistryHourly.objects.filter(
-            subject_id=subject_id,
-            stay_id=stay_id,
-            charttime_hour__month=3,
-            charttime_hour__day=13,
-            charttime_hour__hour__lte=chart_hour,
-        ).order_by('charttime_hour')
+        if start_hour is not None and end_hour is not None:
+            chemistry_qs = ChemistryHourly.objects.filter(
+                subject_id=subject_id,
+                stay_id=stay_id,
+                charttime_hour__gte=start_hour,
+                charttime_hour__lte=end_hour,
+            ).order_by('charttime_hour')
+        else:
+            chemistry_qs = ChemistryHourly.objects.none()
 
         chemistry_list = []
         for row in chemistry_qs.values(
@@ -239,13 +279,15 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
         chemistry_json = json.dumps(chemistry_list, cls=DjangoJSONEncoder)
 
         # --- Coagulation for Plotly chart ---
-        coagulation_qs = CoagulationHourly.objects.filter(
-            subject_id=subject_id,
-            stay_id=stay_id,
-            charttime_hour__month=3,
-            charttime_hour__day=13,
-            charttime_hour__hour__lte=chart_hour,
-        ).order_by('charttime_hour')
+        if start_hour is not None and end_hour is not None:
+            coagulation_qs = CoagulationHourly.objects.filter(
+                subject_id=subject_id,
+                stay_id=stay_id,
+                charttime_hour__gte=start_hour,
+                charttime_hour__lte=end_hour,
+            ).order_by('charttime_hour')
+        else:
+            coagulation_qs = CoagulationHourly.objects.none()
 
         coagulation_list = []
         for row in coagulation_qs.values(
@@ -259,18 +301,20 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
         coagulation_json = json.dumps(coagulation_list, cls=DjangoJSONEncoder)
 
         # --- Procedure events for the log ---
-        procedures = list(ProcedureeventsHourly.objects.filter(
-            subject_id=subject_id,
-            stay_id=stay_id,
-            charttime_hour__month=3,
-            charttime_hour__day=13,
-            charttime_hour__hour__lte=chart_hour,
-            itemid__isnull=False,
-        ).order_by('charttime_hour').values(
+        if start_hour is not None and end_hour is not None:
+            procedures = list(ProcedureeventsHourly.objects.filter(
+                subject_id=subject_id,
+                stay_id=stay_id,
+                charttime_hour__gte=start_hour,
+                charttime_hour__lte=end_hour,
+                itemid__isnull=False,
+            ).order_by('charttime_hour').values(
             'charttime_hour', 'charttime',
             'item_label', 'value', 'valueuom',
             'ordercategoryname', 'statusdescription',
         ))
+        else:
+            procedures = []
 
         procedures = procedures[::-1]
         
@@ -358,21 +402,26 @@ def advance_time(request):
         'first_careunit', 'intime', 'outtime', 'los',
     ))
 
-    # --- 2. All currently admitted patient stay_ids ---
+    # --- 2. All currently admitted patients (with intime for charttime mapping) ---
     admitted_qs = _get_admitted_patients(current_hour)
-    admitted_stay_ids = list(admitted_qs.values_list('stay_id', flat=True))
-    admitted_patients = list(admitted_qs.values('subject_id', 'stay_id', 'hadm_id'))
+    admitted_patients = list(admitted_qs.values('subject_id', 'stay_id', 'hadm_id', 'intime'))
+    admitted_stay_ids = [p['stay_id'] for p in admitted_patients]
 
     # --- 3. Vitalsigns at this hour for admitted patients ---
+    # Map simulation hour -> each patient's actual charttime_hour
     vitalsigns_data = []
-    if admitted_stay_ids:
-        vitalsigns_qs = VitalsignHourly.objects.filter(
-            stay_id__in=admitted_stay_ids,
-            charttime_hour__month=3,
-            charttime_hour__day=13,
-            charttime_hour__hour=current_hour,
-        )
-        vitalsigns_data = list(vitalsigns_qs.values(
+    if admitted_patients:
+        vitals_conditions = Q()
+        for p in admitted_patients:
+            intime = p.get('intime')
+            if intime and intime.hour <= current_hour:
+                target = intime.replace(minute=0, second=0, microsecond=0) + timedelta(
+                    hours=(current_hour - intime.hour)
+                )
+                vitals_conditions |= Q(stay_id=p['stay_id'], charttime_hour=target)
+        if vitals_conditions:
+            vitalsigns_qs = VitalsignHourly.objects.filter(vitals_conditions)
+            vitalsigns_data = list(vitalsigns_qs.values(
             'subject_id', 'stay_id', 'charttime_hour',
             'heart_rate', 'sbp', 'dbp', 'mbp',
             'sbp_ni', 'dbp_ni', 'mbp_ni',
@@ -382,33 +431,40 @@ def advance_time(request):
 
     # --- 4. Procedure events at this hour for admitted patients ---
     procedures_data = []
-    if admitted_stay_ids:
-        procedures_qs = ProcedureeventsHourly.objects.filter(
-            stay_id__in=admitted_stay_ids,
-            charttime_hour__month=3,
-            charttime_hour__day=13,
-            charttime_hour__hour=current_hour,
-        )
-        procedures_data = list(procedures_qs.values(
-            'subject_id', 'stay_id', 'charttime_hour', 'charttime',
-            'itemid', 'item_label', 'item_unitname',
-            'value', 'valueuom',
-            'location', 'locationcategory',
-            'ordercategoryname', 'ordercategorydescription',
-            'statusdescription', 'originalamount', 'originalrate',
-        ))
+    if admitted_patients:
+        proc_conditions = Q()
+        for p in admitted_patients:
+            intime = p.get('intime')
+            if intime and intime.hour <= current_hour:
+                target = intime.replace(minute=0, second=0, microsecond=0) + timedelta(
+                    hours=(current_hour - intime.hour)
+                )
+                proc_conditions |= Q(stay_id=p['stay_id'], charttime_hour=target)
+        if proc_conditions:
+            procedures_qs = ProcedureeventsHourly.objects.filter(proc_conditions)
+            procedures_data = list(procedures_qs.values(
+                'subject_id', 'stay_id', 'charttime_hour', 'charttime',
+                'itemid', 'item_label', 'item_unitname',
+                'value', 'valueuom',
+                'location', 'locationcategory',
+                'ordercategoryname', 'ordercategorydescription',
+                'statusdescription', 'originalamount', 'originalrate',
+            ))
+        else:
+            procedures_data = []
 
     # --- 5. Score ALL admitted patients at this hour ---
-    # Use normalized 2025-03-13 timestamp (DB queries are year-agnostic)
+    # Use patient-specific as_of (actual charttime) for DB queries; display stays March 13
     model_scoring_table = []
-    as_of_dt = _prediction_as_of_dt(current_hour)
-    if as_of_dt is not None:
-        for patient in admitted_patients:
+    display_as_of = _prediction_as_of_dt(current_hour)  # For response display
+    for patient in admitted_patients:
+        actual_as_of = _patient_as_of_dt(patient.get('intime'), current_hour)
+        if actual_as_of is not None:
             pred = get_prediction(
                 subject_id=patient['subject_id'],
                 stay_id=patient['stay_id'],
                 hadm_id=patient['hadm_id'],
-                as_of=as_of_dt,
+                as_of=actual_as_of,
                 window_hours=24,
             )
             if pred.get('ok'):
@@ -416,7 +472,7 @@ def advance_time(request):
                     'subject_id': patient['subject_id'],
                     'stay_id': patient['stay_id'],
                     'hadm_id': patient['hadm_id'],
-                    'as_of': as_of_dt.isoformat(),
+                    'as_of': display_as_of.isoformat() if display_as_of else None,
                     'risk_score': pred.get('risk_score'),
                     'comorbidity_group': pred.get('comorbidity_group'),
                     'ok': True,
@@ -426,7 +482,7 @@ def advance_time(request):
                     'subject_id': patient['subject_id'],
                     'stay_id': patient['stay_id'],
                     'hadm_id': patient['hadm_id'],
-                    'as_of': as_of_dt.isoformat(),
+                    'as_of': display_as_of.isoformat() if display_as_of else None,
                     'ok': False,
                     'error': pred.get('error', 'prediction failed'),
                 })
@@ -539,44 +595,43 @@ def patient_prediction(request, subject_id, stay_id, hadm_id):
     sofa_24hours_json = '[]'
     sofa_other_json = '[]'
     if current_hour >= 0:
-        # Display shows (current_hour + 1):00 — include data up to that hour
-        chart_hour = current_hour + 1
-        sofa_qs = SofaHourly.objects.filter(
-            subject_id=subject_id,
-            stay_id=stay_id,
-            charttime_hour__month=3,
-            charttime_hour__day=13,
-            charttime_hour__hour__lte=chart_hour,
-        ).order_by('charttime_hour')
+        start_hour, end_hour = _patient_charttime_range(patient.intime, current_hour)
+        if start_hour is not None and end_hour is not None:
+            sofa_qs = SofaHourly.objects.filter(
+                subject_id=subject_id,
+                stay_id=stay_id,
+                charttime_hour__gte=start_hour,
+                charttime_hour__lte=end_hour,
+            ).order_by('charttime_hour')
 
-        sofa_24_cols = [
-            'respiration_24hours', 'coagulation_24hours', 'liver_24hours',
-            'cardiovascular_24hours', 'cns_24hours', 'renal_24hours', 'sofa_24hours',
-        ]
-        sofa_other_cols = [
-            'pao2fio2ratio_novent', 'pao2fio2ratio_vent',
-            'rate_epinephrine', 'rate_norepinephrine', 'rate_dopamine', 'rate_dobutamine',
-            'meanbp_min', 'gcs_min', 'uo_24hr',
-            'bilirubin_max', 'creatinine_max', 'platelet_min',
-            'respiration', 'coagulation', 'liver', 'cardiovascular', 'cns', 'renal',
-        ]
+            sofa_24_cols = [
+                'respiration_24hours', 'coagulation_24hours', 'liver_24hours',
+                'cardiovascular_24hours', 'cns_24hours', 'renal_24hours', 'sofa_24hours',
+            ]
+            sofa_other_cols = [
+                'pao2fio2ratio_novent', 'pao2fio2ratio_vent',
+                'rate_epinephrine', 'rate_norepinephrine', 'rate_dopamine', 'rate_dobutamine',
+                'meanbp_min', 'gcs_min', 'uo_24hr',
+                'bilirubin_max', 'creatinine_max', 'platelet_min',
+                'respiration', 'coagulation', 'liver', 'cardiovascular', 'cns', 'renal',
+            ]
 
-        sofa_24_list = []
-        sofa_other_list = []
-        for row in sofa_qs.values('charttime_hour', *sofa_24_cols, *sofa_other_cols):
-            r24 = {'hour_label': f"{row['charttime_hour'].hour:02d}:00"}
-            for c in sofa_24_cols:
-                r24[c] = row[c]
-            sofa_24_list.append(r24)
+            sofa_24_list = []
+            sofa_other_list = []
+            for row in sofa_qs.values('charttime_hour', *sofa_24_cols, *sofa_other_cols):
+                r24 = {'hour_label': f"{row['charttime_hour'].hour:02d}:00"}
+                for c in sofa_24_cols:
+                    r24[c] = row[c]
+                sofa_24_list.append(r24)
 
-            ro = {'hour_label': f"{row['charttime_hour'].hour:02d}:00"}
-            for c in sofa_other_cols:
-                ro[c] = row[c]
-            sofa_other_list.append(ro)
+                ro = {'hour_label': f"{row['charttime_hour'].hour:02d}:00"}
+                for c in sofa_other_cols:
+                    ro[c] = row[c]
+                sofa_other_list.append(ro)
 
-        sofa_24hours_json = json.dumps(sofa_24_list, cls=DjangoJSONEncoder)
-        sofa_other_json = json.dumps(sofa_other_list, cls=DjangoJSONEncoder)
-
+            sofa_24hours_json = json.dumps(sofa_24_list, cls=DjangoJSONEncoder)
+            sofa_other_json = json.dumps(sofa_other_list, cls=DjangoJSONEncoder)
+            
     context = {
         'patient': patient,
         'risk_score': risk_score,
