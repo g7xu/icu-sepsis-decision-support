@@ -45,6 +45,81 @@
 }
 
 /* =============================================================================
+   Sortable Columns
+   ============================================================================= */
+
+.table tbody tr.sorting {
+    transition: transform 0.35s ease;
+}
+
+.sortable-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    position: relative;
+    user-select: none;
+}
+
+.sort-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #718096;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+.sort-btn:hover {
+    opacity: 1;
+}
+
+.sort-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* Sort Menu Popup */
+.sort-menu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 35%;
+    margin-top: 2px;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    z-index: 10;
+    overflow: hidden;
+    min-width: 150px;
+}
+
+.sort-menu.show {
+    display: block;
+}
+
+.sort-option {
+    display: block;
+    width: 100%;
+    padding: 0.4rem 0.75rem;
+    background: none;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: #4a5568;
+    transition: background-color 0.2s;
+}
+
+.sort-option:hover {
+    background-color: #f7fafc;
+}
+
+/* =============================================================================
    Pagination
    ============================================================================= */
 

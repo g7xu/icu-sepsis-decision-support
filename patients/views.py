@@ -142,23 +142,18 @@ def _patient_as_of_dt(patient_intime, current_hour):
 
 def patient_list(request):
     """
-    Display a paginated list of patients currently admitted in the simulation.
+    Display a list of all patients currently admitted in the simulation.
     URL: /patients/
     """
     current_hour = _simulation['current_hour']
-    patients = _get_admitted_patients(current_hour).order_by('subject_id')
+    patients = _get_admitted_patients(current_hour)
 
-    # Pagination - 25 patients per page
-    paginator = Paginator(patients, 25)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-
-    # Attach display names (IDs hidden from clinicians)
+    # Attach display names and predictions first
     name_mapping = get_display_name_mapping()
-    
-    # Get predictions for each patient
     as_of_dt = _prediction_as_of_dt(current_hour)
-    for p in page_obj:
+    
+    patients_list = []
+    for p in patients:
         p.display_name = name_mapping.get(
             (p.subject_id, p.stay_id, p.hadm_id),
             f"Patient {p.subject_id}"
@@ -174,7 +169,7 @@ def patient_list(request):
                 window_hours=24,
             )
             if pred.get('ok'):
-                p.risk_score = pred.get('risk_score')*100
+                p.risk_score = pred.get('risk_score') * 100
                 p.comorbidity_group = pred.get('comorbidity_group')
             else:
                 p.risk_score = None
@@ -182,10 +177,12 @@ def patient_list(request):
         else:
             p.risk_score = None
             p.comorbidity_group = None
+        
+        patients_list.append(p)
 
     context = {
-        'page_obj': page_obj,
-        'total_patients': patients.count(),
+        'patients': patients_list,
+        'total_patients': len(patients_list),
         'cohort_active': get_cohort_filter() is not None,
         'current_hour': current_hour,
         'current_time_display': _display_time(current_hour),

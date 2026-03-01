@@ -27,22 +27,54 @@
         </div>
     </div>
     
-    {% if page_obj %}
-    <table class="table">
+    {% if patients %}
+    <table class="table" id="patients-table">
         <thead>
             <tr>
                 <th>Patient</th>
-                <th>Age</th>
+                <th>
+                    <div class="sortable-header">
+                        <span>Age</span>
+                        <button class="sort-btn" data-column="age" aria-label="Sort by age">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M8 3L12 7H4L8 3Z" fill="currentColor"/>
+                                <path d="M8 13L4 9H12L8 13Z" fill="currentColor"/>
+                            </svg>
+                        </button>
+                    </div>
+                </th>
                 <th>Gender</th>
                 <th>Race</th>
                 <th>Care Unit</th>
-                <th>Admission Time</th>
-                <th>Sepsis Prediction</th>
+                <th>
+                    <div class="sortable-header">
+                        <span>Admission Time</span>
+                        <button class="sort-btn" data-column="admission_time" aria-label="Sort by admission time">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M8 3L12 7H4L8 3Z" fill="currentColor"/>
+                                <path d="M8 13L4 9H12L8 13Z" fill="currentColor"/>
+                            </svg>
+                        </button>
+                    </div>
+                </th>
+                <th>
+                    <div class="sortable-header">
+                        <span>Sepsis Prediction</span>
+                        <button class="sort-btn" data-column="risk_score" aria-label="Sort by sepsis prediction">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M8 3L12 7H4L8 3Z" fill="currentColor"/>
+                                <path d="M8 13L4 9H12L8 13Z" fill="currentColor"/>
+                            </svg>
+                        </button>
+                    </div>
+                </th>
             </tr>
         </thead>
         <tbody>
-            {% for patient in page_obj %}
-            <tr>
+            {% for patient in patients %}
+            <tr data-age="{{ patient.anchor_age|default:'-1' }}" 
+                data-admission-time="{{ patient.intime.hour|default:'-1' }}" 
+                data-risk-score="{{ patient.risk_score|default:'-1' }}">
                 <td>
                     <a href="{% url 'patients:detail' patient.subject_id patient.stay_id patient.hadm_id %}" 
                        class="patient-name-link">{{ patient.display_name }}</a>
@@ -72,23 +104,6 @@
             {% endfor %}
         </tbody>
     </table>
-    
-    <!-- Pagination -->
-    <div class="pagination">
-        {% if page_obj.has_previous %}
-            <a href="?page=1">&laquo; First</a>
-            <a href="?page={{ page_obj.previous_page_number }}">Previous</a>
-        {% endif %}
-        
-        <span class="current">
-            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
-        </span>
-        
-        {% if page_obj.has_next %}
-            <a href="?page={{ page_obj.next_page_number }}">Next</a>
-            <a href="?page={{ page_obj.paginator.num_pages }}">Last &raquo;</a>
-        {% endif %}
-    </div>
     {% else %}
     <p class="text-muted">
         {% if current_hour < 0 %}
@@ -98,6 +113,12 @@
         {% endif %}
     </p>
     {% endif %}
+</div>
+
+<!-- Sort Menu Popup -->
+<div id="sort-menu" class="sort-menu hidden">
+    <button class="sort-option" data-order="desc">Highest First</button>
+    <button class="sort-option" data-order="asc">Lowest First</button>
 </div>
 
 <script>
@@ -126,6 +147,83 @@
             advanceBtn.textContent = '+1';
         });
     });
+
+    // =========================================================================
+    // Sorting functionality
+    // =========================================================================
+    const sortMenu = document.getElementById('sort-menu');
+    const sortBtns = document.querySelectorAll('.sort-btn');
+    let currentColumn = null;
+
+    sortBtns.forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const column = this.getAttribute('data-column');
+            currentColumn = column;
+
+            // Position the menu relative to the header (th)
+            const th = this.closest('th');
+            const rect = th.getBoundingClientRect();
+            
+            // Remove the menu from its current position and append to the th
+            if (sortMenu.parentElement !== th) {
+                th.style.position = 'relative';
+                th.appendChild(sortMenu);
+            }
+            
+            // Toggle menu visibility
+            sortMenu.classList.toggle('show');
+        });
+    });
+
+    // Handle sort option selection
+    const sortOptions = document.querySelectorAll('.sort-option');
+    sortOptions.forEach(option => {
+        option.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const order = this.getAttribute('data-order');
+            sortTable(currentColumn, order);
+            sortMenu.classList.remove('show');
+        });
+    });
+
+    // Close menu when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.sort-btn') && !e.target.closest('.sort-menu')) {
+            sortMenu.classList.remove('show');
+        }
+    });
+
+    function sortTable(column, order) {
+        const table = document.getElementById('patients-table');
+        const tbody = table.querySelector('tbody');
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+
+        rows.sort((a, b) => {
+            let aVal, bVal;
+
+            if (column === 'age') {
+                aVal = parseFloat(a.getAttribute('data-age'));
+                bVal = parseFloat(b.getAttribute('data-age'));
+            } else if (column === 'admission_time') {
+                aVal = parseFloat(a.getAttribute('data-admission-time'));
+                bVal = parseFloat(b.getAttribute('data-admission-time'));
+            } else if (column === 'risk_score') {
+                aVal = parseFloat(a.getAttribute('data-risk-score'));
+                bVal = parseFloat(b.getAttribute('data-risk-score'));
+            }
+
+            if (order === 'desc') {
+                return bVal - aVal;
+            } else {
+                return aVal - bVal;
+            }
+        });
+
+        // Clear and re-append sorted rows
+        tbody.innerHTML = '';
+        rows.forEach(row => tbody.appendChild(row));
+    }
 })();
 </script>
 {% endblock %}
