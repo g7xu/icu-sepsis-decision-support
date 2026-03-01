@@ -45,6 +45,25 @@ def _display_time(current_hour):
         return f"{display_hour:02d}:00"
 
 
+def _time_since_admission(intime, current_hour):
+    """
+    Compute time since admission using TIME only (no datetime).
+    March 13 is display-only; cohort is pre-selected. Subtract admission time
+    from simulation clock time. Returns (display_string, total_minutes).
+    """
+    if current_hour < 0 or intime is None:
+        return ("-", -1)
+    # Simulation clock: (current_hour + 1):00 (matches _display_time)
+    sim_minutes = (current_hour + 1) * 60 if current_hour < 23 else 24 * 60
+    adm_minutes = intime.hour * 60 + intime.minute
+    delta = sim_minutes - adm_minutes
+    if delta < 0:
+        delta += 24 * 60  # Overnight (e.g. admitted 22:00, sim 06:00)
+    hours = delta // 60
+    minutes = delta % 60
+    return (f"{hours}:{minutes:02d}", delta)
+
+
 def _prediction_as_of_dt(current_hour, patient_intime=None):
     """
     Backend timestamp used for model scoring per simulation hour.
@@ -141,7 +160,8 @@ def patient_list(request):
         else:
             p.risk_score = None
             p.comorbidity_group = None
-        
+
+        p.time_since_admission, p.time_since_minutes = _time_since_admission(p.intime, current_hour)
         patients_list.append(p)
 
     context = {
@@ -272,6 +292,7 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
         (patient.subject_id, patient.stay_id, patient.hadm_id),
         f"Patient {patient.subject_id}"
     )
+    patient.time_since_admission, _ = _time_since_admission(patient.intime, current_hour)
 
     # Fetch prediction for Sepsis Prediction link (same as index)
     patient.risk_score = None
@@ -460,12 +481,13 @@ def patient_prediction(request, subject_id, stay_id, hadm_id):
         else:
             prediction_error = pred.get('error', 'Prediction failed')
 
-    # Attach display name
+    # Attach display name and time since admission
     name_mapping = get_display_name_mapping()
     patient.display_name = name_mapping.get(
         (patient.subject_id, patient.stay_id, patient.hadm_id),
         f"Patient {patient.subject_id}"
     )
+    patient.time_since_admission, _ = _time_since_admission(patient.intime, current_hour)
 
     context = {
         'patient': patient,

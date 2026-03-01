@@ -45,8 +45,8 @@
             <p class="patient-field-value">{{ patient.first_careunit|default:"-" }}</p>
         </div>
         <div>
-            <p class="patient-field-label">Admission Time</p>
-            <p class="patient-field-value">{{ patient.intime|time:"H:i"|default:"-" }}</p>
+            <p class="patient-field-label">Time Since Admission</p>
+            <p class="patient-field-value">{{ patient.time_since_admission }}</p>
         </div>
     </div>
 </div>
