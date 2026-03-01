@@ -62,7 +62,24 @@
                 {% endif %}
             </p>
         </div>
+        {% if suspected_infection_time %}
+        <div>
+            <p class="patient-field-label">suspected_infection_time (dev)</p>
+            <p class="patient-field-value text-muted">{{ suspected_infection_time|date:"Y-m-d H:i" }}</p>
+        </div>
+        {% endif %}
     </div>
+</div>
+
+<!-- Sepsis Predictions Chart -->
+<div class="card">
+    <div class="card-header">
+        <h2>Sepsis Predictions by Hour</h2>
+    </div>
+    <div id="predictions-chart" class="vitals-chart"></div>
+    {% if current_hour < 0 %}
+    <p class="text-muted">Press <strong>+1</strong> to start the simulation and load predictions.</p>
+    {% endif %}
 </div>
 
 <!-- SOFA 24-Hour Aggregates Chart -->
@@ -117,11 +134,79 @@
 </div>
 
 <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<script type="application/json" id="predictions-data">{{ predictions_json|safe }}</script>
+<script type="application/json" id="predictions-meta">{{ predictions_meta_json|safe }}</script>
 <script type="application/json" id="sofa-24-data">{{ sofa_24hours_json|safe }}</script>
 <script type="application/json" id="sofa-other-data">{{ sofa_other_json|safe }}</script>
 
 <script>
 (function() {
+// =========================================================================
+// Sepsis Predictions Chart (risk_score by hour + dashed vertical lines)
+// =========================================================================
+const predictionsData = JSON.parse(document.getElementById('predictions-data').textContent || '[]');
+const predictionsMeta = JSON.parse(document.getElementById('predictions-meta').textContent || '{}');
+
+if (predictionsData.length > 0) {
+    const predTimes = predictionsData.map(d => d.hour_label);
+    const predScores = predictionsData.map(d => d.risk_score);
+    const predHourVals = predictionsData.map(d => d.hour_val);
+
+    const trace = {
+        type: 'scatter',
+        mode: 'lines+markers',
+        x: predHourVals,
+        y: predScores,
+        name: 'Sepsis Likelihood',
+        line: { color: '#e53e3e', width: 2 },
+        marker: { size: 10 }
+    };
+
+    const shapes = [];
+    const modelIdx = predictionsMeta.model_sepsis_hour_index;
+    if (modelIdx != null && modelIdx >= 0 && modelIdx < predHourVals.length) {
+        const x0 = predHourVals[modelIdx];
+        shapes.push({
+            type: 'line',
+            x0: x0, x1: x0, y0: 0, y1: 1,
+            yref: 'paper', xref: 'x',
+            line: { color: '#3182ce', width: 1.5, dash: 'dash' }
+        });
+    }
+    const actualX = predictionsMeta.actual_sepsis_x;
+    if (actualX != null) {
+        shapes.push({
+            type: 'line',
+            x0: actualX, x1: actualX, y0: 0, y1: 1,
+            yref: 'paper', xref: 'x',
+            line: { color: '#38a169', width: 1.5, dash: 'dash' }
+        });
+    }
+
+    const predLayout = {
+        height: 325,
+        showlegend: true,
+        legend: { orientation: 'h', y: 1.35, x: 0.45, font: { size: 12 } },
+        margin: { l: 60, r: 20, t: 50, b: 45 },
+        xaxis: {
+            title: { text: 'Hour', font: { size: 12 } },
+            tickfont: { size: 10 },
+            tickvals: predHourVals,
+            ticktext: predTimes,
+            automargin: true
+        },
+        yaxis: {
+            title: { text: 'Sepsis Likelihood (%)', font: { size: 11 } },
+            tickfont: { size: 10 },
+            automargin: true,
+            autorange: true
+        },
+        shapes: shapes
+    };
+
+    Plotly.newPlot('predictions-chart', [trace], predLayout, { responsive: true });
+}
+
 // =========================================================================
 // SOFA 24-Hour Aggregates Chart (display labels without _24hours suffix)
 // =========================================================================

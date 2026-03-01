@@ -14,7 +14,7 @@ from django.views.decorators.http import require_POST
 
 from .models import UniquePatientProfile, VitalsignHourly, ProcedureeventsHourly, ChemistryHourly, CoagulationHourly, SofaHourly
 from .cohort import get_cohort_filter
-from .services import get_prediction
+from .services import get_prediction, get_sepsis3_suspected_infection_time
 from .display_names import get_display_name_mapping
 
 
@@ -492,6 +492,49 @@ def patient_prediction(request, subject_id, stay_id, hadm_id):
     patient.time_since_admission, _ = _time_since_admission(patient.intime, current_hour)
     patient.risk_score = (risk_score * 100) if risk_score is not None else None
 
+    # Sepsis3 suspected_infection_time (use time only: hour + minute)
+    suspected_infection_time = get_sepsis3_suspected_infection_time(subject_id, stay_id)
+
+    # Predictions-by-hour for chart + model/actual sepsis vertical lines
+    predictions_json = '[]'
+    model_sepsis_hour_index = None
+    actual_sepsis_x = None
+    if current_hour >= 0:
+        chart_hour = current_hour + 1
+        predictions_list = []
+        for h in range(chart_hour):
+            as_of_h = _prediction_as_of_dt(h)
+            if not as_of_h:
+                continue
+            pred = get_prediction(
+                subject_id=subject_id,
+                stay_id=stay_id,
+                hadm_id=hadm_id,
+                as_of=as_of_h,
+                window_hours=24,
+            )
+            rs = pred.get('risk_score')
+            pct = (rs * 100) if rs is not None else None
+            hour_label = f"{as_of_h.hour:02d}:{as_of_h.minute:02d}"
+            predictions_list.append({"hour_label": hour_label, "hour_val": h + 1, "risk_score": pct})
+            if model_sepsis_hour_index is None and pct is not None and pct >= 30:
+                model_sepsis_hour_index = len(predictions_list) - 1
+
+        if suspected_infection_time and hasattr(suspected_infection_time, 'hour'):
+            si_hour = suspected_infection_time.hour
+            si_minute = getattr(suspected_infection_time, 'minute', 0) or 0
+            si_x = si_hour + si_minute / 60.0
+            sim_x = chart_hour
+            if si_x <= sim_x:
+                actual_sepsis_x = si_x
+
+        predictions_json = json.dumps(predictions_list, cls=DjangoJSONEncoder)
+
+    predictions_meta_json = json.dumps({
+        "model_sepsis_hour_index": model_sepsis_hour_index if current_hour >= 0 else None,
+        "actual_sepsis_x": actual_sepsis_x if current_hour >= 0 else None,
+    }, cls=DjangoJSONEncoder)
+
     # SOFA charts: fetch sofa_hourly for this patient up to current simulation hour
     sofa_24hours_json = '[]'
     sofa_other_json = '[]'
@@ -541,6 +584,9 @@ def patient_prediction(request, subject_id, stay_id, hadm_id):
         'prediction_error': prediction_error,
         'current_hour': current_hour,
         'current_time_display': _display_time(current_hour),
+        'predictions_json': predictions_json,
+        'predictions_meta_json': predictions_meta_json,
+        'suspected_infection_time': suspected_infection_time,
         'sofa_24hours_json': sofa_24hours_json,
         'sofa_other_json': sofa_other_json,
     }
