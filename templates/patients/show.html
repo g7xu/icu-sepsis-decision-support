@@ -127,7 +127,7 @@
         </div>
 
 <!-- Predictions: risk_score + comorbidity_group -->
-        <div class="card prediction-card">
+        <!-- <div class="card prediction-card">
             <div class="card-header">
                 <h2>Predictions</h2>
             </div>
@@ -145,7 +145,7 @@
                 <p class="text-muted">Press <strong>+1</strong> to start the simulation and load predictions.</p>
                 {% endif %}
             </div>
-        </div>
+        </div> -->
     </div>
 
     <!-- Right Column: Sticky Procedure Events -->
@@ -201,7 +201,6 @@
 <script type="application/json" id="vitalsigns-data">{{ vitalsigns_json|safe }}</script>
 <script type="application/json" id="chemistry-data">{{ chemistry_json|safe }}</script>
 <script type="application/json" id="coagulation-data">{{ coagulation_json|safe }}</script>
-<div id="page-config" class="hidden" {% if prediction_as_of_iso %}data-prediction-url="{% url 'patients:prediction' patient.subject_id patient.stay_id patient.hadm_id %}?as_of={{ prediction_as_of_iso|urlencode }}&window_hours=24"{% endif %}></div>
 
 <script>
 (function() {
@@ -453,36 +452,15 @@ if (coagulationData.length > 0) {
     });
 }
 
-    // =========================================================================
-    // Prediction: fetch risk_score + comorbidity_group
-    // =========================================================================
-    const pageConfig = document.getElementById('page-config');
-    const predUrl = pageConfig ? pageConfig.dataset.predictionUrl : null;
-    if (predUrl) {
-        fetch(predUrl)
-            .then(response => response.json())
-            .then(data => {
-                const riskEl = document.getElementById('risk-score');
-                const groupEl = document.getElementById('comorbidity-group');
-                
-                // Check if response contains an error
-                if (data.error) {
-                    if (riskEl) riskEl.textContent = 'N/A';
-                    if (groupEl) groupEl.textContent = 'Not configured';
-                    console.warn('Prediction error:', data.error);
-                } else {
-                    if (riskEl) riskEl.textContent = data.risk_score != null ? data.risk_score.toFixed(2) : '-';
-                    if (groupEl) groupEl.textContent = data.comorbidity_group || '-';
-                }
-            })
-            .catch((error) => {
-                const riskEl = document.getElementById('risk-score');
-                const groupEl = document.getElementById('comorbidity-group');
-                if (riskEl) riskEl.textContent = 'N/A';
-                if (groupEl) groupEl.textContent = 'Error';
-                console.error('Prediction fetch error:', error);
-            });
-    }
+    // Prediction fetch (commented out — Sepsis Likelihood now in patient details)
+    // const pageConfig = document.getElementById('page-config');
+    // const predUrl = pageConfig ? pageConfig.dataset.predictionUrl : null;
+    // if (predUrl) {
+    //     fetch(predUrl)
+    //         .then(response => response.json())
+    //         .then(data => { ... })
+    //         .catch(...);
+    // }
 })();
 </script>
 {% endblock %}

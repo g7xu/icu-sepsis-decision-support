@@ -10,7 +10,6 @@
 {% block navbar_clock %}
 <div class="app-navbar__clock">
     <a href="{% url 'patients:index' %}" class="btn btn-primary btn-sm">&larr; Back to List</a>
-    <a href="{% url 'patients:detail' patient.subject_id patient.stay_id patient.hadm_id %}" class="btn btn-primary btn-sm">Patient View</a>
     <span id="current-time" class="sim-time">{{ current_time_display }}</span>
     <button id="advance-btn" class="btn btn-primary">+1</button>
 </div>
@@ -26,7 +25,10 @@
     <div class="patient-detail-grid">
         <div>
             <p class="patient-field-label">Patient</p>
-            <p class="patient-field-value">{{ patient.display_name }}</p>
+            <p class="patient-field-value">
+                <a href="{% url 'patients:detail' patient.subject_id patient.stay_id patient.hadm_id %}" 
+                   class="patient-name-link">{{ patient.display_name }}</a>
+            </p>
         </div>
         <div>
             <p class="patient-field-label">Age</p>
@@ -50,31 +52,16 @@
             <p class="patient-field-label">Time Since Admission</p>
             <p class="patient-field-value">{{ patient.time_since_admission }}</p>
         </div>
-    </div>
-</div>
-
-<!-- Prediction Results -->
-<div class="card prediction-card">
-    <div class="card-header">
-        <h2>Sepsis Likelihood</h2>
-    </div>
-    <div class="prediction-panel">
-        {% if prediction_error %}
-            <div>
-                <p class="text-muted">{{ prediction_error }}</p>
-            </div>
-        {% elif risk_score is not None %}
-            <div>
-                <p class="prediction-field-label">Risk Score</p>
-                <p class="prediction-field-value">{{ risk_score|floatformat:2 }}%</p>
-            </div>
-            <div>
-                <p class="prediction-field-label">Comorbidity Group</p>
-                <p class="prediction-field-value">{{ comorbidity_group|default:"-" }}</p>
-            </div>
-        {% else %}
-            <p class="text-muted">No prediction available. Press <strong>+1</strong> to start the simulation.</p>
-        {% endif %}
+        <div>
+            <p class="patient-field-label">Sepsis Likelihood</p>
+            <p class="patient-field-value">
+                {% if patient.risk_score is not None %}
+                {{ patient.risk_score|floatformat:2 }}%
+                {% else %}
+                -
+                {% endif %}
+            </p>
+        </div>
     </div>
 </div>
 

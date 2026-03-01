@@ -481,13 +481,14 @@ def patient_prediction(request, subject_id, stay_id, hadm_id):
         else:
             prediction_error = pred.get('error', 'Prediction failed')
 
-    # Attach display name and time since admission
+    # Attach display name, time since admission, and risk score (for patient details)
     name_mapping = get_display_name_mapping()
     patient.display_name = name_mapping.get(
         (patient.subject_id, patient.stay_id, patient.hadm_id),
         f"Patient {patient.subject_id}"
     )
     patient.time_since_admission, _ = _time_since_admission(patient.intime, current_hour)
+    patient.risk_score = (risk_score * 100) if risk_score is not None else None
 
     # SOFA charts: fetch sofa_hourly for this patient up to current simulation hour
     sofa_24hours_json = '[]'
