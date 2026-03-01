@@ -12,7 +12,7 @@ from django.db.models import Q
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 
-from .models import UniquePatientProfile, VitalsignHourly, ProcedureeventsHourly, ChemistryHourly, CoagulationHourly
+from .models import UniquePatientProfile, VitalsignHourly, ProcedureeventsHourly, ChemistryHourly, CoagulationHourly, SofaHourly
 from .cohort import get_cohort_filter
 from .services import get_prediction
 from .display_names import get_display_name_mapping
@@ -489,6 +489,46 @@ def patient_prediction(request, subject_id, stay_id, hadm_id):
     )
     patient.time_since_admission, _ = _time_since_admission(patient.intime, current_hour)
 
+    # SOFA charts: fetch sofa_hourly for this patient up to current simulation hour
+    sofa_24hours_json = '[]'
+    sofa_other_json = '[]'
+    if current_hour >= 0:
+        sofa_qs = SofaHourly.objects.filter(
+            subject_id=subject_id,
+            stay_id=stay_id,
+            charttime_hour__month=3,
+            charttime_hour__day=13,
+            charttime_hour__hour__lte=current_hour,
+        ).order_by('charttime_hour')
+
+        sofa_24_cols = [
+            'respiration_24hours', 'coagulation_24hours', 'liver_24hours',
+            'cardiovascular_24hours', 'cns_24hours', 'renal_24hours', 'sofa_24hours',
+        ]
+        sofa_other_cols = [
+            'pao2fio2ratio_novent', 'pao2fio2ratio_vent',
+            'rate_epinephrine', 'rate_norepinephrine', 'rate_dopamine', 'rate_dobutamine',
+            'meanbp_min', 'gcs_min', 'uo_24hr',
+            'bilirubin_max', 'creatinine_max', 'platelet_min',
+            'respiration', 'coagulation', 'liver', 'cardiovascular', 'cns', 'renal',
+        ]
+
+        sofa_24_list = []
+        sofa_other_list = []
+        for row in sofa_qs.values('charttime_hour', *sofa_24_cols, *sofa_other_cols):
+            r24 = {'hour_label': f"{row['charttime_hour'].hour:02d}:00"}
+            for c in sofa_24_cols:
+                r24[c] = row[c]
+            sofa_24_list.append(r24)
+
+            ro = {'hour_label': f"{row['charttime_hour'].hour:02d}:00"}
+            for c in sofa_other_cols:
+                ro[c] = row[c]
+            sofa_other_list.append(ro)
+
+        sofa_24hours_json = json.dumps(sofa_24_list, cls=DjangoJSONEncoder)
+        sofa_other_json = json.dumps(sofa_other_list, cls=DjangoJSONEncoder)
+
     context = {
         'patient': patient,
         'risk_score': risk_score,
@@ -496,5 +536,7 @@ def patient_prediction(request, subject_id, stay_id, hadm_id):
         'prediction_error': prediction_error,
         'current_hour': current_hour,
         'current_time_display': _display_time(current_hour),
+        'sofa_24hours_json': sofa_24hours_json,
+        'sofa_other_json': sofa_other_json,
     }
     return render(request, 'patients/prediction.html', context)

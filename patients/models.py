@@ -193,3 +193,52 @@ class CoagulationHourly(models.Model):
 
     def __str__(self):
         return f"Coagulation for {self.subject_id} at {self.charttime_hour}"
+
+
+class SofaHourly(models.Model):
+    """
+    Maps to fisi9t_sofa_hourly MATERIALIZED VIEW in mimiciv_derived schema.
+
+    Contains hourly SOFA (Sequential Organ Failure Assessment) scores per stay.
+    Linked to UniquePatientProfile via (subject_id, stay_id).
+    """
+    subject_id = models.IntegerField()
+    stay_id = models.IntegerField()
+    hr = models.IntegerField(null=True, blank=True)
+    charttime_hour = models.DateTimeField()
+
+    # Non-24h metrics
+    pao2fio2ratio_novent = models.FloatField(null=True, blank=True)
+    pao2fio2ratio_vent = models.FloatField(null=True, blank=True)
+    rate_epinephrine = models.FloatField(null=True, blank=True)
+    rate_norepinephrine = models.FloatField(null=True, blank=True)
+    rate_dopamine = models.FloatField(null=True, blank=True)
+    rate_dobutamine = models.FloatField(null=True, blank=True)
+    meanbp_min = models.FloatField(null=True, blank=True)
+    gcs_min = models.FloatField(null=True, blank=True)
+    uo_24hr = models.FloatField(null=True, blank=True)
+    bilirubin_max = models.FloatField(null=True, blank=True)
+    creatinine_max = models.FloatField(null=True, blank=True)
+    platelet_min = models.FloatField(null=True, blank=True)
+    respiration = models.FloatField(null=True, blank=True)
+    coagulation = models.FloatField(null=True, blank=True)
+    liver = models.FloatField(null=True, blank=True)
+    cardiovascular = models.FloatField(null=True, blank=True)
+    cns = models.FloatField(null=True, blank=True)
+    renal = models.FloatField(null=True, blank=True)
+
+    # 24h aggregated
+    respiration_24hours = models.FloatField(null=True, blank=True)
+    coagulation_24hours = models.FloatField(null=True, blank=True)
+    liver_24hours = models.FloatField(null=True, blank=True)
+    cardiovascular_24hours = models.FloatField(null=True, blank=True)
+    cns_24hours = models.FloatField(null=True, blank=True)
+    renal_24hours = models.FloatField(null=True, blank=True)
+    sofa_24hours = models.FloatField(null=True, blank=True)
+
+    class Meta:
+        managed = False
+        db_table = 'fisi9t_sofa_hourly'
+
+    def __str__(self):
+        return f"SOFA for {self.subject_id} at {self.charttime_hour}"
