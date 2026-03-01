@@ -20,5 +20,35 @@
     <div class="app-container">
         {% block content %}{% endblock %}
     </div>
+
+    <div id="app-config" class="hidden" data-csrf-token="{{ csrf_token }}" data-advance-url="{% url 'patients:advance_time' %}"></div>
+    <script>
+    (function() {
+        var advanceBtn = document.getElementById('advance-btn');
+        var config = document.getElementById('app-config');
+        if (!advanceBtn || !config) return;
+        var ds = config.dataset;
+        advanceBtn.addEventListener('click', function() {
+            advanceBtn.disabled = true;
+            advanceBtn.textContent = '...';
+            fetch(ds.advanceUrl, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': ds.csrfToken },
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var el = document.getElementById('current-time');
+                if (el && data.current_time) el.textContent = data.current_time;
+                location.reload();
+            })
+            .catch(function(err) {
+                advanceBtn.disabled = false;
+                advanceBtn.textContent = '+1';
+                alert('Error advancing time: ' + err.message);
+            });
+        });
+    })();
+    </script>
+    {% block extra_js %}{% endblock %}
 </body>
 </html>

@@ -123,31 +123,6 @@
 
 <script>
 (function() {
-    const advanceBtn = document.getElementById('advance-btn');
-    const currentTimeEl = document.getElementById('current-time');
-    const csrfToken = '{{ csrf_token }}';
-
-    advanceBtn.addEventListener('click', function() {
-        advanceBtn.disabled = true;
-        advanceBtn.textContent = '...';
-
-        fetch('{% url "patients:advance_time" %}', {
-            method: 'POST',
-            headers: { 'X-CSRFToken': csrfToken },
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.current_time) currentTimeEl.textContent = data.current_time;
-            advanceBtn.disabled = false;
-            advanceBtn.textContent = '+1';
-            setTimeout(() => location.reload(), 800);
-        })
-        .catch(err => {
-            advanceBtn.disabled = false;
-            advanceBtn.textContent = '+1';
-        });
-    });
-
     // =========================================================================
     // Sorting functionality
     // =========================================================================

@@ -201,7 +201,7 @@
 <script type="application/json" id="vitalsigns-data">{{ vitalsigns_json|safe }}</script>
 <script type="application/json" id="chemistry-data">{{ chemistry_json|safe }}</script>
 <script type="application/json" id="coagulation-data">{{ coagulation_json|safe }}</script>
-<div id="page-config" class="hidden" data-csrf-token="{{ csrf_token }}" data-advance-url="{% url 'patients:advance_time' %}" {% if prediction_as_of_iso %}data-prediction-url="{% url 'patients:prediction' patient.subject_id patient.stay_id patient.hadm_id %}?as_of={{ prediction_as_of_iso|urlencode }}&window_hours=24"{% endif %}></div>
+<div id="page-config" class="hidden" {% if prediction_as_of_iso %}data-prediction-url="{% url 'patients:prediction' patient.subject_id patient.stay_id patient.hadm_id %}?as_of={{ prediction_as_of_iso|urlencode }}&window_hours=24"{% endif %}></div>
 
 <script>
 (function() {
@@ -454,17 +454,10 @@ if (coagulationData.length > 0) {
 }
 
     // =========================================================================
-    // +1 Button — advance time, then reload to refresh chart + log
-    // =========================================================================
-    const advanceBtn = document.getElementById('advance-btn');
-    const config = document.getElementById('page-config').dataset;
-    const csrfToken = config.csrfToken;
-    const advanceUrl = config.advanceUrl;
-
-    // =========================================================================
     // Prediction: fetch risk_score + comorbidity_group
     // =========================================================================
-    const predUrl = config.predictionUrl;
+    const pageConfig = document.getElementById('page-config');
+    const predUrl = pageConfig ? pageConfig.dataset.predictionUrl : null;
     if (predUrl) {
         fetch(predUrl)
             .then(response => response.json())
@@ -490,29 +483,6 @@ if (coagulationData.length > 0) {
                 console.error('Prediction fetch error:', error);
             });
     }
-
-    advanceBtn.addEventListener('click', function() {
-        advanceBtn.disabled = true;
-        advanceBtn.textContent = '...';
-
-        fetch(advanceUrl, {
-            method: 'POST',
-            headers: { 'X-CSRFToken': csrfToken },
-        })
-        .then(response => response.json())
-        .then(data => {
-            // Update displayed time immediately, then reload for fresh data
-            if (data.current_time) {
-                document.getElementById('current-time').textContent = data.current_time;
-            }
-            location.reload();
-        })
-        .catch(err => {
-            alert('Error advancing time: ' + err.message);
-            advanceBtn.disabled = false;
-            advanceBtn.textContent = '+1';
-        });
-    });
 })();
 </script>
 {% endblock %}

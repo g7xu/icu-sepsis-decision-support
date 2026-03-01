@@ -10,7 +10,9 @@
 {% block navbar_clock %}
 <div class="app-navbar__clock">
     <a href="{% url 'patients:index' %}" class="btn btn-primary btn-sm">&larr; Back to List</a>
+    <a href="{% url 'patients:detail' patient.subject_id patient.stay_id patient.hadm_id %}" class="btn btn-primary btn-sm">Patient View</a>
     <span id="current-time" class="sim-time">{{ current_time_display }}</span>
+    <button id="advance-btn" class="btn btn-primary">+1</button>
 </div>
 {% endblock %}
 
