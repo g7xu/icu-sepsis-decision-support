@@ -37,7 +37,7 @@
                 <th>Race</th>
                 <th>Care Unit</th>
                 <th>Admission Time</th>
-                <th></th>
+                <th>Sepsis Prediction</th>
             </tr>
         </thead>
         <tbody>
@@ -61,8 +61,12 @@
                 <td>{{ patient.first_careunit|default:"-" }}</td>
                 <td class="text-muted">{{ patient.intime|time:"H:i"|default:"-" }}</td>
                 <td>
-                    <a href="{% url 'patients:detail' patient.subject_id patient.stay_id patient.hadm_id %}" 
-                       class="btn btn-primary btn-sm">View</a>
+                    {% if patient.risk_score is not None %}
+                        <a href="{% url 'patients:prediction_view' patient.subject_id patient.stay_id patient.hadm_id %}" 
+                           class="patient-name-link">{{ patient.risk_score|floatformat:2 }}</a>
+                    {% else %}
+                        -
+                    {% endif %}
                 </td>
             </tr>
             {% endfor %}
