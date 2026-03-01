@@ -48,8 +48,8 @@
                 <th>Care Unit</th>
                 <th>
                     <div class="sortable-header">
-                        <span>Admission Time</span>
-                        <button class="sort-btn" data-column="admission_time" aria-label="Sort by admission time">
+                        <span>Time Since Admission</span>
+                        <button class="sort-btn" data-column="time_since_minutes" aria-label="Sort by time since admission">
                             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                                 <path d="M8 3L12 7H4L8 3Z" fill="currentColor"/>
                                 <path d="M8 13L4 9H12L8 13Z" fill="currentColor"/>
@@ -59,8 +59,8 @@
                 </th>
                 <th>
                     <div class="sortable-header">
-                        <span>Sepsis Prediction</span>
-                        <button class="sort-btn" data-column="risk_score" aria-label="Sort by sepsis prediction">
+                        <span>Sepsis Likelihood</span>
+                        <button class="sort-btn" data-column="risk_score" aria-label="Sort by sepsis likelihood">
                             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                                 <path d="M8 3L12 7H4L8 3Z" fill="currentColor"/>
                                 <path d="M8 13L4 9H12L8 13Z" fill="currentColor"/>
@@ -73,7 +73,7 @@
         <tbody>
             {% for patient in patients %}
             <tr data-age="{{ patient.anchor_age|default:'-1' }}" 
-                data-admission-time="{{ patient.intime.hour|default:'-1' }}" 
+                data-time-since-minutes="{{ patient.time_since_minutes|default:'-1' }}" 
                 data-risk-score="{{ patient.risk_score|default:'-1' }}">
                 <td>
                     <a href="{% url 'patients:detail' patient.subject_id patient.stay_id patient.hadm_id %}" 
@@ -91,11 +91,11 @@
                 </td>
                 <td>{{ patient.race|default:"-"|truncatechars:20 }}</td>
                 <td>{{ patient.first_careunit|default:"-" }}</td>
-                <td class="text-muted">{{ patient.intime|time:"H:i"|default:"-" }}</td>
+                <td class="text-muted">{{ patient.time_since_admission }}</td>
                 <td>
                     {% if patient.risk_score is not None %}
                         <a href="{% url 'patients:prediction_view' patient.subject_id patient.stay_id patient.hadm_id %}" 
-                           class="patient-name-link">{{ patient.risk_score|floatformat:2 }}</a>
+                           class="patient-name-link">{{ patient.risk_score|floatformat:2 }}%</a>
                     {% else %}
                         -
                     {% endif %}
@@ -123,31 +123,6 @@
 
 <script>
 (function() {
-    const advanceBtn = document.getElementById('advance-btn');
-    const currentTimeEl = document.getElementById('current-time');
-    const csrfToken = '{{ csrf_token }}';
-
-    advanceBtn.addEventListener('click', function() {
-        advanceBtn.disabled = true;
-        advanceBtn.textContent = '...';
-
-        fetch('{% url "patients:advance_time" %}', {
-            method: 'POST',
-            headers: { 'X-CSRFToken': csrfToken },
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.current_time) currentTimeEl.textContent = data.current_time;
-            advanceBtn.disabled = false;
-            advanceBtn.textContent = '+1';
-            setTimeout(() => location.reload(), 800);
-        })
-        .catch(err => {
-            advanceBtn.disabled = false;
-            advanceBtn.textContent = '+1';
-        });
-    });
-
     // =========================================================================
     // Sorting functionality
     // =========================================================================
@@ -205,9 +180,9 @@
             if (column === 'age') {
                 aVal = parseFloat(a.getAttribute('data-age'));
                 bVal = parseFloat(b.getAttribute('data-age'));
-            } else if (column === 'admission_time') {
-                aVal = parseFloat(a.getAttribute('data-admission-time'));
-                bVal = parseFloat(b.getAttribute('data-admission-time'));
+            } else if (column === 'time_since_minutes') {
+                aVal = parseFloat(a.getAttribute('data-time-since-minutes'));
+                bVal = parseFloat(b.getAttribute('data-time-since-minutes'));
             } else if (column === 'risk_score') {
                 aVal = parseFloat(a.getAttribute('data-risk-score'));
                 bVal = parseFloat(b.getAttribute('data-risk-score'));

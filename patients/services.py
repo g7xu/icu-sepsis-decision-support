@@ -35,6 +35,10 @@ DERIVED_TABLE_CANDIDATES = {
         "fisi9t_coagulation_hourly",
         "mimiciv_derived.fisi9t_coagulation_hourly",
     ],
+    "sepsis3": [
+        "sepsis3",
+        "mimiciv_derived.sepsis3",
+    ],
 }
 
 def _table_exists(table_name):
@@ -106,6 +110,28 @@ def get_static_feature_sources(subject_id, stay_id, hadm_id, limit=10):
         limit=limit
     )
     return sources
+
+
+def get_sepsis3_suspected_infection_time(subject_id, stay_id):
+    """
+    Return suspected_infection_time from mimiciv_derived.sepsis3 for the given
+    (subject_id, stay_id), or None if not found. Uses time (hour, minute) for
+    logic; date is ignored.
+    """
+    table = _pick_first_existing(DERIVED_TABLE_CANDIDATES["sepsis3"])
+    if not table:
+        return None
+    result = _fetch_rows(
+        table=table,
+        where_sql="subject_id = %(subject_id)s AND stay_id = %(stay_id)s",
+        params={"subject_id": subject_id, "stay_id": stay_id},
+        limit=1,
+    )
+    if not result.get("ok") or not result.get("rows"):
+        return None
+    row = result["rows"][0]
+    return row.get("suspected_infection_time")
+
 
 def get_hourly_feature_sources(subject_id, stay_id, start, end, include_sofa=True, limit=20000):
     sources = {}

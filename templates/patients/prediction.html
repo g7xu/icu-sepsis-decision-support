@@ -1,0 +1,345 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ patient.display_name }} - Prediction - ICU Sepsis Decision Support{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'patient.css' %}">
+{% endblock %}
+
+{% block navbar_clock %}
+<div class="app-navbar__clock">
+    <a href="{% url 'patients:index' %}" class="btn btn-primary btn-sm">&larr; Back to List</a>
+    <span id="current-time" class="sim-time">{{ current_time_display }}</span>
+    <button id="advance-btn" class="btn btn-primary">+1</button>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Patient Details -->
+<div class="card">
+    <div class="card-header">
+        <h2>Patient Details</h2>
+    </div>
+    
+    <div class="patient-detail-grid">
+        <div>
+            <p class="patient-field-label">Patient</p>
+            <p class="patient-field-value">
+                <a href="{% url 'patients:detail' patient.subject_id patient.stay_id patient.hadm_id %}" 
+                   class="patient-name-link">{{ patient.display_name }}</a>
+            </p>
+        </div>
+        <div>
+            <p class="patient-field-label">Age</p>
+            <p class="patient-field-value">{{ patient.anchor_age|default:"-" }}</p>
+        </div>
+        <div>
+            <p class="patient-field-label">Gender</p>
+            <p class="patient-field-value">
+                {% if patient.gender == 'M' %}Male{% elif patient.gender == 'F' %}Female{% else %}{{ patient.gender|default:"-" }}{% endif %}
+            </p>
+        </div>
+        <div>
+            <p class="patient-field-label">Race</p>
+            <p class="patient-field-value">{{ patient.race|default:"-" }}</p>
+        </div>
+        <div>
+            <p class="patient-field-label">First Care Unit</p>
+            <p class="patient-field-value">{{ patient.first_careunit|default:"-" }}</p>
+        </div>
+        <div>
+            <p class="patient-field-label">Time Since Admission</p>
+            <p class="patient-field-value">{{ patient.time_since_admission }}</p>
+        </div>
+        <div>
+            <p class="patient-field-label">Sepsis Likelihood</p>
+            <p class="patient-field-value">
+                {% if patient.risk_score is not None %}
+                {{ patient.risk_score|floatformat:2 }}%
+                {% else %}
+                -
+                {% endif %}
+            </p>
+        </div>
+        {% if suspected_infection_time %}
+        <div>
+            <p class="patient-field-label">suspected_infection_time (dev)</p>
+            <p class="patient-field-value text-muted">{{ suspected_infection_time|date:"Y-m-d H:i" }}</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Sepsis Predictions Chart -->
+<div class="card">
+    <div class="card-header">
+        <h2>Sepsis Predictions by Hour</h2>
+    </div>
+    <div id="predictions-chart" class="vitals-chart"></div>
+    {% if current_hour < 0 %}
+    <p class="text-muted">Press <strong>+1</strong> to start the simulation and load predictions.</p>
+    {% endif %}
+</div>
+
+<!-- SOFA 24-Hour Aggregates Chart -->
+<div class="card">
+    <div class="card-header">
+        <h2>SOFA 24-Hour Aggregates</h2>
+    </div>
+    <div class="vitals-controls">
+        <label><input type="radio" name="sofa24" value="respiration_24hours" checked>Respiration</label>
+        <label><input type="radio" name="sofa24" value="coagulation_24hours">Coagulation</label>
+        <label><input type="radio" name="sofa24" value="liver_24hours">Liver</label>
+        <label><input type="radio" name="sofa24" value="cardiovascular_24hours">Cardiovascular</label>
+        <label><input type="radio" name="sofa24" value="cns_24hours">CNS</label>
+        <label><input type="radio" name="sofa24" value="renal_24hours">Renal</label>
+        <label><input type="radio" name="sofa24" value="sofa_24hours">SOFA</label>
+    </div>
+    <div id="sofa-24-chart" class="vitals-chart"></div>
+    {% if current_hour < 0 %}
+    <p class="text-muted">Press <strong>+1</strong> to start the simulation and load SOFA data.</p>
+    {% endif %}
+</div>
+
+<!-- SOFA Other Values Chart -->
+<div class="card">
+    <div class="card-header">
+        <h2>SOFA Other Values</h2>
+    </div>
+    <div class="chemistry-controls">
+        <label><input type="radio" name="sofaother" value="pao2fio2ratio_novent" checked>PaO2/FiO2 (no vent)</label>
+        <label><input type="radio" name="sofaother" value="pao2fio2ratio_vent">PaO2/FiO2 (vent)</label>
+        <label><input type="radio" name="sofaother" value="rate_epinephrine">Epinephrine</label>
+        <label><input type="radio" name="sofaother" value="rate_norepinephrine">Norepinephrine</label>
+        <label><input type="radio" name="sofaother" value="rate_dopamine">Dopamine</label>
+        <label><input type="radio" name="sofaother" value="rate_dobutamine">Dobutamine</label>
+        <label><input type="radio" name="sofaother" value="meanbp_min">Mean BP (min)</label>
+        <label><input type="radio" name="sofaother" value="gcs_min">GCS (min)</label>
+        <label><input type="radio" name="sofaother" value="uo_24hr">Urine output</label>
+        <label><input type="radio" name="sofaother" value="bilirubin_max">Bilirubin (max)</label>
+        <label><input type="radio" name="sofaother" value="creatinine_max">Creatinine (max)</label>
+        <label><input type="radio" name="sofaother" value="platelet_min">Platelet (min)</label>
+        <label><input type="radio" name="sofaother" value="respiration">Respiration</label>
+        <label><input type="radio" name="sofaother" value="coagulation">Coagulation</label>
+        <label><input type="radio" name="sofaother" value="liver">Liver</label>
+        <label><input type="radio" name="sofaother" value="cardiovascular">Cardiovascular</label>
+        <label><input type="radio" name="sofaother" value="cns">CNS</label>
+        <label><input type="radio" name="sofaother" value="renal">Renal</label>
+    </div>
+    <div id="sofa-other-chart" class="chemistry-chart"></div>
+    {% if current_hour < 0 %}
+    <p class="text-muted">Press <strong>+1</strong> to start the simulation and load SOFA data.</p>
+    {% endif %}
+</div>
+
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<script type="application/json" id="predictions-data">{{ predictions_json|safe }}</script>
+<script type="application/json" id="predictions-meta">{{ predictions_meta_json|safe }}</script>
+<script type="application/json" id="sofa-24-data">{{ sofa_24hours_json|safe }}</script>
+<script type="application/json" id="sofa-other-data">{{ sofa_other_json|safe }}</script>
+
+<script>
+(function() {
+// =========================================================================
+// Sepsis Predictions Chart (risk_score by hour + dashed vertical lines)
+// =========================================================================
+const predictionsData = JSON.parse(document.getElementById('predictions-data').textContent || '[]');
+const predictionsMeta = JSON.parse(document.getElementById('predictions-meta').textContent || '{}');
+
+if (predictionsData.length > 0) {
+    const predTimes = predictionsData.map(d => d.hour_label);
+    const predScores = predictionsData.map(d => d.risk_score);
+    const predHourVals = predictionsData.map(d => d.hour_val);
+
+    const trace = {
+        type: 'scatter',
+        mode: 'lines+markers',
+        x: predHourVals,
+        y: predScores,
+        name: 'Sepsis Likelihood',
+        line: { color: '#e53e3e', width: 2 },
+        marker: { size: 10 }
+    };
+
+    const shapes = [];
+    const modelIdx = predictionsMeta.model_sepsis_hour_index;
+    if (modelIdx != null && modelIdx >= 0 && modelIdx < predHourVals.length) {
+        const x0 = predHourVals[modelIdx];
+        shapes.push({
+            type: 'line',
+            x0: x0, x1: x0, y0: 0, y1: 1,
+            yref: 'paper', xref: 'x',
+            line: { color: '#3182ce', width: 1.5, dash: 'dash' }
+        });
+    }
+    const actualX = predictionsMeta.actual_sepsis_x;
+    if (actualX != null) {
+        shapes.push({
+            type: 'line',
+            x0: actualX, x1: actualX, y0: 0, y1: 1,
+            yref: 'paper', xref: 'x',
+            line: { color: '#38a169', width: 1.5, dash: 'dash' }
+        });
+    }
+
+    const predLayout = {
+        height: 325,
+        showlegend: true,
+        legend: { orientation: 'h', y: 1.35, x: 0.45, font: { size: 12 } },
+        margin: { l: 60, r: 20, t: 50, b: 45 },
+        xaxis: {
+            title: { text: 'Hour', font: { size: 12 } },
+            tickfont: { size: 10 },
+            tickvals: predHourVals,
+            ticktext: predTimes,
+            automargin: true
+        },
+        yaxis: {
+            title: { text: 'Sepsis Likelihood (%)', font: { size: 11 } },
+            tickfont: { size: 10 },
+            automargin: true,
+            autorange: true
+        },
+        shapes: shapes
+    };
+
+    Plotly.newPlot('predictions-chart', [trace], predLayout, { responsive: true });
+}
+
+// =========================================================================
+// SOFA 24-Hour Aggregates Chart (display labels without _24hours suffix)
+// =========================================================================
+const sofa24Data = JSON.parse(document.getElementById('sofa-24-data').textContent || '[]');
+const SOFA24_DISPLAY_NAMES = {
+    respiration_24hours: 'Respiration',
+    coagulation_24hours: 'Coagulation',
+    liver_24hours: 'Liver',
+    cardiovascular_24hours: 'Cardiovascular',
+    cns_24hours: 'CNS',
+    renal_24hours: 'Renal',
+    sofa_24hours: 'SOFA'
+};
+
+if (sofa24Data.length > 0) {
+    const sofa24Times = sofa24Data.map(d => d.hour_label);
+    const SOFA24_SERIES = Object.keys(SOFA24_DISPLAY_NAMES);
+
+    function buildSofa24Traces(seriesKey) {
+        const style = {
+            name: SOFA24_DISPLAY_NAMES[seriesKey] || seriesKey,
+            line: { color: '#3182ce', width: 2 },
+            marker: { size: 10 }
+        };
+        return [{
+            type: 'scatter',
+            mode: 'lines+markers',
+            x: sofa24Times,
+            y: sofa24Data.map(d => d[seriesKey]),
+            name: style.name,
+            line: style.line,
+            marker: style.marker
+        }];
+    }
+
+    const sofa24BaseLayout = {
+        height: 325,
+        showlegend: true,
+        legend: { orientation: 'h', y: 1.35, x: 0.45, font: { size: 12 } },
+        margin: { l: 60, r: 20, t: 50, b: 45 },
+        xaxis: { title: { text: 'Hour', font: { size: 12 } }, tickfont: { size: 10 }, automargin: true },
+        yaxis: { tickfont: { size: 10 }, automargin: true, autorange: true }
+    };
+
+    function renderSofa24Chart(chartKey) {
+        const traces = buildSofa24Traces(chartKey);
+        const layout = {
+            ...sofa24BaseLayout,
+            title: { text: SOFA24_DISPLAY_NAMES[chartKey] || chartKey, x: 0.025, xanchor: 'left', font: { size: 14 } },
+            yaxis: { ...sofa24BaseLayout.yaxis, title: { text: SOFA24_DISPLAY_NAMES[chartKey] || chartKey, font: { size: 11 } }, autorange: true }
+        };
+        Plotly.newPlot('sofa-24-chart', traces, layout, { responsive: true });
+    }
+
+    renderSofa24Chart('respiration_24hours');
+    document.querySelectorAll('input[name="sofa24"]').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            if (e.target && e.target.checked) renderSofa24Chart(e.target.value);
+        });
+    });
+}
+
+// =========================================================================
+// SOFA Other Values Chart
+// =========================================================================
+const sofaOtherData = JSON.parse(document.getElementById('sofa-other-data').textContent || '[]');
+const SOFA_OTHER_DISPLAY_NAMES = {
+    pao2fio2ratio_novent: 'PaO2/FiO2 (no vent)',
+    pao2fio2ratio_vent: 'PaO2/FiO2 (vent)',
+    rate_epinephrine: 'Epinephrine',
+    rate_norepinephrine: 'Norepinephrine',
+    rate_dopamine: 'Dopamine',
+    rate_dobutamine: 'Dobutamine',
+    meanbp_min: 'Mean BP (min)',
+    gcs_min: 'GCS (min)',
+    uo_24hr: 'Urine output (24h)',
+    bilirubin_max: 'Bilirubin (max)',
+    creatinine_max: 'Creatinine (max)',
+    platelet_min: 'Platelet (min)',
+    respiration: 'Respiration',
+    coagulation: 'Coagulation',
+    liver: 'Liver',
+    cardiovascular: 'Cardiovascular',
+    cns: 'CNS',
+    renal: 'Renal'
+};
+
+if (sofaOtherData.length > 0) {
+    const sofaOtherTimes = sofaOtherData.map(d => d.hour_label);
+
+    function buildSofaOtherTraces(seriesKey) {
+        const style = {
+            name: SOFA_OTHER_DISPLAY_NAMES[seriesKey] || seriesKey,
+            line: { color: '#38a169', width: 2 },
+            marker: { size: 10 }
+        };
+        return [{
+            type: 'scatter',
+            mode: 'lines+markers',
+            x: sofaOtherTimes,
+            y: sofaOtherData.map(d => d[seriesKey]),
+            name: style.name,
+            line: style.line,
+            marker: style.marker
+        }];
+    }
+
+    const sofaOtherBaseLayout = {
+        height: 325,
+        showlegend: true,
+        legend: { orientation: 'h', y: 1.35, x: 0.45, font: { size: 12 } },
+        margin: { l: 60, r: 20, t: 50, b: 45 },
+        xaxis: { title: { text: 'Hour', font: { size: 12 } }, tickfont: { size: 10 }, automargin: true },
+        yaxis: { tickfont: { size: 10 }, automargin: true, autorange: true }
+    };
+
+    function renderSofaOtherChart(chartKey) {
+        const traces = buildSofaOtherTraces(chartKey);
+        const layout = {
+            ...sofaOtherBaseLayout,
+            title: { text: SOFA_OTHER_DISPLAY_NAMES[chartKey] || chartKey, x: 0.025, xanchor: 'left', font: { size: 14 } },
+            yaxis: { ...sofaOtherBaseLayout.yaxis, title: { text: SOFA_OTHER_DISPLAY_NAMES[chartKey] || chartKey, font: { size: 11 } }, autorange: true }
+        };
+        Plotly.newPlot('sofa-other-chart', traces, layout, { responsive: true });
+    }
+
+    renderSofaOtherChart('pao2fio2ratio_novent');
+    document.querySelectorAll('input[name="sofaother"]').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            if (e.target && e.target.checked) renderSofaOtherChart(e.target.value);
+        });
+    });
+}
+})();
+</script>
+{% endblock %}
