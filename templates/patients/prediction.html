@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ patient.display_name }} - Prediction - ICU Sepsis Decision Support{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'patient.css' %}">
+{% endblock %}
+
+{% block navbar_clock %}
+<div class="app-navbar__clock">
+    <a href="{% url 'patients:index' %}" class="btn btn-primary btn-sm">&larr; Back to List</a>
+    <span id="current-time" class="sim-time">{{ current_time_display }}</span>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Patient Details -->
+<div class="card">
+    <div class="card-header">
+        <h2>Patient Details</h2>
+    </div>
+    
+    <div class="patient-detail-grid">
+        <div>
+            <p class="patient-field-label">Patient</p>
+            <p class="patient-field-value">{{ patient.display_name }}</p>
+        </div>
+        <div>
+            <p class="patient-field-label">Age</p>
+            <p class="patient-field-value">{{ patient.anchor_age|default:"-" }}</p>
+        </div>
+        <div>
+            <p class="patient-field-label">Gender</p>
+            <p class="patient-field-value">
+                {% if patient.gender == 'M' %}Male{% elif patient.gender == 'F' %}Female{% else %}{{ patient.gender|default:"-" }}{% endif %}
+            </p>
+        </div>
+        <div>
+            <p class="patient-field-label">Race</p>
+            <p class="patient-field-value">{{ patient.race|default:"-" }}</p>
+        </div>
+        <div>
+            <p class="patient-field-label">First Care Unit</p>
+            <p class="patient-field-value">{{ patient.first_careunit|default:"-" }}</p>
+        </div>
+        <div>
+            <p class="patient-field-label">Admission Time</p>
+            <p class="patient-field-value">{{ patient.intime|time:"H:i"|default:"-" }}</p>
+        </div>
+    </div>
+</div>
+
+<!-- Prediction Results -->
+<div class="card prediction-card">
+    <div class="card-header">
+        <h2>Sepsis Prediction</h2>
+    </div>
+    <div class="prediction-panel">
+        {% if prediction_error %}
+            <div>
+                <p class="text-muted">{{ prediction_error }}</p>
+            </div>
+        {% elif risk_score is not None %}
+            <div>
+                <p class="prediction-field-label">Risk Score</p>
+                <p class="prediction-field-value">{{ risk_score|floatformat:2 }}</p>
+            </div>
+            <div>
+                <p class="prediction-field-label">Comorbidity Group</p>
+                <p class="prediction-field-value">{{ comorbidity_group|default:"-" }}</p>
+            </div>
+        {% else %}
+            <p class="text-muted">No prediction available. Press <strong>+1</strong> to start the simulation.</p>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}
