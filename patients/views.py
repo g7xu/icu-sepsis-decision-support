@@ -196,12 +196,14 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
 
     if current_hour >= 0:
         # --- Vitalsigns for Plotly chart ---
+        # Display shows (current_hour + 1):00 — include data up to that hour
+        chart_hour = current_hour + 1
         vitalsigns_qs = VitalsignHourly.objects.filter(
             subject_id=subject_id,
             stay_id=stay_id,
             charttime_hour__month=3,
             charttime_hour__day=13,
-            charttime_hour__hour__lte=current_hour,
+            charttime_hour__hour__lte=chart_hour,
         ).order_by('charttime_hour')
 
         vitalsigns_list = []
@@ -222,7 +224,7 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
             stay_id=stay_id,
             charttime_hour__month=3,
             charttime_hour__day=13,
-            charttime_hour__hour__lte=current_hour,
+            charttime_hour__hour__lte=chart_hour,
         ).order_by('charttime_hour')
 
         chemistry_list = []
@@ -242,7 +244,7 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
             stay_id=stay_id,
             charttime_hour__month=3,
             charttime_hour__day=13,
-            charttime_hour__hour__lte=current_hour,
+            charttime_hour__hour__lte=chart_hour,
         ).order_by('charttime_hour')
 
         coagulation_list = []
@@ -262,7 +264,7 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
             stay_id=stay_id,
             charttime_hour__month=3,
             charttime_hour__day=13,
-            charttime_hour__hour__lte=current_hour,
+            charttime_hour__hour__lte=chart_hour,
             itemid__isnull=False,
         ).order_by('charttime_hour').values(
             'charttime_hour', 'charttime',
@@ -494,12 +496,14 @@ def patient_prediction(request, subject_id, stay_id, hadm_id):
     sofa_24hours_json = '[]'
     sofa_other_json = '[]'
     if current_hour >= 0:
+        # Display shows (current_hour + 1):00 — include data up to that hour
+        chart_hour = current_hour + 1
         sofa_qs = SofaHourly.objects.filter(
             subject_id=subject_id,
             stay_id=stay_id,
             charttime_hour__month=3,
             charttime_hour__day=13,
-            charttime_hour__hour__lte=current_hour,
+            charttime_hour__hour__lte=chart_hour,
         ).order_by('charttime_hour')
 
         sofa_24_cols = [
