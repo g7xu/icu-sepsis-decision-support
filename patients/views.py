@@ -119,11 +119,33 @@ def patient_list(request):
 
     # Attach display names (IDs hidden from clinicians)
     name_mapping = get_display_name_mapping()
+    
+    # Get predictions for each patient
+    as_of_dt = _prediction_as_of_dt(current_hour)
     for p in page_obj:
         p.display_name = name_mapping.get(
             (p.subject_id, p.stay_id, p.hadm_id),
             f"Patient {p.subject_id}"
         )
+        
+        # Fetch prediction if simulation has started
+        if as_of_dt:
+            pred = get_prediction(
+                subject_id=p.subject_id,
+                stay_id=p.stay_id,
+                hadm_id=p.hadm_id,
+                as_of=as_of_dt,
+                window_hours=24,
+            )
+            if pred.get('ok'):
+                p.risk_score = pred.get('risk_score')*100
+                p.comorbidity_group = pred.get('comorbidity_group')
+            else:
+                p.risk_score = None
+                p.comorbidity_group = None
+        else:
+            p.risk_score = None
+            p.comorbidity_group = None
 
     context = {
         'page_obj': page_obj,
@@ -393,3 +415,55 @@ def advance_time(request):
     }
 
     return JsonResponse(response_data)
+
+
+def patient_prediction(request, subject_id, stay_id, hadm_id):
+    """
+    Display prediction details for a specific patient.
+    URL: /patients/<subject_id>/<stay_id>/<hadm_id>/prediction-view/
+    """
+    patient = get_object_or_404(
+        UniquePatientProfile,
+        subject_id=subject_id,
+        stay_id=stay_id,
+        hadm_id=hadm_id
+    )
+
+    current_hour = _simulation['current_hour']
+    as_of_dt = _prediction_as_of_dt(current_hour)
+
+    # Fetch prediction
+    risk_score = None
+    comorbidity_group = None
+    prediction_error = None
+
+    if as_of_dt:
+        pred = get_prediction(
+            subject_id=subject_id,
+            stay_id=stay_id,
+            hadm_id=hadm_id,
+            as_of=as_of_dt,
+            window_hours=24,
+        )
+        if pred.get('ok'):
+            risk_score = pred.get('risk_score')
+            comorbidity_group = pred.get('comorbidity_group')
+        else:
+            prediction_error = pred.get('error', 'Prediction failed')
+
+    # Attach display name
+    name_mapping = get_display_name_mapping()
+    patient.display_name = name_mapping.get(
+        (patient.subject_id, patient.stay_id, patient.hadm_id),
+        f"Patient {patient.subject_id}"
+    )
+
+    context = {
+        'patient': patient,
+        'risk_score': risk_score,
+        'comorbidity_group': comorbidity_group,
+        'prediction_error': prediction_error,
+        'current_hour': current_hour,
+        'current_time_display': _display_time(current_hour),
+    }
+    return render(request, 'patients/prediction.html', context)
