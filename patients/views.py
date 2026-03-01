@@ -273,6 +273,18 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
         f"Patient {patient.subject_id}"
     )
 
+    # Fetch prediction for Sepsis Prediction link (same as index)
+    patient.risk_score = None
+    if prediction_as_of_iso:
+        as_of_dt = _prediction_as_of_dt(current_hour)
+        if as_of_dt:
+            pred = get_prediction(
+                patient.subject_id, patient.stay_id, patient.hadm_id,
+                as_of=as_of_dt, window_hours=24,
+            )
+            if pred.get('ok'):
+                patient.risk_score = pred.get('risk_score') * 100
+
     context = {
         'patient': patient,
         'vitalsigns_json': vitalsigns_json,

@@ -49,6 +49,17 @@
             <p class="patient-field-label">Admission Time</p>
             <p class="patient-field-value">{{ patient.intime|time:"H:i"|default:"-" }}</p>
         </div>
+        <div>
+            <p class="patient-field-label">Sepsis Prediction</p>
+            <p class="patient-field-value">
+                {% if patient.risk_score is not None %}
+                <a href="{% url 'patients:prediction_view' patient.subject_id patient.stay_id patient.hadm_id %}" 
+                   class="patient-name-link">{{ patient.risk_score|floatformat:2 }}</a>
+                {% else %}
+                -
+                {% endif %}
+            </p>
+        </div>
     </div>
 </div>
 

@@ -31,6 +31,17 @@
     font-weight: 600;
 }
 
+.patient-name-link {
+    color: #3182ce;
+    font-weight: 600;
+    text-decoration: underline;
+}
+
+.patient-name-link:hover {
+    color: #1a365d;
+    text-decoration: underline;
+}
+
 /* =============================================================================
    Main Content Grid - Charts (left) + Procedures (right)
    ============================================================================= */
