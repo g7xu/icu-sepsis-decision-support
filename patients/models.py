@@ -148,6 +148,7 @@ class ChemistryHourly(models.Model):
     Contains hourly chemistry measurements for patients.
     Linked to UniquePatientProfile via (subject_id, stay_id).
     """
+    pk = models.CompositePrimaryKey("subject_id", "stay_id", "charttime_hour")
     # === Identifiers ===
     subject_id = models.IntegerField() # integer
     stay_id = models.IntegerField() # integer
@@ -174,6 +175,7 @@ class CoagulationHourly(models.Model):
     Contains hourly coagulation measurements for patients.
     Linked to UniquePatientProfile via (subject_id, stay_id).
     """
+    pk = models.CompositePrimaryKey("subject_id", "stay_id", "charttime_hour")
     # === Identifiers ===
     subject_id = models.IntegerField()  # integer
     stay_id = models.IntegerField()  # integer

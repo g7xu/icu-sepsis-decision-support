@@ -143,3 +143,6 @@ MODEL_HISTORY_HOURS = int(os.getenv('MODEL_HISTORY_HOURS', '6'))
 AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID', '')
 AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY', '')
 AWS_SESSION_TOKEN = os.getenv('AWS_SESSION_TOKEN', '')
+
+# Similarity search (prediction view) - CSV of non-cohort feature vectors
+SIMILARITY_CSV_PATH = os.getenv('SIMILARITY_CSV_PATH', 'data/similarity_matrix.csv')

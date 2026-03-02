@@ -156,3 +156,11 @@ curl "http://localhost:8000/patients/10000032/39553978/29079034/features/hourly-
 ```
 
 Replace `10000032/39553978/29079034` with real `subject_id/stay_id/hadm_id` from your database.
+
+## Similarity search (prediction view)
+
+To show "3 most similar patients" when viewing a prediction:
+
+1. Build materialized views (scripts 05, 06, 08, 09, 10, 11).
+2. Export non-cohort feature matrix: `python manage.py export_similarity_matrix`
+3. See [docs/SIMILARITY_SETUP.md](docs/SIMILARITY_SETUP.md) for full steps and implementation notes.

@@ -9,6 +9,7 @@ from .services import (
     get_hourly_feature_sources,
     assemble_hourly_wide_table,
     get_prediction,
+    get_similar_patients,
 )
 
 logger = logging.getLogger(__name__)
@@ -163,4 +164,33 @@ def get_prediction_view(request, subject_id, stay_id, hadm_id):
         "as_of": as_of_str,
         "risk_score": result["risk_score"],
         "comorbidity_group": result["comorbidity_group"],
+    })
+
+
+@require_GET
+def get_similar_patients_view(request, subject_id, stay_id, hadm_id):
+    """
+    GET /patients/<id>/similar-patients
+    Returns top 3 most similar patients (by feature vector cosine similarity) from
+    non-cohort pool. Query params: as_of (required).
+    """
+    as_of_str = request.GET.get('as_of')
+    if not as_of_str:
+        return JsonResponse({"error": "Provide as_of (ISO datetime) query param."}, status=400)
+    as_of = parse_datetime(as_of_str)
+    if not as_of:
+        return JsonResponse({"error": "Invalid as_of format."}, status=400)
+
+    similar = get_similar_patients(
+        subject_id=subject_id,
+        stay_id=stay_id,
+        hadm_id=hadm_id,
+        as_of=as_of,
+        top_k=3,
+    )
+
+    return JsonResponse({
+        "patient": {"subject_id": subject_id, "stay_id": stay_id, "hadm_id": hadm_id},
+        "as_of": as_of_str,
+        "similar_patients": similar,
     })

@@ -1,9 +1,32 @@
+import csv
 import logging
+import os
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
 import json
+import numpy as np
+from django.conf import settings
 from django.db import connection
 
 logger = logging.getLogger(__name__)
+
+# Feature columns used for cosine similarity (must match CSV export)
+SIMILARITY_FEATURE_COLUMNS = [
+    "heart_rate", "sbp", "dbp", "mbp", "sbp_ni", "dbp_ni", "mbp_ni",
+    "resp_rate", "temperature", "spo2", "glucose",
+    "bicarbonate", "calcium", "sodium", "potassium",
+    "d_dimer", "fibrinogen", "thrombin", "inr", "pt", "ptt",
+    "sofa_hr", "pao2fio2ratio_novent", "pao2fio2ratio_vent",
+    "rate_epinephrine", "rate_norepinephrine", "rate_dopamine", "rate_dobutamine",
+    "meanbp_min", "gcs_min", "uo_24hr", "bilirubin_max", "creatinine_max", "platelet_min",
+    "respiration", "coagulation", "liver", "cardiovascular", "cns", "renal",
+    "respiration_24hours", "coagulation_24hours", "liver_24hours",
+    "cardiovascular_24hours", "cns_24hours", "renal_24hours", "sofa_24hours",
+]
+
+# Cache for loaded similarity matrix (lazy load, cleared on server restart)
+_similarity_cache = None
 
 # Use the same candidate list, but mapped to string names
 DERIVED_TABLE_CANDIDATES = {
@@ -838,6 +861,201 @@ def get_prediction(subject_id, stay_id, hadm_id, as_of, window_hours=24):
         "risk_score": float(risk_score),
         "comorbidity_group": str(comorbidity_group),
     }
+
+
+def get_current_feature_vector(subject_id, stay_id, hadm_id, as_of, window_hours=24):
+    """
+    Get the feature vector used for prediction at as_of.
+    Returns dict with feature columns, or None if not found.
+    Maps display as_of (March 13) to patient's actual charttime like get_prediction.
+    """
+    from .models import UniquePatientProfile
+
+    try:
+        patient = UniquePatientProfile.objects.get(
+            subject_id=subject_id, stay_id=stay_id, hadm_id=hadm_id
+        )
+    except UniquePatientProfile.DoesNotExist:
+        patient = None
+
+    if patient and patient.intime and as_of.month == 3 and as_of.day in (13, 14):
+        sim_hour = 23 if (as_of.day == 14 and as_of.hour == 0) else (as_of.hour - 1) % 24
+        adm_hour = patient.intime.hour
+        if sim_hour >= adm_hour:
+            base = patient.intime.replace(minute=0, second=0, microsecond=0)
+            as_of = base + timedelta(hours=(sim_hour - adm_hour + 1))
+
+    start = as_of - timedelta(hours=window_hours)
+    end = as_of
+    matrix_rows, _ = _fetch_feature_matrix_rows(subject_id, stay_id, start, end)
+    if not matrix_rows:
+        return None
+    row = _latest_row_at_or_before(matrix_rows, end)
+    return row
+
+
+def _row_to_feature_array(row):
+    """Extract numeric feature array from a row dict for similarity."""
+    arr = []
+    for col in SIMILARITY_FEATURE_COLUMNS:
+        v = row.get(col)
+        if v is None or (isinstance(v, float) and np.isnan(v)):
+            arr.append(0.0)
+        else:
+            try:
+                arr.append(float(v))
+            except (TypeError, ValueError):
+                arr.append(0.0)
+    return np.array(arr, dtype=np.float64)
+
+
+def _parse_float(val):
+    """Parse CSV value to float or None."""
+    if val is None or val == "":
+        return None
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return None
+
+
+def _load_similarity_matrix(csv_path):
+    """Load CSV into (rows_meta, rows_matrix, lab_rows) for similarity. Cached."""
+    global _similarity_cache
+    if _similarity_cache is not None:
+        return _similarity_cache
+
+    path = Path(csv_path)
+    if not path.exists():
+        logger.warning("Similarity CSV not found: %s", csv_path)
+        return None
+
+    meta = []  # (subject_id, stay_id, hadm_id, charttime_hour)
+    rows = []
+    lab_rows = []  # dicts with chemistry/coagulation values for template
+    with open(path, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for r in reader:
+            meta.append((
+                int(r.get("subject_id", 0)),
+                int(r.get("stay_id", 0)),
+                int(r.get("hadm_id", 0)),
+                r.get("charttime_hour"),
+            ))
+            rows.append(_row_to_feature_array(r))
+            lab_rows.append({
+                "chemistry": {
+                    "bicarbonate": _parse_float(r.get("bicarbonate")),
+                    "calcium": _parse_float(r.get("calcium")),
+                    "sodium": _parse_float(r.get("sodium")),
+                    "potassium": _parse_float(r.get("potassium")),
+                },
+                "coagulation": {
+                    "inr": _parse_float(r.get("inr")),
+                    "pt": _parse_float(r.get("pt")),
+                    "ptt": _parse_float(r.get("ptt")),
+                    "d_dimer": _parse_float(r.get("d_dimer")),
+                },
+            })
+
+    if not rows:
+        return None
+    matrix = np.vstack(rows)
+    _similarity_cache = (meta, matrix, lab_rows)
+    return _similarity_cache
+
+
+def get_similar_patients(subject_id, stay_id, hadm_id, as_of, top_k=3):
+    """
+    Find top_k most similar patients (by cosine similarity of feature vector) from
+    the non-cohort CSV. Returns list of dicts with subject_id, stay_id, hadm_id,
+    similarity_score, had_sepsis.
+    """
+    csv_path = getattr(settings, "SIMILARITY_CSV_PATH", None) or "data/similarity_matrix.csv"
+    base = Path(settings.BASE_DIR) if hasattr(settings, "BASE_DIR") else Path.cwd()
+    resolved_path = base / csv_path if not os.path.isabs(csv_path) else Path(csv_path)
+    resolved_path = resolved_path.resolve()
+
+    vec_row = get_current_feature_vector(subject_id, stay_id, hadm_id, as_of)
+    if vec_row is None:
+        logger.warning(
+            "Similarity: no feature vector for patient %s/%s/%s at as_of=%s (check feature matrix)",
+            subject_id, stay_id, hadm_id, as_of,
+        )
+        return []
+
+    if not resolved_path.exists():
+        logger.warning(
+            "Similarity: CSV not found at %s (set SIMILARITY_CSV_PATH in .env)",
+            resolved_path,
+        )
+        return []
+
+    cached = _load_similarity_matrix(str(resolved_path))
+    if cached is None:
+        logger.warning("Similarity: failed to load CSV at %s", resolved_path)
+        return []
+
+    meta, matrix, lab_rows = cached
+    current_arr = _row_to_feature_array(vec_row)
+    current_norm = np.linalg.norm(current_arr)
+    if current_norm < 1e-10:
+        logger.warning("Similarity: zero feature vector for patient %s/%s", subject_id, stay_id)
+        return []
+
+    # Cosine similarity: (matrix @ current) / (row_norms * current_norm)
+    dots = matrix @ current_arr
+    row_norms = np.linalg.norm(matrix, axis=1)
+    row_norms = np.where(row_norms < 1e-10, 1e-10, row_norms)
+    sims = dots / (row_norms * current_norm)
+
+    # Top k indices (excluding exact matches on same stay)
+    top_indices = np.argsort(sims)[::-1]
+    results = []
+    for i in top_indices:
+        if len(results) >= top_k:
+            break
+        s, st, h, charttime_hour_str = meta[i]
+        if s == subject_id and st == stay_id:
+            continue
+        lab = lab_rows[i] if i < len(lab_rows) else {}
+        results.append({
+            "subject_id": s,
+            "stay_id": st,
+            "hadm_id": h,
+            "similarity_score": float(sims[i]),
+            "charttime_hour_str": charttime_hour_str,
+            "chemistry": lab.get("chemistry", {}),
+            "coagulation": lab.get("coagulation", {}),
+        })
+
+    # Fetch sepsis outcome for each
+    if results:
+        stay_ids = [r["stay_id"] for r in results]
+        sepsis_by_stay = _fetch_sepsis_by_stay_ids(stay_ids)
+        for r in results:
+            r["had_sepsis"] = sepsis_by_stay.get(r["stay_id"], False)
+
+    return results
+
+
+def _fetch_sepsis_by_stay_ids(stay_ids):
+    """Query sepsis3 for given stay_ids. Returns dict stay_id -> bool."""
+    if not stay_ids:
+        return {}
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT stay_id FROM mimiciv_derived.sepsis3
+                WHERE stay_id = ANY(%s) AND sepsis3 = true
+                """,
+                [stay_ids],
+            )
+            return {row[0]: True for row in cursor.fetchall()}
+    except Exception as e:
+        logger.warning("Could not fetch sepsis outcomes: %s", e)
+        return {}
 
 
 def _get_prediction_stub(subject_id, stay_id, hadm_id, as_of):

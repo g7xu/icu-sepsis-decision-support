@@ -17,7 +17,7 @@ WITH stay_window AS (
             upp.outtime,
             date_trunc('hour'::text, upp.intime) AS start_hour,
             date_trunc('hour'::text, upp.outtime - '00:00:01'::interval) AS end_hour
-           FROM fisi9t_unique_patient_profile upp
+           FROM mimiciv_derived.fisi9t_unique_patient_profile upp
           WHERE upp.intime IS NOT NULL AND upp.outtime IS NOT NULL AND upp.outtime > upp.intime
         ), hour_grid AS (
          SELECT sw.subject_id,
@@ -93,9 +93,9 @@ WITH stay_window AS (
     s.sofa_24hours
    FROM hour_grid hg
      LEFT JOIN fisi9t_vitalsign_hourly v ON v.subject_id = hg.subject_id AND v.stay_id = hg.stay_id AND v.charttime_hour = hg.charttime_hour
-     LEFT JOIN fisi9t_chemistry_hourly ch ON ch.subject_id = hg.subject_id AND ch.stay_id = hg.stay_id AND ch.charttime_hour = hg.charttime_hour
-     LEFT JOIN fisi9t_coagulation_hourly co ON co.subject_id = hg.subject_id AND co.stay_id = hg.stay_id AND co.charttime_hour = hg.charttime_hour
-     LEFT JOIN fisi9t_sofa_hourly s ON s.subject_id = hg.subject_id AND s.stay_id = hg.stay_id AND s.charttime_hour = hg.charttime_hour);
+     LEFT JOIN mimiciv_derived.fisi9t_chemistry_hourly ch ON ch.subject_id = hg.subject_id AND ch.stay_id = hg.stay_id AND ch.charttime_hour = hg.charttime_hour
+     LEFT JOIN mimiciv_derived.fisi9t_coagulation_hourly co ON co.subject_id = hg.subject_id AND co.stay_id = hg.stay_id AND co.charttime_hour = hg.charttime_hour
+     LEFT JOIN mimiciv_derived.fisi9t_sofa_hourly s ON s.subject_id = hg.subject_id AND s.stay_id = hg.stay_id AND s.charttime_hour = hg.charttime_hour);
 
 CREATE INDEX idx_fisi9t_feature_matrix_hourly_subject_id ON mimiciv_derived.fisi9t_feature_matrix_hourly (subject_id);
 CREATE INDEX idx_fisi9t_feature_matrix_hourly_stay_id ON mimiciv_derived.fisi9t_feature_matrix_hourly (stay_id);

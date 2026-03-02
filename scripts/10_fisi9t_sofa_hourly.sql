@@ -33,7 +33,7 @@ CREATE MATERIALIZED VIEW mimiciv_derived.fisi9t_sofa_hourly AS (
     s.cns_24hours,
     s.renal_24hours,
     s.sofa_24hours
-    FROM sofa s JOIN fisi9t_unique_patient_profile f ON s.stay_id = f.stay_id
+    FROM mimiciv_derived.sofa s JOIN mimiciv_derived.fisi9t_unique_patient_profile f ON s.stay_id = f.stay_id
 );
 
 CREATE INDEX idx_fisi9t_sofa_hourly_subject_id ON mimiciv_derived.fisi9t_sofa_hourly (subject_id);

@@ -16,9 +16,11 @@ from django.db.models import Q
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 
+from django.utils.dateparse import parse_datetime
+
 from .models import UniquePatientProfile, VitalsignHourly, ProcedureeventsHourly, ChemistryHourly, CoagulationHourly, SofaHourly
 from .cohort import get_cohort_filter
-from .services import get_prediction, get_sepsis3_suspected_infection_time
+from .services import get_prediction, get_sepsis3_suspected_infection_time, get_similar_patients
 from .display_names import get_display_name_mapping
 
 
@@ -539,6 +541,51 @@ def patient_prediction(request, subject_id, stay_id, hadm_id):
         else:
             prediction_error = pred.get('error', 'Prediction failed')
 
+    # Similar patients (from non-cohort CSV, cosine similarity)
+    similar_patients = []
+    if as_of_dt:
+        similar = get_similar_patients(
+            subject_id=subject_id,
+            stay_id=stay_id,
+            hadm_id=hadm_id,
+            as_of=as_of_dt,
+            top_k=3,
+        )
+        for s in similar:
+            charttime_dt = parse_datetime(s.get('charttime_hour_str', '')) if s.get('charttime_hour_str') else None
+            hours_since_admission = None
+            profile = None
+
+            try:
+                profile = UniquePatientProfile.objects.get(
+                    subject_id=s['subject_id'],
+                    stay_id=s['stay_id'],
+                    hadm_id=s['hadm_id'],
+                )
+                if profile.intime and charttime_dt:
+                    delta = charttime_dt - profile.intime
+                    hours_since_admission = round(delta.total_seconds() / 3600, 1)
+            except UniquePatientProfile.DoesNotExist:
+                pass
+
+            # Chemistry/coagulation come from the similarity CSV (same source as feature vector)
+            chemistry = s.get('chemistry') or {}
+            coagulation = s.get('coagulation') or {}
+
+            similar_patients.append({
+                'subject_id': s['subject_id'],
+                'stay_id': s['stay_id'],
+                'hadm_id': s['hadm_id'],
+                'similarity_score': s['similarity_score'],
+                'had_sepsis': s['had_sepsis'],
+                'anchor_age': profile.anchor_age if profile else None,
+                'gender': profile.gender if profile else None,
+                'race': profile.race if profile else None,
+                'hours_since_admission': hours_since_admission,
+                'chemistry': chemistry,
+                'coagulation': coagulation,
+            })
+
     # Attach display name, time since admission, and risk score (for patient details)
     name_mapping = get_display_name_mapping()
     patient.display_name = name_mapping.get(
@@ -637,6 +684,7 @@ def patient_prediction(request, subject_id, stay_id, hadm_id):
         'risk_score': risk_score,
         'comorbidity_group': comorbidity_group,
         'prediction_error': prediction_error,
+        'similar_patients': similar_patients,
         'current_hour': current_hour,
         'current_time_display': _display_time(current_hour),
         'predictions_json': predictions_json,
@@ -644,5 +692,6 @@ def patient_prediction(request, subject_id, stay_id, hadm_id):
         'suspected_infection_time': suspected_infection_time,
         'sofa_24hours_json': sofa_24hours_json,
         'sofa_other_json': sofa_other_json,
+        'prediction_as_of_iso': as_of_dt.isoformat() if as_of_dt else None,
     }
     return render(request, 'patients/prediction.html', context)
