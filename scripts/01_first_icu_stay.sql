@@ -15,7 +15,7 @@ CREATE MATERIALIZED VIEW mimiciv_derived.first_icu_stay AS (
       i.outtime,
       i.los,
       row_number() OVER (PARTITION BY i.subject_id ORDER BY i.intime) AS rn
-    FROM icustays i
+    FROM mimiciv_icu.icustays i
   )
   SELECT
     subject_id,
@@ -30,5 +30,5 @@ CREATE MATERIALIZED VIEW mimiciv_derived.first_icu_stay AS (
   WHERE rn = 1
 );
 
-CREATE INDEX idx_first_icu_stay_subject_id ON first_icu_stay (subject_id);
-CREATE INDEX idx_first_icu_stay_stay_id ON first_icu_stay (stay_id);
+CREATE INDEX idx_first_icu_stay_subject_id ON mimiciv_derived.first_icu_stay (subject_id);
+CREATE INDEX idx_first_icu_stay_stay_id ON mimiciv_derived.first_icu_stay (stay_id);

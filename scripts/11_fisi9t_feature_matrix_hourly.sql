@@ -92,7 +92,7 @@ WITH stay_window AS (
     s.renal_24hours,
     s.sofa_24hours
    FROM hour_grid hg
-     LEFT JOIN fisi9t_vitalsign_hourly v ON v.subject_id = hg.subject_id AND v.stay_id = hg.stay_id AND v.charttime_hour = hg.charttime_hour
+     LEFT JOIN mimiciv_derived.fisi9t_vitalsign_hourly v ON v.subject_id = hg.subject_id AND v.stay_id = hg.stay_id AND v.charttime_hour = hg.charttime_hour
      LEFT JOIN mimiciv_derived.fisi9t_chemistry_hourly ch ON ch.subject_id = hg.subject_id AND ch.stay_id = hg.stay_id AND ch.charttime_hour = hg.charttime_hour
      LEFT JOIN mimiciv_derived.fisi9t_coagulation_hourly co ON co.subject_id = hg.subject_id AND co.stay_id = hg.stay_id AND co.charttime_hour = hg.charttime_hour
      LEFT JOIN mimiciv_derived.fisi9t_sofa_hourly s ON s.subject_id = hg.subject_id AND s.stay_id = hg.stay_id AND s.charttime_hour = hg.charttime_hour);

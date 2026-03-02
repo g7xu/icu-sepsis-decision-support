@@ -5,10 +5,10 @@ DROP MATERIALIZED VIEW IF EXISTS mimiciv_derived.fis_icd9 CASCADE;
 
 CREATE MATERIALIZED VIEW mimiciv_derived.fis_icd9 AS (
   WITH icd9_only_patients AS (
-    SELECT diagnoses_icd.subject_id
-    FROM diagnoses_icd
-    GROUP BY diagnoses_icd.subject_id
-    HAVING max(diagnoses_icd.icd_version) = 9
+    SELECT d.subject_id
+    FROM mimiciv_hosp.diagnoses_icd d
+    GROUP BY d.subject_id
+    HAVING max(d.icd_version) = 9
   )
   SELECT
     f.subject_id,
@@ -22,7 +22,7 @@ CREATE MATERIALIZED VIEW mimiciv_derived.fis_icd9 AS (
     d.seq_num,
     d.icd_code,
     d.icd_version
-  FROM first_icu_stay f
+  FROM mimiciv_derived.first_icu_stay f
   JOIN icd9_only_patients p
     ON p.subject_id = f.subject_id
   JOIN mimiciv_hosp.diagnoses_icd d

@@ -16,7 +16,7 @@ CREATE MATERIALIZED VIEW mimiciv_derived.fisi9t_unique_patient_profile AS (
     intime,
     outtime,
     los
-  FROM fisi9t_profile p
+  FROM mimiciv_derived.fisi9t_profile p
 );
 
 CREATE UNIQUE INDEX idx_fisi9t_unique_profile_subject_id ON mimiciv_derived.fisi9t_unique_patient_profile (subject_id);
