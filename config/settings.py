@@ -145,4 +145,5 @@ AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY', '')
 AWS_SESSION_TOKEN = os.getenv('AWS_SESSION_TOKEN', '')
 
 # Similarity search (prediction view) - CSV of non-cohort feature vectors
-SIMILARITY_CSV_PATH = os.getenv('SIMILARITY_CSV_PATH', 'data/similarity_matrix.csv')
+# Set SIMILARITY_CSV_PATH in .env to override (path relative to project root)
+SIMILARITY_CSV_PATH = os.getenv('SIMILARITY_CSV_PATH', 'static/similarity_matrix.csv')

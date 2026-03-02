@@ -38,10 +38,10 @@ Excludes the 51 cohort patients; exports all other patients' hourly feature vect
 
 ```bash
 python manage.py export_similarity_matrix
-# Output: data/similarity_matrix.csv
+# Output: static/similarity_matrix.csv (or path from SIMILARITY_CSV_PATH in .env)
 
 # Or specify output path:
-python manage.py export_similarity_matrix --output data/similarity_matrix.csv
+python manage.py export_similarity_matrix --output static/similarity_matrix.csv
 ```
 
 **When to re-run:** After changing `PATIENT_STAYS` in cohort.py, or after refreshing the feature matrix (re-running script 11).
@@ -51,10 +51,10 @@ python manage.py export_similarity_matrix --output data/similarity_matrix.csv
 Set in `.env` if using a custom path:
 
 ```
-SIMILARITY_CSV_PATH=data/similarity_matrix.csv
+SIMILARITY_CSV_PATH=static/similarity_matrix.csv
 ```
 
-Default: `data/similarity_matrix.csv` (relative to project root).
+Default: `static/similarity_matrix.csv` (relative to project root). The path is read from the `SIMILARITY_CSV_PATH` environment variable.
 
 ## Step 3: Similarity at prediction view open
 

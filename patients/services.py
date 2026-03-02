@@ -971,7 +971,7 @@ def get_similar_patients(subject_id, stay_id, hadm_id, as_of, top_k=3):
     the non-cohort CSV. Returns list of dicts with subject_id, stay_id, hadm_id,
     similarity_score, had_sepsis.
     """
-    csv_path = getattr(settings, "SIMILARITY_CSV_PATH", None) or "data/similarity_matrix.csv"
+    csv_path = getattr(settings, "SIMILARITY_CSV_PATH", None) or "static/similarity_matrix.csv"
     base = Path(settings.BASE_DIR) if hasattr(settings, "BASE_DIR") else Path.cwd()
     resolved_path = base / csv_path if not os.path.isabs(csv_path) else Path(csv_path)
     resolved_path = resolved_path.resolve()

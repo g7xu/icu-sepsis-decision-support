@@ -6,13 +6,15 @@ feature vectors from patients outside the demo cohort (cosine or Jaccard similar
 
 Usage:
   python manage.py export_similarity_matrix
-  python manage.py export_similarity_matrix --output data/similarity_matrix.csv
+  python manage.py export_similarity_matrix --output static/similarity_matrix.csv
 
+Output path defaults to SIMILARITY_CSV_PATH from settings (.env), or static/similarity_matrix.csv.
 Output: CSV with subject_id, stay_id, hadm_id, charttime_hour + all feature columns.
 Excludes the 51 patients in PATIENT_STAYS (cohort.py).
 """
 import csv
 import os
+from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import connection
 
@@ -23,11 +25,12 @@ class Command(BaseCommand):
     help = "Export feature matrix (non-cohort) to CSV for similarity search."
 
     def add_arguments(self, parser):
+        default_path = getattr(settings, "SIMILARITY_CSV_PATH", "static/similarity_matrix.csv")
         parser.add_argument(
             "--output",
             type=str,
-            default="data/similarity_matrix.csv",
-            help="Output CSV path (default: data/similarity_matrix.csv)",
+            default=default_path,
+            help=f"Output CSV path (default from SIMILARITY_CSV_PATH or {default_path})",
         )
 
     def handle(self, *args, **options):
