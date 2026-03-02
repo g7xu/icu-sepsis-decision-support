@@ -133,6 +133,51 @@
     {% endif %}
 </div>
 
+<!-- Similar Cases -->
+<div class="card">
+    <div class="card-header">
+        <h2>Similar Cases</h2>
+    </div>
+    <p class="text-muted text-sm mb-4">Top 3 most similar patients (by feature vector) from outside the demo cohort.</p>
+    {% if similar_patients %}
+    <div class="grid gap-4 md:grid-cols-3">
+        {% for sp in similar_patients %}
+        <div class="border rounded-lg p-4 bg-gray-50">
+            <p class="font-medium">Patient {{ sp.subject_id }}</p>
+            <p class="text-sm text-gray-600">Age {{ sp.anchor_age|default:"—" }} · {{ sp.gender|default:"" }} · {{ sp.race|default:"" }}</p>
+            {% if sp.hours_since_admission is not None %}
+            <p class="text-sm text-gray-600">{{ sp.hours_since_admission }}h since admission</p>
+            {% endif %}
+            <p class="text-sm mt-2">
+                <span class="font-medium">Sepsis outcome:</span>
+                {% if sp.had_sepsis %}
+                <span class="text-red-600">Yes</span>
+                {% else %}
+                <span class="text-green-600">No</span>
+                {% endif %}
+            </p>
+            <p class="text-xs text-gray-500 mt-1">Similarity: {{ sp.similarity_score|floatformat:3 }}</p>
+
+            {% if sp.chemistry %}
+            <div class="mt-3 pt-3 border-t border-gray-200">
+                <p class="text-xs font-medium text-gray-600 mb-1">Chemistry</p>
+                <p class="text-xs">Bicarb {{ sp.chemistry.bicarbonate|floatformat:1|default:"—" }} · Ca {{ sp.chemistry.calcium|floatformat:1|default:"—" }} · Na {{ sp.chemistry.sodium|floatformat:0|default:"—" }} · K {{ sp.chemistry.potassium|floatformat:1|default:"—" }}</p>
+            </div>
+            {% endif %}
+            {% if sp.coagulation %}
+            <div class="mt-2">
+                <p class="text-xs font-medium text-gray-600 mb-1">Coagulation</p>
+                <p class="text-xs">INR {{ sp.coagulation.inr|floatformat:2|default:"—" }} · PT {{ sp.coagulation.pt|floatformat:1|default:"—" }} · PTT {{ sp.coagulation.ptt|floatformat:0|default:"—" }}{% if sp.coagulation.d_dimer %} · D-dimer {{ sp.coagulation.d_dimer|floatformat:0|default:"—" }}{% endif %}</p>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-muted">No similar patients found. Ensure the simulation has started and <code>data/similarity_matrix.csv</code> exists.</p>
+    {% endif %}
+</div>
+
 <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
 <script type="application/json" id="predictions-data">{{ predictions_json|safe }}</script>
 <script type="application/json" id="predictions-meta">{{ predictions_meta_json|safe }}</script>
