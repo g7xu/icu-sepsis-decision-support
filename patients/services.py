@@ -8,6 +8,7 @@ import json
 import numpy as np
 from django.conf import settings
 from django.db import connection
+from django.utils import timezone as django_tz
 
 logger = logging.getLogger(__name__)
 
@@ -627,11 +628,21 @@ def _fetch_feature_matrix_rows(subject_id, stay_id, start, end, limit=50000):
 
 
 def _latest_row_at_or_before(rows, as_of):
+    """Return the row with the latest charttime_hour <= as_of."""
+    # Normalize for comparison: DB returns naive datetimes; as_of may be aware
+    as_of_compare = as_of
+    if django_tz.is_naive(as_of):
+        as_of_compare = django_tz.make_aware(as_of, timezone.utc)
+
     valid = []
     for row in rows:
         hour = _normalize_hour(row.get("charttime_hour"))
-        if hour is not None and hour <= as_of:
-            valid.append((hour, row))
+        if hour is not None:
+            hour_compare = hour
+            if django_tz.is_naive(hour):
+                hour_compare = django_tz.make_aware(hour, timezone.utc)
+            if hour_compare <= as_of_compare:
+                valid.append((hour_compare, row))
     if not valid:
         return None
     valid.sort(key=lambda t: t[0])
@@ -919,8 +930,25 @@ def _parse_float(val):
         return None
 
 
+def _row_to_feature_dict(row, exclude_keys=None):
+    """Extract all feature matrix columns from a CSV row for display. Returns dict of col -> display value."""
+    exclude = exclude_keys or {"subject_id", "stay_id", "hadm_id", "charttime_hour"}
+    out = {}
+    for k, v in row.items():
+        if k in exclude:
+            continue
+        parsed = _parse_float(v)
+        if parsed is not None:
+            out[k] = round(parsed, 2)
+        elif v and str(v).strip():
+            out[k] = str(v).strip()
+        else:
+            out[k] = None
+    return out
+
+
 def _load_similarity_matrix(csv_path):
-    """Load CSV into (rows_meta, rows_matrix, lab_rows) for similarity. Cached."""
+    """Load CSV into (rows_meta, rows_matrix, feature_rows) for similarity. Cached."""
     global _similarity_cache
     if _similarity_cache is not None:
         return _similarity_cache
@@ -932,7 +960,7 @@ def _load_similarity_matrix(csv_path):
 
     meta = []  # (subject_id, stay_id, hadm_id, charttime_hour)
     rows = []
-    lab_rows = []  # dicts with chemistry/coagulation values for template
+    feature_rows = []  # full feature dict per row for template
     with open(path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for r in reader:
@@ -943,25 +971,12 @@ def _load_similarity_matrix(csv_path):
                 r.get("charttime_hour"),
             ))
             rows.append(_row_to_feature_array(r))
-            lab_rows.append({
-                "chemistry": {
-                    "bicarbonate": _parse_float(r.get("bicarbonate")),
-                    "calcium": _parse_float(r.get("calcium")),
-                    "sodium": _parse_float(r.get("sodium")),
-                    "potassium": _parse_float(r.get("potassium")),
-                },
-                "coagulation": {
-                    "inr": _parse_float(r.get("inr")),
-                    "pt": _parse_float(r.get("pt")),
-                    "ptt": _parse_float(r.get("ptt")),
-                    "d_dimer": _parse_float(r.get("d_dimer")),
-                },
-            })
+            feature_rows.append(_row_to_feature_dict(r))
 
     if not rows:
         return None
     matrix = np.vstack(rows)
-    _similarity_cache = (meta, matrix, lab_rows)
+    _similarity_cache = (meta, matrix, feature_rows)
     return _similarity_cache
 
 
@@ -996,7 +1011,7 @@ def get_similar_patients(subject_id, stay_id, hadm_id, as_of, top_k=3):
         logger.warning("Similarity: failed to load CSV at %s", resolved_path)
         return []
 
-    meta, matrix, lab_rows = cached
+    meta, matrix, feature_rows = cached
     current_arr = _row_to_feature_array(vec_row)
     current_norm = np.linalg.norm(current_arr)
     if current_norm < 1e-10:
@@ -1018,15 +1033,14 @@ def get_similar_patients(subject_id, stay_id, hadm_id, as_of, top_k=3):
         s, st, h, charttime_hour_str = meta[i]
         if s == subject_id and st == stay_id:
             continue
-        lab = lab_rows[i] if i < len(lab_rows) else {}
+        features = feature_rows[i] if i < len(feature_rows) else {}
         results.append({
             "subject_id": s,
             "stay_id": st,
             "hadm_id": h,
             "similarity_score": float(sims[i]),
             "charttime_hour_str": charttime_hour_str,
-            "chemistry": lab.get("chemistry", {}),
-            "coagulation": lab.get("coagulation", {}),
+            "features": features,
         })
 
     # Fetch sepsis outcome for each

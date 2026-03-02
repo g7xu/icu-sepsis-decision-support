@@ -4,7 +4,22 @@ Patient models - mapped to existing MIMIC-IV tables in PostgreSQL.
 These models use managed=False since the tables already exist in the database.
 """
 
+from datetime import timezone as dt_timezone
+
 from django.db import models
+from django.utils import timezone
+
+
+class NaiveDateTimeField(models.DateTimeField):
+    """
+    DateTimeField that converts naive datetimes from the database to UTC-aware.
+    MIMIC-IV uses timestamp without time zone; Django warns when USE_TZ=True
+    receives naive datetimes. This field fixes that at load time.
+    """
+    def from_db_value(self, value, expression, connection):
+        if value is not None and timezone.is_naive(value):
+            return timezone.make_aware(value, dt_timezone.utc)
+        return value
 
 
 class UniquePatientProfile(models.Model):
@@ -31,8 +46,8 @@ class UniquePatientProfile(models.Model):
     last_careunit = models.CharField(max_length=255, null=True, blank=True) # character varying(255)
     
     # === Timestamps ===
-    intime = models.DateTimeField(null=True, blank=True) # timestamp without time zone
-    outtime = models.DateTimeField(null=True, blank=True) # timestamp without time zone
+    intime = NaiveDateTimeField(null=True, blank=True)  # timestamp without time zone
+    outtime = NaiveDateTimeField(null=True, blank=True)  # timestamp without time zone
     
     # === Derived metrics ===
     los = models.FloatField(null=True, blank=True) # double precision (length of stay in days)
@@ -63,8 +78,8 @@ class VitalsignHourly(models.Model):
     # === Identifiers ===
     subject_id = models.IntegerField() # integer
     stay_id = models.IntegerField() # integer
-    charttime_hour = models.DateTimeField() # timestamp without time zone
-    
+    charttime_hour = NaiveDateTimeField()  # timestamp without time zone
+
     # === Cardiovascular vitals ===
     heart_rate = models.FloatField(null=True, blank=True) # double precision
     sbp = models.FloatField(null=True, blank=True) # systolic BP - double precision
@@ -101,9 +116,9 @@ class ProcedureeventsHourly(models.Model):
     # === Identifiers ===
     subject_id = models.IntegerField() # integer
     stay_id = models.IntegerField() # integer
-    charttime_hour = models.DateTimeField(null=True, blank=True) # timestamp without time zone
-    charttime = models.DateTimeField(null=True, blank=True) # timestamp without time zone
-    
+    charttime_hour = NaiveDateTimeField(null=True, blank=True)  # timestamp without time zone
+    charttime = NaiveDateTimeField(null=True, blank=True)  # timestamp without time zone
+
     # === Caregiver & item info ===
     caregiver_id = models.IntegerField(null=True, blank=True) # integer
     itemid = models.IntegerField(null=True, blank=True) # integer
@@ -152,8 +167,8 @@ class ChemistryHourly(models.Model):
     # === Identifiers ===
     subject_id = models.IntegerField() # integer
     stay_id = models.IntegerField() # integer
-    charttime_hour = models.DateTimeField() # timestamp without time zone
-    
+    charttime_hour = NaiveDateTimeField()  # timestamp without time zone
+
     # === Chemistry measurements ===
     bicarbonate = models.FloatField(null=True, blank=True) # double precision
     calcium = models.FloatField(null=True, blank=True) # double precision
@@ -179,7 +194,7 @@ class CoagulationHourly(models.Model):
     # === Identifiers ===
     subject_id = models.IntegerField()  # integer
     stay_id = models.IntegerField()  # integer
-    charttime_hour = models.DateTimeField()  # timestamp without time zone
+    charttime_hour = NaiveDateTimeField()  # timestamp without time zone
 
     # === Coagulation measurements ===
     d_dimer = models.FloatField(null=True, blank=True)  # double precision
@@ -207,7 +222,7 @@ class SofaHourly(models.Model):
     subject_id = models.IntegerField()
     stay_id = models.IntegerField()
     hr = models.IntegerField(null=True, blank=True)
-    charttime_hour = models.DateTimeField()
+    charttime_hour = NaiveDateTimeField()
 
     # Non-24h metrics
     pao2fio2ratio_novent = models.FloatField(null=True, blank=True)

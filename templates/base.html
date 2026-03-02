@@ -35,7 +35,18 @@
                 method: 'POST',
                 headers: { 'X-CSRFToken': ds.csrfToken },
             })
-            .then(function(r) { return r.json(); })
+            .then(function(r) {
+                if (!r.ok) {
+                    return r.text().then(function(t) {
+                        var msg = 'HTTP ' + r.status;
+                        if (t && t.length < 300) msg += ': ' + t.substring(0, 300);
+                        else if (t) msg += ' (see console)';
+                        console.error('Advance time failed:', r.status, t);
+                        throw new Error(msg);
+                    });
+                }
+                return r.json();
+            })
             .then(function(data) {
                 var el = document.getElementById('current-time');
                 if (el && data.current_time) el.textContent = data.current_time;

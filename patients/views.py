@@ -7,7 +7,7 @@ simulation hour -> charttime_hour (hours since admission).
 """
 
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone as dt_tz
 
 from django.shortcuts import render, get_object_or_404
 from django.core.paginator import Paginator
@@ -16,6 +16,7 @@ from django.db.models import Q
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 
+from django.utils import timezone as django_tz
 from django.utils.dateparse import parse_datetime
 
 from .models import UniquePatientProfile, VitalsignHourly, ProcedureeventsHourly, ChemistryHourly, CoagulationHourly, SofaHourly
@@ -382,6 +383,18 @@ def advance_time(request):
 
     POST /patients/advance-time/
     """
+    import traceback
+    try:
+        return _advance_time_impl(request)
+    except Exception as e:
+        return JsonResponse({
+            'error': str(e),
+            'traceback': traceback.format_exc(),
+        }, status=500)
+
+
+def _advance_time_impl(request):
+    """Implementation of advance_time (wrapped for error handling)."""
     # --- Advance the clock ---
     _simulation['current_hour'] += 1
     current_hour = _simulation['current_hour']
@@ -563,14 +576,16 @@ def patient_prediction(request, subject_id, stay_id, hadm_id):
                     hadm_id=s['hadm_id'],
                 )
                 if profile.intime and charttime_dt:
-                    delta = charttime_dt - profile.intime
+                    ct = charttime_dt
+                    if django_tz.is_naive(ct):
+                        ct = django_tz.make_aware(ct, dt_tz.utc)
+                    delta = ct - profile.intime
                     hours_since_admission = round(delta.total_seconds() / 3600, 1)
             except UniquePatientProfile.DoesNotExist:
                 pass
 
-            # Chemistry/coagulation come from the similarity CSV (same source as feature vector)
-            chemistry = s.get('chemistry') or {}
-            coagulation = s.get('coagulation') or {}
+            # Feature matrix values for that hour (from similarity CSV)
+            features = s.get('features') or {}
 
             similar_patients.append({
                 'subject_id': s['subject_id'],
@@ -582,8 +597,7 @@ def patient_prediction(request, subject_id, stay_id, hadm_id):
                 'gender': profile.gender if profile else None,
                 'race': profile.race if profile else None,
                 'hours_since_admission': hours_since_admission,
-                'chemistry': chemistry,
-                'coagulation': coagulation,
+                'features': features,
             })
 
     # Attach display name, time since admission, and risk score (for patient details)
