@@ -1,9 +1,11 @@
 import logging
 from datetime import datetime, timedelta
 from django.http import JsonResponse
+from django.utils import timezone as django_tz
 from django.utils.dateparse import parse_datetime
 from django.views.decorators.http import require_GET
 
+from .models import UniquePatientProfile
 from .services import (
     get_static_feature_sources,
     get_hourly_feature_sources,
@@ -11,6 +13,7 @@ from .services import (
     get_prediction,
     get_similar_patients,
 )
+from .views import _store_similar_patients
 
 logger = logging.getLogger(__name__)
 
@@ -167,12 +170,53 @@ def get_prediction_view(request, subject_id, stay_id, hadm_id):
     })
 
 
+def _enrich_similar_patients(similar):
+    """Add profile data (anchor_age, gender, race, hours_since_admission) to similar patients."""
+    from datetime import timezone as dt_tz
+
+    enriched = []
+    for s in similar:
+        charttime_dt = parse_datetime(s.get('charttime_hour_str', '')) if s.get('charttime_hour_str') else None
+        hours_since_admission = None
+        profile = None
+
+        try:
+            profile = UniquePatientProfile.objects.get(
+                subject_id=s['subject_id'],
+                stay_id=s['stay_id'],
+                hadm_id=s['hadm_id'],
+            )
+            if profile.intime and charttime_dt:
+                ct = charttime_dt
+                if django_tz.is_naive(ct):
+                    ct = django_tz.make_aware(ct, dt_tz.utc)
+                delta = ct - profile.intime
+                hours_since_admission = round(delta.total_seconds() / 3600, 1)
+        except UniquePatientProfile.DoesNotExist:
+            pass
+
+        enriched.append({
+            'subject_id': s['subject_id'],
+            'stay_id': s['stay_id'],
+            'hadm_id': s['hadm_id'],
+            'similarity_score': s['similarity_score'],
+            'had_sepsis': s['had_sepsis'],
+            'anchor_age': profile.anchor_age if profile else None,
+            'gender': profile.gender if profile else None,
+            'race': profile.race if profile else None,
+            'hours_since_admission': hours_since_admission,
+            'features': s.get('features') or {},
+        })
+    return enriched
+
+
 @require_GET
 def get_similar_patients_view(request, subject_id, stay_id, hadm_id):
     """
     GET /patients/<id>/similar-patients
     Returns top 3 most similar patients (by feature vector cosine similarity) from
     non-cohort pool. Query params: as_of (required).
+    Enriched with profile data; stores in session for cache.
     """
     as_of_str = request.GET.get('as_of')
     if not as_of_str:
@@ -189,8 +233,18 @@ def get_similar_patients_view(request, subject_id, stay_id, hadm_id):
         top_k=3,
     )
 
+    enriched = _enrich_similar_patients(similar)
+
+    # Store in session for cache (current_hour from as_of: 2025-03-13T09:00 -> hour 8)
+    current_hour = (as_of.hour - 1) % 24 if as_of.month == 3 and as_of.day == 13 else as_of.hour
+    if as_of.day == 14 and as_of.hour == 0:
+        current_hour = 23
+    _store_similar_patients(
+        request.session, subject_id, stay_id, hadm_id, current_hour, enriched
+    )
+
     return JsonResponse({
         "patient": {"subject_id": subject_id, "stay_id": stay_id, "hadm_id": hadm_id},
         "as_of": as_of_str,
-        "similar_patients": similar,
+        "similar_patients": enriched,
     })

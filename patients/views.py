@@ -7,6 +7,7 @@ simulation hour -> charttime_hour (hours since admission).
 """
 
 import json
+import uuid
 from datetime import datetime, timedelta, timezone as dt_tz
 
 from django.shortcuts import render, get_object_or_404
@@ -26,11 +27,90 @@ from .display_names import get_display_name_mapping
 
 
 # =============================================================================
-# In-memory simulation state — resets when the server restarts
+# Session-based simulation state (per-user)
+# Requires SESSION_ENGINE = db and django.contrib.sessions (run migrate)
+# Session is invalidated on server restart so clock resets to 00:00
 # =============================================================================
-_simulation = {
-    'current_hour': -1,  # -1 = not started yet (ICU is empty)
-}
+
+_server_instance_id = uuid.uuid4().hex  # Changes on each server restart
+
+
+def _is_session_stale(request):
+    """True if session was created before this server instance started."""
+    return request.session.get('_server_id') != _server_instance_id
+
+
+def _clear_stale_session(request):
+    """Wipe simulation state when session is from before server restart."""
+    for key in ('simulation_hour', 'predictions', 'similar_patients', '_server_id'):
+        if key in request.session:
+            del request.session[key]
+    request.session.modified = True
+
+
+def _ensure_session_fresh(request):
+    """If session is stale (server restarted), clear it and mark fresh."""
+    if _is_session_stale(request):
+        _clear_stale_session(request)
+        request.session['_server_id'] = _server_instance_id
+        request.session.modified = True
+
+
+def _prediction_cache_key(subject_id, stay_id, hadm_id, hour):
+    """Serializable key for session predictions dict."""
+    return f"{subject_id}_{stay_id}_{hadm_id}_{hour}"
+
+
+def _get_simulation_hour(request):
+    """Get current simulation hour from session (default -1 = not started)."""
+    _ensure_session_fresh(request)
+    return request.session.get('simulation_hour', -1)
+
+
+def _set_simulation_hour(request, hour):
+    """Store simulation hour in session."""
+    _ensure_session_fresh(request)
+    request.session['simulation_hour'] = hour
+    request.session['_server_id'] = _server_instance_id
+    request.session.modified = True
+
+
+def _get_prediction_cached(session, subject_id, stay_id, hadm_id, hour):
+    """
+    Read prediction from session cache. Returns dict with risk_score, comorbidity_group
+    or None if not cached.
+    """
+    preds = session.get('predictions') or {}
+    key = _prediction_cache_key(subject_id, stay_id, hadm_id, hour)
+    return preds.get(key)
+
+
+def _store_prediction(session, subject_id, stay_id, hadm_id, hour, risk_score, comorbidity_group):
+    """Store prediction in session cache."""
+    preds = session.get('predictions') or {}
+    key = _prediction_cache_key(subject_id, stay_id, hadm_id, hour)
+    preds[key] = {
+        'risk_score': risk_score,
+        'comorbidity_group': comorbidity_group,
+    }
+    session['predictions'] = preds
+    session.modified = True
+
+
+def _get_similar_patients_cached(session, subject_id, stay_id, hadm_id, hour):
+    """Read similar patients from session cache. Returns list or None if not cached."""
+    cache = session.get('similar_patients') or {}
+    key = _prediction_cache_key(subject_id, stay_id, hadm_id, hour)
+    return cache.get(key)
+
+
+def _store_similar_patients(session, subject_id, stay_id, hadm_id, hour, similar_list):
+    """Store similar patients in session cache (avoids re-loading CSV on every page load)."""
+    cache = session.get('similar_patients') or {}
+    key = _prediction_cache_key(subject_id, stay_id, hadm_id, hour)
+    cache[key] = similar_list
+    session['similar_patients'] = cache
+    session.modified = True
 
 
 # =============================================================================
@@ -166,13 +246,13 @@ def patient_list(request):
     """
     Display a list of all patients currently admitted in the simulation.
     URL: /patients/
+    Predictions are read from session cache (populated only when +1 is clicked).
     """
-    current_hour = _simulation['current_hour']
+    current_hour = _get_simulation_hour(request)
     patients = _get_admitted_patients(current_hour)
 
-    # Attach display names and predictions first
+    # Attach display names and predictions from session cache
     name_mapping = get_display_name_mapping()
-    as_of_dt = _prediction_as_of_dt(current_hour)
     
     patients_list = []
     for p in patients:
@@ -181,18 +261,15 @@ def patient_list(request):
             f"Patient {p.subject_id}"
         )
         
-        # Fetch prediction if simulation has started
-        if as_of_dt:
-            pred = get_prediction(
-                subject_id=p.subject_id,
-                stay_id=p.stay_id,
-                hadm_id=p.hadm_id,
-                as_of=as_of_dt,
-                window_hours=24,
+        # Read prediction from session cache (no model call on page load)
+        if current_hour >= 0:
+            cached = _get_prediction_cached(
+                request.session, p.subject_id, p.stay_id, p.hadm_id, current_hour
             )
-            if pred.get('ok'):
-                p.risk_score = pred.get('risk_score') * 100
-                p.comorbidity_group = pred.get('comorbidity_group')
+            if cached:
+                rs = cached.get('risk_score')
+                p.risk_score = (rs * 100) if rs is not None else None
+                p.comorbidity_group = cached.get('comorbidity_group')
             else:
                 p.risk_score = None
                 p.comorbidity_group = None
@@ -227,7 +304,7 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
         hadm_id=hadm_id
     )
 
-    current_hour = _simulation['current_hour']
+    current_hour = _get_simulation_hour(request)
     vitalsigns_json = '[]'
     chemistry_json = '[]'
     coagulation_json = '[]'
@@ -343,17 +420,15 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
     )
     patient.time_since_admission, _ = _time_since_admission(patient.intime, current_hour)
 
-    # Fetch prediction for Sepsis Prediction link (same as index)
+    # Read prediction from session cache (no model call on page load)
     patient.risk_score = None
-    if prediction_as_of_iso:
-        as_of_dt = _prediction_as_of_dt(current_hour)
-        if as_of_dt:
-            pred = get_prediction(
-                patient.subject_id, patient.stay_id, patient.hadm_id,
-                as_of=as_of_dt, window_hours=24,
-            )
-            if pred.get('ok'):
-                patient.risk_score = pred.get('risk_score') * 100
+    if current_hour >= 0:
+        cached = _get_prediction_cached(
+            request.session, patient.subject_id, patient.stay_id, patient.hadm_id, current_hour
+        )
+        if cached:
+            rs = cached.get('risk_score')
+            patient.risk_score = (rs * 100) if rs is not None else None
 
     context = {
         'patient': patient,
@@ -395,13 +470,13 @@ def advance_time(request):
 
 def _advance_time_impl(request):
     """Implementation of advance_time (wrapped for error handling)."""
-    # --- Advance the clock ---
-    _simulation['current_hour'] += 1
-    current_hour = _simulation['current_hour']
+    # --- Advance the clock (session-based) ---
+    current_hour = _get_simulation_hour(request) + 1
+    _set_simulation_hour(request, current_hour)
 
     # Cap at hour 23
     if current_hour > 23:
-        _simulation['current_hour'] = 23
+        _set_simulation_hour(request, 23)
         return JsonResponse({
             'error': 'Cannot advance past 23:00',
             'current_hour': 23,
@@ -468,8 +543,8 @@ def _advance_time_impl(request):
         else:
             procedures_data = []
 
-    # --- 5. Score ALL admitted patients at this hour ---
-    # Use patient-specific as_of (actual charttime) for DB queries; display stays March 13
+    # --- 5. Score ALL admitted patients at this hour (model runs ONLY here) ---
+    # Store results in session so page loads read from cache
     model_scoring_table = []
     display_as_of = _prediction_as_of_dt(current_hour)  # For response display
     for patient in admitted_patients:
@@ -483,13 +558,21 @@ def _advance_time_impl(request):
                 window_hours=24,
             )
             if pred.get('ok'):
+                risk_score = pred.get('risk_score')
+                comorbidity_group = pred.get('comorbidity_group')
+                _store_prediction(
+                    request.session,
+                    patient['subject_id'], patient['stay_id'], patient['hadm_id'],
+                    current_hour,
+                    risk_score, comorbidity_group,
+                )
                 model_scoring_table.append({
                     'subject_id': patient['subject_id'],
                     'stay_id': patient['stay_id'],
                     'hadm_id': patient['hadm_id'],
                     'as_of': display_as_of.isoformat() if display_as_of else None,
-                    'risk_score': pred.get('risk_score'),
-                    'comorbidity_group': pred.get('comorbidity_group'),
+                    'risk_score': risk_score,
+                    'comorbidity_group': comorbidity_group,
                     'ok': True,
                 })
             else:
@@ -524,6 +607,7 @@ def patient_prediction(request, subject_id, stay_id, hadm_id):
     """
     Display prediction details for a specific patient.
     URL: /patients/<subject_id>/<stay_id>/<hadm_id>/prediction-view/
+    Predictions read from session cache (populated only when +1 is clicked).
     """
     patient = get_object_or_404(
         UniquePatientProfile,
@@ -532,73 +616,36 @@ def patient_prediction(request, subject_id, stay_id, hadm_id):
         hadm_id=hadm_id
     )
 
-    current_hour = _simulation['current_hour']
+    current_hour = _get_simulation_hour(request)
     as_of_dt = _prediction_as_of_dt(current_hour)
 
-    # Fetch prediction
+    # Read prediction from session cache (no model call on page load)
     risk_score = None
     comorbidity_group = None
     prediction_error = None
 
-    if as_of_dt:
-        pred = get_prediction(
-            subject_id=subject_id,
-            stay_id=stay_id,
-            hadm_id=hadm_id,
-            as_of=as_of_dt,
-            window_hours=24,
+    if current_hour >= 0:
+        cached = _get_prediction_cached(
+            request.session, subject_id, stay_id, hadm_id, current_hour
         )
-        if pred.get('ok'):
-            risk_score = pred.get('risk_score')
-            comorbidity_group = pred.get('comorbidity_group')
+        if cached:
+            risk_score = cached.get('risk_score')
+            comorbidity_group = cached.get('comorbidity_group')
         else:
-            prediction_error = pred.get('error', 'Prediction failed')
+            prediction_error = 'No prediction yet. Advance time (+1) to compute.'
 
-    # Similar patients (from non-cohort CSV, cosine similarity)
+    # Similar patients: use cache if available; otherwise load async (see template)
+    # CSV load + similarity is slow — we skip it here and let the client fetch via API
     similar_patients = []
+    load_similar_async = False
     if as_of_dt:
-        similar = get_similar_patients(
-            subject_id=subject_id,
-            stay_id=stay_id,
-            hadm_id=hadm_id,
-            as_of=as_of_dt,
-            top_k=3,
+        cached_similar = _get_similar_patients_cached(
+            request.session, subject_id, stay_id, hadm_id, current_hour
         )
-        for s in similar:
-            charttime_dt = parse_datetime(s.get('charttime_hour_str', '')) if s.get('charttime_hour_str') else None
-            hours_since_admission = None
-            profile = None
-
-            try:
-                profile = UniquePatientProfile.objects.get(
-                    subject_id=s['subject_id'],
-                    stay_id=s['stay_id'],
-                    hadm_id=s['hadm_id'],
-                )
-                if profile.intime and charttime_dt:
-                    ct = charttime_dt
-                    if django_tz.is_naive(ct):
-                        ct = django_tz.make_aware(ct, dt_tz.utc)
-                    delta = ct - profile.intime
-                    hours_since_admission = round(delta.total_seconds() / 3600, 1)
-            except UniquePatientProfile.DoesNotExist:
-                pass
-
-            # Feature matrix values for that hour (from similarity CSV)
-            features = s.get('features') or {}
-
-            similar_patients.append({
-                'subject_id': s['subject_id'],
-                'stay_id': s['stay_id'],
-                'hadm_id': s['hadm_id'],
-                'similarity_score': s['similarity_score'],
-                'had_sepsis': s['had_sepsis'],
-                'anchor_age': profile.anchor_age if profile else None,
-                'gender': profile.gender if profile else None,
-                'race': profile.race if profile else None,
-                'hours_since_admission': hours_since_admission,
-                'features': features,
-            })
+        if cached_similar is not None:
+            similar_patients = cached_similar
+        else:
+            load_similar_async = True  # Client will fetch; page loads fast
 
     # Attach display name, time since admission, and risk score (for patient details)
     name_mapping = get_display_name_mapping()
@@ -612,7 +659,7 @@ def patient_prediction(request, subject_id, stay_id, hadm_id):
     # Sepsis3 suspected_infection_time (use time only: hour + minute)
     suspected_infection_time = get_sepsis3_suspected_infection_time(subject_id, stay_id)
 
-    # Predictions-by-hour for chart + model/actual sepsis vertical lines
+    # Predictions-by-hour for chart: read from session cache (no model calls)
     predictions_json = '[]'
     model_sepsis_hour_index = None
     actual_sepsis_x = None
@@ -623,14 +670,10 @@ def patient_prediction(request, subject_id, stay_id, hadm_id):
             as_of_h = _prediction_as_of_dt(h)
             if not as_of_h:
                 continue
-            pred = get_prediction(
-                subject_id=subject_id,
-                stay_id=stay_id,
-                hadm_id=hadm_id,
-                as_of=as_of_h,
-                window_hours=24,
+            cached = _get_prediction_cached(
+                request.session, subject_id, stay_id, hadm_id, h
             )
-            rs = pred.get('risk_score')
+            rs = cached.get('risk_score') if cached else None
             pct = (rs * 100) if rs is not None else None
             hour_label = f"{as_of_h.hour:02d}:{as_of_h.minute:02d}"
             predictions_list.append({"hour_label": hour_label, "hour_val": h + 1, "risk_score": pct})
@@ -699,6 +742,7 @@ def patient_prediction(request, subject_id, stay_id, hadm_id):
         'comorbidity_group': comorbidity_group,
         'prediction_error': prediction_error,
         'similar_patients': similar_patients,
+        'load_similar_async': load_similar_async,
         'current_hour': current_hour,
         'current_time_display': _display_time(current_hour),
         'predictions_json': predictions_json,
