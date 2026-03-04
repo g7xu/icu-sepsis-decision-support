@@ -28,9 +28,33 @@
         var config = document.getElementById('app-config');
         if (!advanceBtn || !config) return;
         var ds = config.dataset;
+
+        // Cross-tab sync: when +1 is clicked in any tab, all tabs show "..." and reload
+        var channel = typeof BroadcastChannel !== 'undefined'
+            ? new BroadcastChannel('icu-sepsis-advance')
+            : null;
+
+        function setAdvanceLoading(loading) {
+            if (advanceBtn) {
+                advanceBtn.disabled = loading;
+                advanceBtn.textContent = loading ? '...' : '+1';
+            }
+        }
+
+        if (channel) {
+            channel.onmessage = function(e) {
+                if (e.data === 'advance_started') {
+                    setAdvanceLoading(true);
+                } else if (e.data === 'advance_done') {
+                    location.reload();
+                }
+            };
+        }
+
         advanceBtn.addEventListener('click', function() {
-            advanceBtn.disabled = true;
-            advanceBtn.textContent = '...';
+            setAdvanceLoading(true);
+            if (channel) channel.postMessage('advance_started');
+
             fetch(ds.advanceUrl, {
                 method: 'POST',
                 headers: { 'X-CSRFToken': ds.csrfToken },
@@ -50,11 +74,11 @@
             .then(function(data) {
                 var el = document.getElementById('current-time');
                 if (el && data.current_time) el.textContent = data.current_time;
+                if (channel) channel.postMessage('advance_done');
                 location.reload();
             })
             .catch(function(err) {
-                advanceBtn.disabled = false;
-                advanceBtn.textContent = '+1';
+                setAdvanceLoading(false);
                 alert('Error advancing time: ' + err.message);
             });
         });
