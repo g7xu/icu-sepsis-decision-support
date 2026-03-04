@@ -46,6 +46,11 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'config.urls'
 
+# Session: use database backend for prediction cache (avoids cookie size limits)
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'
+# Reset simulation on new browser session (session expires when browser closes)
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
