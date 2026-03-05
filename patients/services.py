@@ -26,6 +26,9 @@ SIMILARITY_FEATURE_COLUMNS = [
     "cardiovascular_24hours", "cns_24hours", "renal_24hours", "sofa_24hours",
 ]
 
+# Columns to exclude from z-score standardization (e.g. time-based features)
+STANDARDIZATION_EXCLUDE = frozenset({"hours_since_admission", "charttime_hour"})
+
 # Cache for loaded similarity matrix (lazy load, cleared on server restart)
 _similarity_cache = None
 
@@ -921,11 +924,15 @@ def _row_to_feature_array(row):
 
 
 def _parse_float(val):
-    """Parse CSV value to float or None."""
-    if val is None or val == "":
+    """Parse CSV value to float or None. Treats null/nan/empty as None."""
+    if val is None:
+        return None
+    s = str(val).strip().lower()
+    if s in ("", "null", "nan", "n/a", "na", "none", "."):
         return None
     try:
-        return float(val)
+        parsed = float(val)
+        return None if (parsed != parsed or abs(parsed) == np.inf) else parsed
     except (TypeError, ValueError):
         return None
 
@@ -940,7 +947,7 @@ def _row_to_feature_dict(row, exclude_keys=None):
         parsed = _parse_float(v)
         if parsed is not None:
             out[k] = round(parsed, 2)
-        elif v and str(v).strip():
+        elif v and str(v).strip() and str(v).strip().lower() not in ("null", "nan", "n/a"):
             out[k] = str(v).strip()
         else:
             out[k] = None
@@ -976,15 +983,23 @@ def _load_similarity_matrix(csv_path):
     if not rows:
         return None
     matrix = np.vstack(rows)
-    _similarity_cache = (meta, matrix, feature_rows)
+    # Z-score standardize per feature (exclude time-based columns)
+    mean = np.mean(matrix, axis=0)
+    std = np.std(matrix, axis=0)
+    std = np.where(std < 1e-10, 1.0, std)
+    matrix_std = (matrix - mean) / std
+    for j, col in enumerate(SIMILARITY_FEATURE_COLUMNS):
+        if col in STANDARDIZATION_EXCLUDE:
+            matrix_std[:, j] = matrix[:, j]
+    _similarity_cache = (meta, matrix_std, feature_rows, mean, std)
     return _similarity_cache
 
 
 def get_similar_patients(subject_id, stay_id, hadm_id, as_of, top_k=3):
     """
-    Find top_k most similar patients (by cosine similarity of feature vector) from
-    the non-cohort CSV. Returns list of dicts with subject_id, stay_id, hadm_id,
-    similarity_score, had_sepsis.
+    Find top_k most similar patients (by cosine similarity of z-score standardized
+    feature vectors) from the non-cohort CSV. Returns list of dicts with
+    subject_id, stay_id, hadm_id, similarity_score, had_sepsis.
     """
     csv_path = getattr(settings, "SIMILARITY_CSV_PATH", None) or "static/similarity_matrix.csv"
     base = Path(settings.BASE_DIR) if hasattr(settings, "BASE_DIR") else Path.cwd()
@@ -1011,16 +1026,20 @@ def get_similar_patients(subject_id, stay_id, hadm_id, as_of, top_k=3):
         logger.warning("Similarity: failed to load CSV at %s", resolved_path)
         return []
 
-    meta, matrix, feature_rows = cached
+    meta, matrix_std, feature_rows, mean, std = cached
     current_arr = _row_to_feature_array(vec_row)
-    current_norm = np.linalg.norm(current_arr)
+    current_std = (current_arr - mean) / std
+    for j, col in enumerate(SIMILARITY_FEATURE_COLUMNS):
+        if col in STANDARDIZATION_EXCLUDE:
+            current_std[j] = current_arr[j]
+    current_norm = np.linalg.norm(current_std)
     if current_norm < 1e-10:
         logger.warning("Similarity: zero feature vector for patient %s/%s", subject_id, stay_id)
         return []
 
-    # Cosine similarity: (matrix @ current) / (row_norms * current_norm)
-    dots = matrix @ current_arr
-    row_norms = np.linalg.norm(matrix, axis=1)
+    # Cosine similarity on standardized vectors (scale-invariant, correlation-like)
+    dots = matrix_std @ current_std
+    row_norms = np.linalg.norm(matrix_std, axis=1)
     row_norms = np.where(row_norms < 1e-10, 1e-10, row_norms)
     sims = dots / (row_norms * current_norm)
 
