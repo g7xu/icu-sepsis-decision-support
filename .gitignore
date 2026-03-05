@@ -57,3 +57,7 @@ terraform/*.pem
 
 # SSL certificates (Cloudflare Origin Cert — never commit private keys)
 ssl/
+
+# TODO: temporary ignore
+icu-sepsis-decision-support_team/
+mimic-iv/
