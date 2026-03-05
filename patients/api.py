@@ -8,6 +8,7 @@ from .services import (
     get_hourly_feature_sources,
     assemble_hourly_wide_table,
     get_prediction,
+    batch_predict,
 )
 
 def _resolve_time_window(request, window_hours_default=6):
@@ -160,3 +161,34 @@ def get_prediction_view(request, subject_id, stay_id, hadm_id):
         "risk_score": result["risk_score"],
         "latent_class": result["latent_class"],
     })
+
+
+@require_GET
+def get_batch_predictions(request):
+    """
+    GET /patients/batch-predictions/?as_of=...&window_hours=24
+    Returns risk scores for all patients currently in sim_patients.
+    """
+    from .models import SimPatient
+
+    as_of_str = request.GET.get('as_of')
+    window_hours = int(request.GET.get('window_hours', 24))
+    if not as_of_str:
+        return JsonResponse({"error": "Provide as_of query param."}, status=400)
+    as_of = parse_datetime(as_of_str)
+    if not as_of:
+        return JsonResponse({"error": "Invalid as_of format."}, status=400)
+
+    patients = SimPatient.objects.all()
+    triples = [(p.subject_id, p.stay_id, p.hadm_id) for p in patients]
+    preds = batch_predict(triples, as_of, window_hours)
+
+    results = {}
+    for (subject_id, stay_id, hadm_id), result in preds.items():
+        key = f"{subject_id}_{stay_id}_{hadm_id}"
+        results[key] = {
+            "risk_score": result.get("risk_score"),
+            "latent_class": result.get("latent_class"),
+        }
+
+    return JsonResponse({"predictions": results})

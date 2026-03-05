@@ -21,4 +21,7 @@ urlpatterns = [
 
     # Prediction (risk_score + comorbidity_group for patient view routing)
     path('<int:subject_id>/<int:stay_id>/<int:hadm_id>/prediction', api.get_prediction_view, name='prediction'),
+
+    # Batch predictions for patient list
+    path('batch-predictions/', api.get_batch_predictions, name='batch_predictions'),
 ]

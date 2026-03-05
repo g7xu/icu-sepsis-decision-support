@@ -251,6 +251,28 @@ def demo_reset(request):
 
 
 @require_GET
+def demo_batch_predictions(request):
+    """Return cached predictions for all admitted patients at the current hour."""
+    state = _get_sim_state(request)
+    current_hour = state['current_hour']
+
+    if current_hour < 0:
+        return JsonResponse({"predictions": {}})
+
+    patients = demo_cache.get_patients_admitted_up_to(current_hour)
+    results = {}
+    for p in patients:
+        pred = demo_cache.get_prediction_at(p['stay_id'], current_hour)
+        key = f"{p['subject_id']}_{p['stay_id']}_{p['hadm_id']}"
+        results[key] = {
+            "risk_score": pred.get("risk_score"),
+            "latent_class": pred.get("latent_class"),
+        }
+
+    return JsonResponse({"predictions": results})
+
+
+@require_GET
 def demo_simulation_status(request):
     state = _get_sim_state(request)
     return JsonResponse({

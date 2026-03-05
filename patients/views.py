@@ -38,6 +38,7 @@ def patient_list(request):
         'cohort_active': get_cohort_filter() is not None,
         'current_hour': 23,
         'current_time_display': '',
+        'prediction_as_of_iso': _prediction_as_of_iso(23),
         'show_sim_dock': False,
     }
     return render(request, 'patients/index.html', context)

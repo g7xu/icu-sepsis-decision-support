@@ -19,4 +19,5 @@ urlpatterns = [
     path('pause/', demo_views.demo_pause, name='pause'),
     path('reset/', demo_views.demo_reset, name='reset'),
     path('simulation-status/', demo_views.demo_simulation_status, name='simulation_status'),
+    path('batch-predictions/', demo_views.demo_batch_predictions, name='batch_predictions'),
 ]
