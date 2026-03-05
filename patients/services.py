@@ -21,6 +21,8 @@ DERIVED_TABLE_CANDIDATES = {
     ],
     "sofa_hourly": [
         "simulation.sim_sofa_hourly",
+        "fisi9t_sofa_hourly",
+        "mimiciv_derived.fisi9t_sofa_hourly",
         "sofa_hourly",
         "mimiciv_derived.sofa_hourly",
         "sofa",
