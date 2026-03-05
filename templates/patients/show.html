@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Patient {{ patient.subject_id }} - ICU Sepsis Decision Support{% endblock %}
+{% block title %}{{ patient.display_name }} - ICU Sepsis Decision Support{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/charts.css' %}">
@@ -32,8 +32,8 @@
     </div>
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem;">
         <div>
-            <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.25rem;">Subject ID</p>
-            <p style="font-size: 1.25rem; font-weight: 600;">{{ patient.subject_id }}</p>
+            <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.25rem;">Patient</p>
+            <p style="font-size: 1.25rem; font-weight: 600;">{{ patient.display_name }}</p>
         </div>
         <div>
             <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.25rem;">Stay ID</p>

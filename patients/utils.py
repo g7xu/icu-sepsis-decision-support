@@ -5,6 +5,8 @@ To change the simulation date, update SIM_YEAR/SIM_MONTH/SIM_DAY here —
 all derived labels and ISO strings update automatically.
 """
 
+from faker import Faker
+
 SIM_YEAR  = 2025
 SIM_MONTH = 3
 SIM_DAY   = 13
@@ -30,6 +32,13 @@ def display_time(current_hour: int) -> str:
     elif display_hour >= 24:
         return f"{SIM_DATE_NEXT_LABEL} 00:00"
     return f"{SIM_DATE_LABEL} {display_hour:02d}:00"
+
+
+def get_display_name(subject_id, stay_id, hadm_id):
+    """Deterministic pseudonymized name for a patient triple."""
+    fake = Faker()
+    fake.seed_instance(hash((subject_id, stay_id, hadm_id)))
+    return fake.name()
 
 
 def prediction_as_of_iso(current_hour: int) -> str | None:

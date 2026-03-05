@@ -20,22 +20,25 @@ from .models import (
     SimSofaHourly,
 )
 from .cohort import get_cohort_filter
-from .utils import prediction_as_of_iso as _prediction_as_of_iso
+from .utils import prediction_as_of_iso as _prediction_as_of_iso, get_display_name
 
 
 def patient_list(request):
     """Display all admitted patients from sim_patient table."""
-    patients = SimPatient.objects.all().order_by('subject_id')
+    patients = list(SimPatient.objects.all().order_by('subject_id'))
+    for p in patients:
+        p.display_name = get_display_name(p.subject_id, p.stay_id, p.hadm_id)
 
     paginator = Paginator(patients, 25)
     page_obj = paginator.get_page(request.GET.get('page'))
 
     context = {
         'page_obj': page_obj,
-        'total_patients': patients.count(),
+        'total_patients': len(patients),
         'cohort_active': get_cohort_filter() is not None,
         'current_hour': 23,
         'current_time_display': '',
+        'prediction_as_of_iso': _prediction_as_of_iso(23),
         'show_sim_dock': False,
     }
     return render(request, 'patients/index.html', context)
@@ -49,6 +52,7 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
         stay_id=stay_id,
         hadm_id=hadm_id,
     )
+    patient.display_name = get_display_name(subject_id, stay_id, hadm_id)
 
     vitalsigns_qs = SimVitalsignHourly.objects.filter(
         subject_id=subject_id,

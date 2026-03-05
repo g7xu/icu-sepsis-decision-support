@@ -15,7 +15,7 @@ from django.views.decorators.http import require_POST, require_GET
 
 from . import demo_cache
 from .cohort import get_cohort_filter
-from .utils import display_time as _display_time, prediction_as_of_iso as _prediction_as_of_iso
+from .utils import display_time as _display_time, prediction_as_of_iso as _prediction_as_of_iso, get_display_name
 
 
 # ---------------------------------------------------------------------------
@@ -55,6 +55,8 @@ def demo_patient_list(request):
         patients = []
     else:
         patients = demo_cache.get_patients_admitted_up_to(current_hour)
+        for p in patients:
+            p['display_name'] = get_display_name(p['subject_id'], p['stay_id'], p['hadm_id'])
 
     paginator = Paginator(patients, 25)
     page_obj = paginator.get_page(request.GET.get('page'))
@@ -152,6 +154,7 @@ def demo_patient_detail(request, subject_id, stay_id, hadm_id):
         ]
 
     # Build a patient-like object for the template
+    patient['display_name'] = get_display_name(subject_id, stay_id, hadm_id)
     patient_obj = _PatientProxy(patient)
 
     context = {
@@ -245,6 +248,28 @@ def demo_reset(request):
     state = dict(_DEFAULT_SIM_STATE)
     _save_sim_state(request, state)
     return JsonResponse({'status': 'reset', 'current_hour': -1})
+
+
+@require_GET
+def demo_batch_predictions(request):
+    """Return cached predictions for all admitted patients at the current hour."""
+    state = _get_sim_state(request)
+    current_hour = state['current_hour']
+
+    if current_hour < 0:
+        return JsonResponse({"predictions": {}})
+
+    patients = demo_cache.get_patients_admitted_up_to(current_hour)
+    results = {}
+    for p in patients:
+        pred = demo_cache.get_prediction_at(p['stay_id'], current_hour)
+        key = f"{p['subject_id']}_{p['stay_id']}_{p['hadm_id']}"
+        results[key] = {
+            "risk_score": pred.get("risk_score"),
+            "latent_class": pred.get("latent_class"),
+        }
+
+    return JsonResponse({"predictions": results})
 
 
 @require_GET

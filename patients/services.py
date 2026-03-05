@@ -420,6 +420,25 @@ def get_prediction(subject_id, stay_id, hadm_id, as_of, window_hours=24):
     return _get_prediction_stub(subject_id, stay_id, hadm_id, as_of)
 
 
+def batch_predict(patient_triples, as_of, window_hours=24):
+    """Predict risk scores for multiple patients.
+
+    Args:
+        patient_triples: list of (subject_id, stay_id, hadm_id) tuples
+        as_of: datetime for prediction window end
+        window_hours: look-back window (default 24)
+
+    Returns:
+        dict mapping (subject_id, stay_id, hadm_id) → {ok, risk_score, latent_class}
+    """
+    results = {}
+    for subject_id, stay_id, hadm_id in patient_triples:
+        results[(subject_id, stay_id, hadm_id)] = get_prediction(
+            subject_id, stay_id, hadm_id, as_of, window_hours
+        )
+    return results
+
+
 def _get_prediction_stub(subject_id, stay_id, hadm_id, as_of):
     """Stub prediction when model artifacts are not loaded."""
     import hashlib

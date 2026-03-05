@@ -34,6 +34,9 @@ chemistry: dict[tuple[int, int], list[dict]] = {}
 coagulation: dict[tuple[int, int], list[dict]] = {}
 sofa: dict[tuple[int, int], list[dict]] = {}
 
+# {(stay_id, hour_int): {ok, risk_score, latent_class}}
+predictions: dict[tuple[int, int], dict] = {}
+
 
 def load():
     """Load all sim_cache_* tables into memory. Idempotent."""
@@ -73,6 +76,8 @@ def load():
         'cardiovascular', 'cns', 'renal',
     ])
 
+    _precompute_predictions()
+
     _loaded = True
     total_patients = len(patients_by_stay)
     logger.info("[demo_cache] Loaded %d patients into memory", total_patients)
@@ -96,6 +101,11 @@ def get_patient(subject_id: int, stay_id: int, hadm_id: int) -> dict | None:
     if p and p['subject_id'] == subject_id and p['hadm_id'] == hadm_id:
         return p
     return None
+
+
+def get_prediction_at(stay_id: int, hour: int) -> dict:
+    """Return cached prediction dict for a patient at a given hour."""
+    return predictions.get((stay_id, hour), {"ok": False, "risk_score": None})
 
 
 def get_data_up_to(cache_dict: dict, stay_id: int, hour: int) -> list[dict]:
@@ -140,6 +150,55 @@ def _load_hourly(table: str, target: dict, columns: list[str]):
         key = (row['stay_id'], hour)
         target.setdefault(key, []).append(row)
     logger.info("[demo_cache] %s: %d rows", table, len(rows))
+
+
+def _precompute_predictions():
+    """Pre-compute predictions for all patients at each hour (0-23)."""
+    from . import model_local
+    from .services import _get_prediction_stub, _normalize_hour
+
+    count = 0
+    for stay_id, patient in patients_by_stay.items():
+        subject_id = patient['subject_id']
+        hadm_id = patient['hadm_id']
+
+        for hour in range(24):
+            # Build source rows from in-memory cache (up to this hour)
+            source_data = {}
+
+            # Vitals (required anchor)
+            vitals_rows = []
+            for h in range(hour + 1):
+                vitals_rows.extend(vitals.get((stay_id, h), []))
+            if not vitals_rows:
+                continue
+            source_data['vitals_hourly'] = vitals_rows[-1]  # latest row
+
+            # Optional sources: chemistry, coagulation, sofa
+            for source_name, cache_dict in [
+                ('chemistry_hourly', chemistry),
+                ('coagulation_hourly', coagulation),
+                ('sofa_hourly', sofa),
+            ]:
+                rows = []
+                for h in range(hour + 1):
+                    rows.extend(cache_dict.get((stay_id, h), []))
+                if rows:
+                    source_data[source_name] = rows[-1]
+
+            # Predict
+            if model_local.is_available():
+                result = model_local.predict(source_data)
+            else:
+                # Build as_of datetime for stub
+                from .utils import SIM_YEAR, SIM_MONTH, SIM_DAY
+                as_of = datetime(SIM_YEAR, SIM_MONTH, SIM_DAY, hour)
+                result = _get_prediction_stub(subject_id, stay_id, hadm_id, as_of)
+
+            predictions[(stay_id, hour)] = result
+            count += 1
+
+    logger.info("[demo_cache] Pre-computed %d predictions", count)
 
 
 def _run_query(sql: str) -> list[dict]:
