@@ -193,7 +193,7 @@
             {% if sp.features %}
             <div class="mt-3 pt-3 border-t border-gray-200">
                 <p class="text-xs font-medium text-gray-600 mb-2">Feature matrix (hour)</p>
-                <div class="text-xs space-y-0.5 max-h-48 overflow-y-auto font-mono">
+                <div class="similar-cases-feature-scroll text-xs space-y-0.5 max-h-48 overflow-y-auto font-mono">
                     {% for key, val in sp.features.items %}
                     <div class="flex justify-between gap-2">
                         <span class="text-gray-600">{{ key }}</span>
@@ -212,6 +212,23 @@
     </div>
 </div>
 
+<script>
+function syncSimilarCasesScroll() {
+    var els = document.querySelectorAll('.similar-cases-feature-scroll');
+    if (els.length < 2) return;
+    els.forEach(function(el) {
+        el.removeEventListener('scroll', el._similarScrollHandler);
+        el._similarScrollHandler = function() {
+            var top = el.scrollTop;
+            els.forEach(function(other) {
+                if (other !== el) other.scrollTop = top;
+            });
+        };
+        el.addEventListener('scroll', el._similarScrollHandler);
+    });
+}
+document.addEventListener('DOMContentLoaded', syncSimilarCasesScroll);
+</script>
 {% if load_similar_async and prediction_as_of_iso %}
 <script>
 (function() {
@@ -239,7 +256,7 @@
                 var sepsis = sp.had_sepsis ? '<span class="text-red-600">Yes</span>' : '<span class="text-green-600">No</span>';
                 var featuresHtml = '';
                 if (sp.features && Object.keys(sp.features).length) {
-                    featuresHtml = '<div class="mt-3 pt-3 border-t border-gray-200"><p class="text-xs font-medium text-gray-600 mb-2">Feature matrix (hour)</p><div class="text-xs space-y-0.5 max-h-48 overflow-y-auto font-mono">';
+                    featuresHtml = '<div class="mt-3 pt-3 border-t border-gray-200"><p class="text-xs font-medium text-gray-600 mb-2">Feature matrix (hour)</p><div class="similar-cases-feature-scroll text-xs space-y-0.5 max-h-48 overflow-y-auto font-mono">';
                     for (var k in sp.features) {
                         var v = sp.features[k] != null ? sp.features[k] : '—';
                         featuresHtml += '<div class="flex justify-between gap-2"><span class="text-gray-600">' + k + '</span><span>' + v + '</span></div>';
@@ -251,6 +268,7 @@
             });
             html += '</div>';
             container.innerHTML = html;
+            syncSimilarCasesScroll();
         })
         .catch(function(err) {
             container.innerHTML = '<p class="text-red-600">Failed to load similar patients: ' + err.message + '</p>';
