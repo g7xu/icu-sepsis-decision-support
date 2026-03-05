@@ -7,6 +7,10 @@ patients/model_artifacts/*.joblib
 *.pem
 terraform/
 
+# Reference repos (not needed at runtime)
+icu-sepsis-decision-support_team/
+mimic-iv/
+
 # Version control
 .git/
 

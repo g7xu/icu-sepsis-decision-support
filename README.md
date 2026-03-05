@@ -46,6 +46,29 @@ Then open `http://localhost:8000/patients/`. See [RUNNING.md](RUNNING.md) for de
 
 The `scripts/` directory contains SQL for regular **views** (no materialized views — zero extra storage). Run them in order on your MIMIC-IV database. See [SETUP_VIEWS.md](SETUP_VIEWS.md) for the full procedure.
 
+## Deployment (AWS)
+
+### Prerequisites
+
+- AWS CLI configured with ECR push permissions
+- Terraform applied (`terraform/` — creates ECR, EC2, RDS)
+- Docker running locally
+- `.env` with `TF_VAR_db_password` and `TF_VAR_django_secret_key`
+- Cloudflare Origin Certificate at `ssl/cloudflare-origin.pem` and `ssl/cloudflare-origin.key`
+
+### Deploy
+
+```bash
+./deploy.sh              # Build, push to ECR, deploy to EC2
+./deploy.sh --build-only # Build and push to ECR only (no SSH deploy)
+```
+
+This builds a `linux/amd64` image, pushes to ECR, SSHs into EC2, pulls the image, runs migrations, and configures Nginx with SSL. The app URL is printed on completion.
+
+### Infrastructure
+
+See `terraform/README.md` for provisioning RDS, ECR, and EC2.
+
 ## Environment
 
 Copy `.env.example` to `.env` and fill in your values. For AWS RDS, see [SETUP_VIEWS.md](SETUP_VIEWS.md) Step 2.
