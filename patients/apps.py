@@ -22,3 +22,8 @@ class PatientsConfig(AppConfig):
             model_local.load_model()
         except Exception as exc:
             logger.warning("[PatientsConfig] Failed to load prediction model: %s", exc)
+        try:
+            from . import similarity
+            similarity.load_reference_matrix()
+        except Exception as exc:
+            logger.warning("[PatientsConfig] Failed to load similarity reference matrix: %s", exc)

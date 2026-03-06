@@ -14,6 +14,7 @@ from django.views.decorators.http import require_POST, require_GET
 
 from . import demo_cache
 from .cohort import get_cohort_filter
+from .similarity import build_vector_from_sim_data, get_similar_patients
 from .utils import display_time as _display_time, prediction_as_of_iso as _prediction_as_of_iso, get_display_name
 
 
@@ -271,6 +272,29 @@ def demo_prediction_detail(request, subject_id, stay_id, hadm_id):
         'sofa_time': sepsis3.get('sofa_time'),
     }, cls=DjangoJSONEncoder)
 
+    # Similar patients — build current feature vector from demo_cache
+    similar_patients = []
+    if current_hour >= 0:
+        try:
+            vitals_rows = demo_cache.get_data_up_to(demo_cache.vitals, stay_id, current_hour)
+            if vitals_rows:
+                latest_vitals = vitals_rows[-1]
+                chem_rows = demo_cache.get_data_up_to(demo_cache.chemistry, stay_id, current_hour)
+                coag_rows = demo_cache.get_data_up_to(demo_cache.coagulation, stay_id, current_hour)
+                sofa_rows = demo_cache.get_data_up_to(demo_cache.sofa, stay_id, current_hour)
+
+                current_vector = build_vector_from_sim_data(
+                    latest_vitals,
+                    chem_rows[-1] if chem_rows else None,
+                    coag_rows[-1] if coag_rows else None,
+                    sofa_rows[-1] if sofa_rows else None,
+                )
+                similar_patients = get_similar_patients(
+                    current_vector, subject_id, stay_id,
+                )
+        except Exception:
+            pass
+
     patient['display_name'] = get_display_name(subject_id, stay_id, hadm_id)
     patient_obj = _PatientProxy(patient)
 
@@ -285,6 +309,7 @@ def demo_prediction_detail(request, subject_id, stay_id, hadm_id):
         'latest_sofa': latest_sofa,
         'sepsis3_json': sepsis3_json,
         'model_onset_hour': model_onset_hour,
+        'similar_patients': similar_patients,
         'current_hour': current_hour,
         'current_time_display': _display_time(current_hour),
         'auto_play': state['auto_play'],

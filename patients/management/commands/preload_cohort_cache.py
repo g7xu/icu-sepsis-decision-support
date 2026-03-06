@@ -29,34 +29,38 @@ class Command(BaseCommand):
         self.stdout.write("=== preload_cohort_cache ===")
         self.stdout.write(f"Cohort size: {len(COHORT_STAY_IDS)} patients")
 
-        self.stdout.write("\n[1/7] Creating cache tables...")
+        self.stdout.write("\n[1/8] Creating cache tables...")
         self._create_tables()
         self.stdout.write("      Done.")
 
-        self.stdout.write("\n[2/7] Populating sim_cache_icustays...")
+        self.stdout.write("\n[2/8] Populating sim_cache_icustays...")
         n = self._populate_icustays()
         self.stdout.write(f"      {n} rows inserted.")
 
-        self.stdout.write("\n[3/7] Populating sim_cache_vitalsign_hourly...")
+        self.stdout.write("\n[3/8] Populating sim_cache_vitalsign_hourly...")
         n = self._populate_vitalsign()
         self.stdout.write(f"      {n} rows inserted.")
 
-        self.stdout.write("\n[4/7] Populating sim_cache_procedures...")
+        self.stdout.write("\n[4/8] Populating sim_cache_procedures...")
         n = self._populate_procedures()
         self.stdout.write(f"      {n} rows inserted.")
 
-        self.stdout.write("\n[5/7] Populating sim_cache_chemistry_hourly...")
+        self.stdout.write("\n[5/8] Populating sim_cache_chemistry_hourly...")
         n = self._populate_chemistry()
         self.stdout.write(f"      {n} rows inserted.")
 
-        self.stdout.write("\n[6/7] Populating sim_cache_coagulation_hourly...")
+        self.stdout.write("\n[6/8] Populating sim_cache_coagulation_hourly...")
         n = self._populate_coagulation()
         self.stdout.write(f"      {n} rows inserted.")
 
-        self.stdout.write("\n[7/7] Populating sim_cache_sofa_hourly...")
+        self.stdout.write("\n[7/8] Populating sim_cache_sofa_hourly...")
         n = self._populate_sofa()
         if n is None:
             raise CommandError("mimiciv_derived.fisi9t_sofa_hourly not found. Run scripts/10_fisi9t_sofa_hourly.sql first.")
+        self.stdout.write(f"      {n} rows inserted.")
+
+        self.stdout.write("\n[8/8] Populating sim_cache_similarity_reference...")
+        n = self._populate_similarity_reference()
         self.stdout.write(f"      {n} rows inserted.")
 
         self.stdout.write(self.style.SUCCESS("\n=== Cache preload complete. ==="))
@@ -188,6 +192,64 @@ class Command(BaseCommand):
             )
             """,
             "CREATE INDEX IF NOT EXISTS sim_cache_sofa_idx ON simulation.sim_cache_sofa_hourly (stay_id, charttime_hour)",
+            # similarity reference — one row per non-cohort patient, 47 feature cols + demographics
+            """
+            CREATE TABLE IF NOT EXISTS simulation.sim_cache_similarity_reference (
+                stay_id            INTEGER PRIMARY KEY,
+                subject_id         INTEGER,
+                hadm_id            INTEGER,
+                admission_age      FLOAT,
+                gender             VARCHAR(10),
+                race               VARCHAR(80),
+                heart_rate         FLOAT,
+                sbp                FLOAT,
+                dbp                FLOAT,
+                mbp                FLOAT,
+                sbp_ni             FLOAT,
+                dbp_ni             FLOAT,
+                mbp_ni             FLOAT,
+                resp_rate          FLOAT,
+                temperature        FLOAT,
+                spo2               FLOAT,
+                glucose            FLOAT,
+                bicarbonate        FLOAT,
+                calcium            FLOAT,
+                sodium             FLOAT,
+                potassium          FLOAT,
+                d_dimer            FLOAT,
+                fibrinogen         FLOAT,
+                thrombin           FLOAT,
+                inr                FLOAT,
+                pt                 FLOAT,
+                ptt                FLOAT,
+                sofa_hr            FLOAT,
+                pao2fio2ratio_novent FLOAT,
+                pao2fio2ratio_vent FLOAT,
+                rate_epinephrine   FLOAT,
+                rate_norepinephrine FLOAT,
+                rate_dopamine      FLOAT,
+                rate_dobutamine    FLOAT,
+                meanbp_min         FLOAT,
+                gcs_min            FLOAT,
+                uo_24hr            FLOAT,
+                bilirubin_max      FLOAT,
+                creatinine_max     FLOAT,
+                platelet_min       FLOAT,
+                respiration        FLOAT,
+                coagulation        FLOAT,
+                liver              FLOAT,
+                cardiovascular     FLOAT,
+                cns                FLOAT,
+                renal              FLOAT,
+                respiration_24hours FLOAT,
+                coagulation_24hours FLOAT,
+                liver_24hours      FLOAT,
+                cardiovascular_24hours FLOAT,
+                cns_24hours        FLOAT,
+                renal_24hours      FLOAT,
+                sofa_24hours       FLOAT
+            )
+            """,
         ]
         with connection.cursor() as cursor:
             for stmt in ddl_statements:
@@ -416,4 +478,139 @@ class Command(BaseCommand):
         with connection.cursor() as cursor:
             cursor.execute(sql, [COHORT_STAY_IDS])
             cursor.execute("SELECT COUNT(*) FROM simulation.sim_cache_sofa_hourly")
+            return cursor.fetchone()[0]
+
+    def _populate_similarity_reference(self) -> int:
+        """Populate similarity reference table with ~1,500 random non-cohort patients.
+
+        Queries in batches of BATCH_SIZE (same size as cohort steps 2-7 which
+        handle 60 IDs without issue). Each batch fetches vitals/chemistry/
+        coagulation/sofa separately, merges in Python, then inserts.
+        """
+        BATCH_SIZE = 50
+
+        with connection.cursor() as cursor:
+            cursor.execute("TRUNCATE simulation.sim_cache_similarity_reference")
+
+            # 1. Sample 1,500 random non-cohort stays (icustay_detail is small)
+            self.stdout.write("        sampling patients...")
+            cursor.execute("""
+                SELECT stay_id, subject_id, hadm_id, admission_age, gender, race
+                FROM mimiciv_derived.icustay_detail
+                WHERE stay_id != ALL(%(cohort_ids)s)
+                ORDER BY random()
+                LIMIT 1500
+            """, {"cohort_ids": COHORT_STAY_IDS})
+            columns = [c[0] for c in cursor.description]
+            sampled = [dict(zip(columns, r)) for r in cursor.fetchall()]
+            self.stdout.write(f"        {len(sampled)} sampled.")
+            if not sampled:
+                return 0
+
+            # 2. Process in batches
+            insert_cols = [
+                "stay_id", "subject_id", "hadm_id", "admission_age", "gender", "race",
+                "heart_rate", "sbp", "dbp", "mbp", "sbp_ni", "dbp_ni", "mbp_ni",
+                "resp_rate", "temperature", "spo2", "glucose",
+                "bicarbonate", "calcium", "sodium", "potassium",
+                "d_dimer", "fibrinogen", "thrombin", "inr", "pt", "ptt",
+                "sofa_hr", "pao2fio2ratio_novent", "pao2fio2ratio_vent",
+                "rate_epinephrine", "rate_norepinephrine", "rate_dopamine", "rate_dobutamine",
+                "meanbp_min", "gcs_min", "uo_24hr", "bilirubin_max", "creatinine_max", "platelet_min",
+                "respiration", "coagulation", "liver", "cardiovascular", "cns", "renal",
+                "respiration_24hours", "coagulation_24hours", "liver_24hours",
+                "cardiovascular_24hours", "cns_24hours", "renal_24hours", "sofa_24hours",
+            ]
+            placeholders = ", ".join(["%s"] * len(insert_cols))
+            col_names = ", ".join(insert_cols)
+            total_batches = (len(sampled) + BATCH_SIZE - 1) // BATCH_SIZE
+
+            for batch_num in range(total_batches):
+                start = batch_num * BATCH_SIZE
+                batch = sampled[start : start + BATCH_SIZE]
+                batch_stay_ids = [s["stay_id"] for s in batch]
+                batch_hadm_ids = [s["hadm_id"] for s in batch]
+                rows_by_stay = {s["stay_id"]: dict(s) for s in batch}
+                hadm_to_stay = {s["hadm_id"]: s["stay_id"] for s in batch}
+
+                # Vitals
+                cursor.execute("""
+                    SELECT DISTINCT ON (stay_id)
+                           stay_id, heart_rate, sbp, dbp, mbp, sbp_ni, dbp_ni, mbp_ni,
+                           resp_rate, temperature, spo2, glucose
+                    FROM mimiciv_derived.vitalsign
+                    WHERE stay_id = ANY(%(ids)s)
+                    ORDER BY stay_id, charttime
+                """, {"ids": batch_stay_ids})
+                cols = [c[0] for c in cursor.description]
+                for row in cursor.fetchall():
+                    d = dict(zip(cols, row))
+                    sid = d.pop("stay_id")
+                    if sid in rows_by_stay:
+                        rows_by_stay[sid].update(d)
+
+                # Chemistry
+                cursor.execute("""
+                    SELECT DISTINCT ON (hadm_id)
+                           hadm_id, bicarbonate, calcium, sodium, potassium
+                    FROM mimiciv_derived.chemistry
+                    WHERE hadm_id = ANY(%(ids)s)
+                    ORDER BY hadm_id, charttime
+                """, {"ids": batch_hadm_ids})
+                cols = [c[0] for c in cursor.description]
+                for row in cursor.fetchall():
+                    d = dict(zip(cols, row))
+                    sid = hadm_to_stay.get(d.pop("hadm_id"))
+                    if sid and sid in rows_by_stay:
+                        rows_by_stay[sid].update(d)
+
+                # Coagulation
+                cursor.execute("""
+                    SELECT DISTINCT ON (hadm_id)
+                           hadm_id, d_dimer, fibrinogen, thrombin, inr, pt, ptt
+                    FROM mimiciv_derived.coagulation
+                    WHERE hadm_id = ANY(%(ids)s)
+                    ORDER BY hadm_id, charttime
+                """, {"ids": batch_hadm_ids})
+                cols = [c[0] for c in cursor.description]
+                for row in cursor.fetchall():
+                    d = dict(zip(cols, row))
+                    sid = hadm_to_stay.get(d.pop("hadm_id"))
+                    if sid and sid in rows_by_stay:
+                        rows_by_stay[sid].update(d)
+
+                # SOFA
+                cursor.execute("""
+                    SELECT DISTINCT ON (stay_id)
+                           stay_id, hr AS sofa_hr,
+                           pao2fio2ratio_novent, pao2fio2ratio_vent,
+                           rate_epinephrine, rate_norepinephrine,
+                           rate_dopamine, rate_dobutamine,
+                           meanbp_min, gcs_min, uo_24hr,
+                           bilirubin_max, creatinine_max, platelet_min,
+                           respiration, coagulation, liver,
+                           cardiovascular, cns, renal,
+                           respiration_24hours, coagulation_24hours,
+                           liver_24hours, cardiovascular_24hours,
+                           cns_24hours, renal_24hours, sofa_24hours
+                    FROM mimiciv_derived.sofa
+                    WHERE stay_id = ANY(%(ids)s)
+                    ORDER BY stay_id, hr
+                """, {"ids": batch_stay_ids})
+                cols = [c[0] for c in cursor.description]
+                for row in cursor.fetchall():
+                    d = dict(zip(cols, row))
+                    sid = d.pop("stay_id")
+                    if sid in rows_by_stay:
+                        rows_by_stay[sid].update(d)
+
+                # Insert this batch
+                values = [tuple(r.get(c) for c in insert_cols) for r in rows_by_stay.values()]
+                cursor.executemany(
+                    f"INSERT INTO simulation.sim_cache_similarity_reference ({col_names}) VALUES ({placeholders})",
+                    values,
+                )
+                self.stdout.write(f"        batch {batch_num + 1}/{total_batches} ({len(batch)} patients)")
+
+            cursor.execute("SELECT COUNT(*) FROM simulation.sim_cache_similarity_reference")
             return cursor.fetchone()[0]

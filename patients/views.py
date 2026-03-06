@@ -21,6 +21,7 @@ from .models import (
 )
 from .cohort import get_cohort_filter
 from .services import get_sepsis3_info
+from .similarity import build_vector_from_sim_data, get_similar_patients
 from .utils import prediction_as_of_iso as _prediction_as_of_iso, get_display_name
 
 
@@ -230,6 +231,33 @@ def prediction_detail(request, subject_id, stay_id, hadm_id):
         'sofa_time': sepsis3.get('sofa_time'),
     }, cls=DjangoJSONEncoder)
 
+    # Similar patients — build current feature vector from latest sim_* rows
+    similar_patients = []
+    try:
+        latest_vitals = SimVitalsignHourly.objects.filter(
+            subject_id=subject_id, stay_id=stay_id,
+        ).order_by('-charttime_hour').values().first()
+
+        if latest_vitals:
+            latest_chem = SimChemistryHourly.objects.filter(
+                subject_id=subject_id, stay_id=stay_id,
+            ).order_by('-charttime_hour').values().first()
+            latest_coag = SimCoagulationHourly.objects.filter(
+                subject_id=subject_id, stay_id=stay_id,
+            ).order_by('-charttime_hour').values().first()
+            latest_sofa_row = SimSofaHourly.objects.filter(
+                subject_id=subject_id, stay_id=stay_id,
+            ).order_by('-charttime_hour').values().first()
+
+            current_vector = build_vector_from_sim_data(
+                latest_vitals, latest_chem, latest_coag, latest_sofa_row,
+            )
+            similar_patients = get_similar_patients(
+                current_vector, subject_id, stay_id,
+            )
+    except Exception:
+        pass
+
     context = {
         'patient': patient,
         'risk_score': risk_score,
@@ -241,6 +269,7 @@ def prediction_detail(request, subject_id, stay_id, hadm_id):
         'latest_sofa': latest_sofa,
         'sepsis3_json': sepsis3_json,
         'model_onset_hour': model_onset_hour,
+        'similar_patients': similar_patients,
         'show_sim_dock': False,
     }
     return render(request, 'patients/prediction.html', context)
