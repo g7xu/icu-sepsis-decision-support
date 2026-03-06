@@ -9,7 +9,6 @@ import json
 
 from django.shortcuts import render
 from django.http import JsonResponse, Http404
-from django.core.paginator import Paginator
 from django.core.serializers.json import DjangoJSONEncoder
 from django.views.decorators.http import require_POST, require_GET
 
@@ -57,12 +56,41 @@ def demo_patient_list(request):
         patients = demo_cache.get_patients_admitted_up_to(current_hour)
         for p in patients:
             p['display_name'] = get_display_name(p['subject_id'], p['stay_id'], p['hadm_id'])
+            # Compute time since admission (time-of-day only; MIMIC years are shifted)
+            intime = p.get('intime')
+            if intime and hasattr(intime, 'hour'):
+                display_hour = current_hour + 1
+                sim_now_minutes = display_hour * 60
+                intime_minutes = intime.hour * 60 + intime.minute
+                total_minutes = sim_now_minutes - intime_minutes
+                if total_minutes < 0:
+                    p['time_since_admission'] = "Not yet admitted"
+                else:
+                    hours = total_minutes // 60
+                    minutes = total_minutes % 60
+                    admitted_time = f"{intime.hour:02d}:{intime.minute:02d}"
+                    p['time_since_admission'] = f"{hours}:{minutes:02d} (admitted {admitted_time})"
+            else:
+                p['time_since_admission'] = None
 
-    paginator = Paginator(patients, 25)
-    page_obj = paginator.get_page(request.GET.get('page'))
+            # Get risk score from demo cache
+            pred = demo_cache.get_prediction_at(p['stay_id'], current_hour)
+            score = pred.get("risk_score") if pred else None
+            if score is not None:
+                p['risk_score'] = score
+                p['risk_score_display'] = f"{round(score * 100)}%"
+            else:
+                p['risk_score'] = None
+                p['risk_score_display'] = None
+
+        # Sort by risk score descending (nulls last)
+        patients.sort(key=lambda p: (p.get('risk_score') is None, -(p.get('risk_score') or 0)))
+
+    # Wrap dicts as objects for template attribute access
+    patient_objs = [_PatientProxy(p) for p in patients]
 
     context = {
-        'page_obj': page_obj,
+        'patients': patient_objs,
         'total_patients': len(patients),
         'cohort_active': get_cohort_filter() is not None,
         'current_hour': current_hour,

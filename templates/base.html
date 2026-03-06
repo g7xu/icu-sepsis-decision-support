@@ -9,18 +9,19 @@
     {% block extra_css %}{% endblock %}
 </head>
 <body>
-    <nav class="navbar">
-        <h1>ICU Sepsis Decision Support</h1>
-        <span class="subtitle">Clinical Decision Support System</span>
-        {% if DEMO_MODE %}
-        <span class="nav-links" style="margin-left: auto; display: flex; gap: 0.75rem; align-items: center;">
-            <a href="{% url 'patients:index' %}" style="color: #cbd5e0; text-decoration: none; font-size: 0.9rem;">Production</a>
-            <a href="{% url 'demo:index' %}" style="color: #cbd5e0; text-decoration: none; font-size: 0.9rem;">Demo</a>
-        </span>
-        {% endif %}
+    <nav class="app-navbar">
+        <div class="app-navbar__brand">
+            <h1>ICU Sepsis Decision Support</h1>
+            {% if DEMO_MODE %}
+            <div class="app-navbar__links">
+                <a href="{% url 'patients:index' %}">Production</a>
+                <a href="{% url 'demo:index' %}">Demo</a>
+            </div>
+            {% endif %}
+        </div>
     </nav>
 
-    <div class="container">
+    <div class="app-container">
         {% block content %}{% endblock %}
     </div>
 

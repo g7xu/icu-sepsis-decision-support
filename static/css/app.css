@@ -8,85 +8,152 @@ body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
     background-color: #f5f7fa;
     color: #333;
-    line-height: 1.6;
+    line-height: 1.5;
+    font-size: 0.875rem;
 }
 
-.navbar {
+/* =============================================================================
+   Navbar (BEM)
+   ============================================================================= */
+
+.app-navbar {
     background: linear-gradient(135deg, #1a365d 0%, #2c5282 100%);
     color: white;
-    padding: 1rem 2rem;
+    padding: 0.5rem 0.75rem;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
 }
 
-.navbar h1 {
-    font-size: 1.5rem;
+.app-navbar__brand {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.app-navbar__brand h1 {
+    font-size: 1rem;
     font-weight: 600;
 }
 
-.navbar .subtitle {
-    font-size: 0.875rem;
-    opacity: 0.8;
+.app-navbar__links {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
 }
 
-.container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 2rem;
+.app-navbar__links a {
+    color: #cbd5e0;
+    text-decoration: none;
+    font-size: 0.9rem;
 }
+
+.app-navbar__links a:hover {
+    color: white;
+}
+
+/* =============================================================================
+   Layout
+   ============================================================================= */
+
+.app-container {
+    max-width: 100%;
+    margin: 0;
+    padding: 0.4rem 0.5rem;
+}
+
+/* =============================================================================
+   Cards
+   ============================================================================= */
 
 .card {
     background: white;
-    border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    padding: 1.5rem;
-    margin-bottom: 1rem;
+    border-radius: 6px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.5rem;
 }
 
 .card-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 1rem;
-    padding-bottom: 1rem;
-    border-bottom: 1px solid #e2e8f0;
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.5rem;
+    flex-wrap: wrap;
+    gap: 0.75rem;
 }
 
 .card-header h2 {
-    font-size: 1.25rem;
+    font-size: 0.95rem;
     color: #1a365d;
 }
+
+/* =============================================================================
+   Badges
+   ============================================================================= */
 
 .badge {
     background: #e2e8f0;
     color: #4a5568;
-    padding: 0.25rem 0.75rem;
+    padding: 0.2rem 0.6rem;
     border-radius: 9999px;
-    font-size: 0.875rem;
+    font-size: 0.75rem;
 }
 
-table {
+.badge--cohort {
+    background: #48bb78;
+    color: white;
+    margin-right: 0.5rem;
+}
+
+/* =============================================================================
+   Tables
+   ============================================================================= */
+
+.table {
     width: 100%;
     border-collapse: collapse;
 }
 
-th, td {
-    padding: 0.75rem 1rem;
+.table th,
+.table td {
+    padding: 0.4rem 0.75rem;
     text-align: left;
     border-bottom: 1px solid #e2e8f0;
 }
 
-th {
-    background: #f7fafc;
+.table th {
+    background: #ffffff;
     font-weight: 600;
     color: #4a5568;
-    font-size: 0.875rem;
+    font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
 }
 
-tr:hover {
+.table tbody tr:hover {
     background: #f7fafc;
 }
+
+/* Patient name link styling */
+.patient-name-link {
+    color: #3182ce;
+    font-weight: 600;
+    text-decoration: underline;
+}
+
+.patient-name-link:hover {
+    color: #1a365d;
+    text-decoration: underline;
+}
+
+/* =============================================================================
+   Buttons
+   ============================================================================= */
 
 .btn {
     display: inline-block;
@@ -111,42 +178,18 @@ tr:hover {
     font-size: 0.875rem;
 }
 
-.pagination {
-    display: flex;
-    gap: 0.5rem;
-    justify-content: center;
-    margin-top: 1.5rem;
-}
-
-.pagination a, .pagination span {
-    padding: 0.5rem 1rem;
-    border: 1px solid #e2e8f0;
-    border-radius: 6px;
-    text-decoration: none;
-    color: #4a5568;
-}
-
-.pagination a:hover {
-    background: #e2e8f0;
-}
-
-.pagination .current {
-    background: #3182ce;
-    color: white;
-    border-color: #3182ce;
-}
+/* =============================================================================
+   Utilities
+   ============================================================================= */
 
 .text-muted {
     color: #718096;
 }
 
-.gender-male { color: #3182ce; }
-.gender-female { color: #d53f8c; }
+/* =============================================================================
+   Tab bar
+   ============================================================================= */
 
-/* ── Card header flex wrap ───────────────────────────────────────────── */
-.card-header { flex-wrap: wrap; gap: 0.75rem; }
-
-/* ── Tab bar ─────────────────────────────────────────────────────────── */
 .tab-bar { display: flex; gap: 0.4rem; flex-wrap: wrap; }
 .tab-btn {
     padding: 0.35rem 1rem;
@@ -165,7 +208,10 @@ tr:hover {
 .tab-panel.active { display: block; }
 .chart-empty-msg { padding: 2rem 1rem; }
 
-/* ── Simulation Dock ─────────────────────────────────────────────────── */
+/* =============================================================================
+   Simulation Dock
+   ============================================================================= */
+
 .sim-dock {
     position: fixed;
     top: 0.5rem;

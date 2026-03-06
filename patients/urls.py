@@ -12,6 +12,7 @@ urlpatterns = [
     # UI Views
     path('', views.patient_list, name='index'),
     path('<int:subject_id>/<int:stay_id>/<int:hadm_id>/', views.patient_detail, name='detail'),
+    path('<int:subject_id>/<int:stay_id>/<int:hadm_id>/prediction/', views.prediction_detail, name='prediction_detail'),
 
     # JSON API Endpoints (Features for ML)
     path('<int:subject_id>/<int:stay_id>/<int:hadm_id>/features/static', api.get_static_features, name='features_static'),

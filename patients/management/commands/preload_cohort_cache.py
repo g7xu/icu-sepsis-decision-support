@@ -11,7 +11,7 @@ Re-run only if cohort.py changes (cohort patients are added/removed).
 Safe to re-run: truncates and repopulates each cache table.
 """
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.db import connection
 
 from patients.cohort import PATIENT_STAYS
@@ -29,36 +29,35 @@ class Command(BaseCommand):
         self.stdout.write("=== preload_cohort_cache ===")
         self.stdout.write(f"Cohort size: {len(COHORT_STAY_IDS)} patients")
 
-        self.stdout.write("\n[1/6] Creating cache tables...")
+        self.stdout.write("\n[1/7] Creating cache tables...")
         self._create_tables()
         self.stdout.write("      Done.")
 
-        self.stdout.write("\n[2/6] Populating sim_cache_icustays...")
+        self.stdout.write("\n[2/7] Populating sim_cache_icustays...")
         n = self._populate_icustays()
         self.stdout.write(f"      {n} rows inserted.")
 
-        self.stdout.write("\n[3/6] Populating sim_cache_vitalsign_hourly...")
+        self.stdout.write("\n[3/7] Populating sim_cache_vitalsign_hourly...")
         n = self._populate_vitalsign()
         self.stdout.write(f"      {n} rows inserted.")
 
-        self.stdout.write("\n[4/6] Populating sim_cache_procedures...")
+        self.stdout.write("\n[4/7] Populating sim_cache_procedures...")
         n = self._populate_procedures()
         self.stdout.write(f"      {n} rows inserted.")
 
-        self.stdout.write("\n[5/6] Populating sim_cache_chemistry_hourly...")
+        self.stdout.write("\n[5/7] Populating sim_cache_chemistry_hourly...")
         n = self._populate_chemistry()
         self.stdout.write(f"      {n} rows inserted.")
 
-        self.stdout.write("\n[6/6] Populating sim_cache_coagulation_hourly...")
+        self.stdout.write("\n[6/7] Populating sim_cache_coagulation_hourly...")
         n = self._populate_coagulation()
         self.stdout.write(f"      {n} rows inserted.")
 
-        self.stdout.write("\n[optional] Populating sim_cache_sofa_hourly...")
+        self.stdout.write("\n[7/7] Populating sim_cache_sofa_hourly...")
         n = self._populate_sofa()
         if n is None:
-            self.stdout.write("      Skipped (mimiciv_derived.sofa_hourly not found).")
-        else:
-            self.stdout.write(f"      {n} rows inserted.")
+            raise CommandError("mimiciv_derived.fisi9t_sofa_hourly not found. Run scripts/10_fisi9t_sofa_hourly.sql first.")
+        self.stdout.write(f"      {n} rows inserted.")
 
         self.stdout.write(self.style.SUCCESS("\n=== Cache preload complete. ==="))
         self.stdout.write(
@@ -385,7 +384,7 @@ class Command(BaseCommand):
         """Populate sofa cache — skips gracefully if source table doesn't exist."""
         with connection.cursor() as cursor:
             cursor.execute(
-                "SELECT to_regclass('mimiciv_derived.sofa_hourly') IS NOT NULL"
+                "SELECT to_regclass('mimiciv_derived.fisi9t_sofa_hourly') IS NOT NULL"
             )
             if not cursor.fetchone()[0]:
                 return None
@@ -400,7 +399,7 @@ class Command(BaseCommand):
             SELECT
                 sp.subject_id,
                 s.stay_id,
-                MAKE_TIMESTAMP(2025, 3, 13, EXTRACT(HOUR FROM s.starttime)::int, 0, 0) AS charttime_hour,
+                MAKE_TIMESTAMP(2025, 3, 13, EXTRACT(HOUR FROM s.charttime_hour)::int, 0, 0) AS charttime_hour,
                 s.sofa_24hours,
                 s.respiration,
                 s.coagulation,
@@ -408,11 +407,11 @@ class Command(BaseCommand):
                 s.cardiovascular,
                 s.cns,
                 s.renal
-            FROM mimiciv_derived.sofa_hourly s
+            FROM mimiciv_derived.fisi9t_sofa_hourly s
             JOIN simulation.sim_cache_icustays sp ON sp.stay_id = s.stay_id
             WHERE s.stay_id = ANY(%s)
-              AND EXTRACT(MONTH FROM s.starttime) = 3
-              AND EXTRACT(DAY   FROM s.starttime) = 13
+              AND EXTRACT(MONTH FROM s.charttime_hour) = 3
+              AND EXTRACT(DAY   FROM s.charttime_hour) = 13
         """
         with connection.cursor() as cursor:
             cursor.execute(sql, [COHORT_STAY_IDS])
