@@ -37,6 +37,9 @@ sofa: dict[tuple[int, int], list[dict]] = {}
 # {(stay_id, hour_int): {ok, risk_score, latent_class}}
 predictions: dict[tuple[int, int], dict] = {}
 
+# {stay_id: {suspected_infection_time, sofa_time}}
+sepsis3_data: dict[int, dict] = {}
+
 
 def load():
     """Load all sim_cache_* tables into memory. Idempotent."""
@@ -77,6 +80,7 @@ def load():
     ])
 
     _precompute_predictions()
+    _load_sepsis3()
 
     _loaded = True
     total_patients = len(patients_by_stay)
@@ -106,6 +110,25 @@ def get_patient(subject_id: int, stay_id: int, hadm_id: int) -> dict | None:
 def get_prediction_at(stay_id: int, hour: int) -> dict:
     """Return cached prediction dict for a patient at a given hour."""
     return predictions.get((stay_id, hour), {"ok": False, "risk_score": None})
+
+
+def get_sepsis3(stay_id: int) -> dict:
+    """Return cached sepsis3 dict for a patient, or empty dict."""
+    return sepsis3_data.get(stay_id, {})
+
+
+def get_prediction_history(stay_id: int, max_hour: int) -> list[dict]:
+    """Return list of prediction dicts for hours 0..max_hour."""
+    result = []
+    for h in range(0, max_hour + 1):
+        pred = predictions.get((stay_id, h))
+        if pred and pred.get('ok'):
+            result.append({
+                'prediction_hour': h,
+                'risk_score': pred.get('risk_score'),
+                'latent_class': pred.get('latent_class'),
+            })
+    return result
 
 
 def get_data_up_to(cache_dict: dict, stay_id: int, hour: int) -> list[dict]:
@@ -199,6 +222,35 @@ def _precompute_predictions():
             count += 1
 
     logger.info("[demo_cache] Pre-computed %d predictions", count)
+
+
+def _load_sepsis3():
+    """Load sepsis3 data for cohort patients into sepsis3_data dict."""
+    from .services import _pick_first_existing
+    candidates = ['mimiciv_derived.sepsis3', 'sepsis3']
+    table = _pick_first_existing(candidates)
+    if not table:
+        logger.info("[demo_cache] sepsis3 table not found, skipping")
+        return
+
+    stay_ids = list(patients_by_stay.keys())
+    if not stay_ids:
+        return
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"SELECT stay_id, suspected_infection_time, sofa_time "
+                f"FROM {table} WHERE stay_id = ANY(%s)",
+                [stay_ids],
+            )
+            columns = [col[0] for col in cursor.description]
+            for row in cursor.fetchall():
+                row_dict = dict(zip(columns, row))
+                sepsis3_data[row_dict['stay_id']] = row_dict
+        logger.info("[demo_cache] sepsis3: %d rows", len(sepsis3_data))
+    except Exception as exc:
+        logger.warning("[demo_cache] Failed to load sepsis3: %s", exc)
 
 
 def _run_query(sql: str) -> list[dict]:
