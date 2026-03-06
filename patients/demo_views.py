@@ -204,6 +204,97 @@ def demo_patient_detail(request, subject_id, stay_id, hadm_id):
     return render(request, 'patients/show.html', context)
 
 
+def demo_prediction_detail(request, subject_id, stay_id, hadm_id):
+    """Prediction detail page — demo mode (in-memory data)."""
+    patient = demo_cache.get_patient(subject_id, stay_id, hadm_id)
+    if not patient:
+        raise Http404("Patient not found")
+
+    state = _get_sim_state(request)
+    current_hour = state['current_hour']
+
+    prediction_history = []
+    risk_score = None
+    risk_score_display = "\u2014"
+    risk_color = "#718096"
+    latent_class = None
+    model_onset_hour = None
+    sofa_json = '[]'
+    latest_sofa = {}
+
+    if current_hour >= 0:
+        # Prediction history
+        prediction_history = demo_cache.get_prediction_history(stay_id, current_hour)
+
+        if prediction_history:
+            latest = prediction_history[-1]
+            score = latest.get('risk_score')
+            if score is not None:
+                risk_score = score
+                pct = round(score * 100)
+                risk_score_display = f"{pct}%"
+                if score >= 0.6:
+                    risk_color = "#e53e3e"
+                elif score >= 0.3:
+                    risk_color = "#dd6b20"
+                else:
+                    risk_color = "#38a169"
+            latent_class = latest.get('latent_class')
+
+        # Model onset hour
+        for p in prediction_history:
+            if p.get('risk_score') is not None and p['risk_score'] >= 0.5:
+                model_onset_hour = p['prediction_hour']
+                break
+
+        # SOFA data
+        sofa_rows = demo_cache.get_data_up_to(demo_cache.sofa, stay_id, current_hour)
+        sofa_list = []
+        for row in sofa_rows:
+            entry = {k: row.get(k) for k in [
+                'charttime_hour', 'sofa_24hours',
+                'respiration', 'coagulation', 'liver',
+                'cardiovascular', 'cns', 'renal',
+            ]}
+            ct = entry['charttime_hour']
+            entry['hour_label'] = f"{ct.hour:02d}:00" if hasattr(ct, 'hour') else str(ct)
+            sofa_list.append(entry)
+        sofa_json = json.dumps(sofa_list, cls=DjangoJSONEncoder)
+        latest_sofa = sofa_list[-1] if sofa_list else {}
+
+    prediction_history_json = json.dumps(prediction_history, cls=DjangoJSONEncoder)
+
+    # Sepsis3 data
+    sepsis3 = demo_cache.get_sepsis3(stay_id)
+    sepsis3_json = json.dumps({
+        'suspected_infection_time': sepsis3.get('suspected_infection_time'),
+        'sofa_time': sepsis3.get('sofa_time'),
+    }, cls=DjangoJSONEncoder)
+
+    patient['display_name'] = get_display_name(subject_id, stay_id, hadm_id)
+    patient_obj = _PatientProxy(patient)
+
+    context = {
+        'patient': patient_obj,
+        'risk_score': risk_score,
+        'risk_score_display': risk_score_display,
+        'risk_color': risk_color,
+        'latent_class': latent_class,
+        'prediction_history_json': prediction_history_json,
+        'sofa_json': sofa_json,
+        'latest_sofa': latest_sofa,
+        'sepsis3_json': sepsis3_json,
+        'model_onset_hour': model_onset_hour,
+        'current_hour': current_hour,
+        'current_time_display': _display_time(current_hour),
+        'auto_play': state['auto_play'],
+        'speed_seconds': state['speed_seconds'],
+        'show_sim_dock': True,
+        'demo_mode_view': True,
+    }
+    return render(request, 'patients/prediction.html', context)
+
+
 class _PatientProxy:
     """Lightweight wrapper so template attribute access works on a plain dict."""
     def __init__(self, d: dict):

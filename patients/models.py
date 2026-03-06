@@ -138,8 +138,8 @@ class SimPatient(models.Model):
         managed = True
         db_table = 'simulation\".\"sim_patient'
         indexes = [
-            models.Index(fields=['subject_id']),
-            models.Index(fields=['stay_id']),
+            models.Index(fields=['subject_id'], name='sim_patient_subject_idx'),
+            models.Index(fields=['stay_id'], name='sim_patient_stay_idx'),
         ]
 
     def __str__(self):
@@ -175,7 +175,7 @@ class SimVitalsignHourly(models.Model):
         managed = True
         db_table = 'simulation\".\"sim_vitalsign_hourly'
         indexes = [
-            models.Index(fields=['stay_id', 'charttime_hour']),
+            models.Index(fields=['stay_id', 'charttime_hour'], name='sim_vitals_stay_hour_idx'),
         ]
 
     def __str__(self):
@@ -216,7 +216,7 @@ class SimProcedureeventsHourly(models.Model):
         managed = True
         db_table = 'simulation\".\"sim_procedureevents_hourly'
         indexes = [
-            models.Index(fields=['stay_id', 'charttime_hour']),
+            models.Index(fields=['stay_id', 'charttime_hour'], name='sim_proc_stay_hour_idx'),
         ]
 
     def __str__(self):
@@ -240,7 +240,7 @@ class SimChemistryHourly(models.Model):
         managed = True
         db_table = 'simulation\".\"sim_chemistry_hourly'
         indexes = [
-            models.Index(fields=['stay_id', 'charttime_hour']),
+            models.Index(fields=['stay_id', 'charttime_hour'], name='sim_chem_stay_hour_idx'),
         ]
 
     def __str__(self):
@@ -266,7 +266,7 @@ class SimCoagulationHourly(models.Model):
         managed = True
         db_table = 'simulation\".\"sim_coagulation_hourly'
         indexes = [
-            models.Index(fields=['stay_id', 'charttime_hour']),
+            models.Index(fields=['stay_id', 'charttime_hour'], name='sim_coag_stay_hour_idx'),
         ]
 
     def __str__(self):
@@ -293,8 +293,33 @@ class SimSofaHourly(models.Model):
         managed = True
         db_table = 'simulation\".\"sim_sofa_hourly'
         indexes = [
-            models.Index(fields=['stay_id', 'charttime_hour']),
+            models.Index(fields=['stay_id', 'charttime_hour'], name='sim_sofa_stay_hour_idx'),
         ]
 
     def __str__(self):
         return f"SimSOFA stay={self.stay_id} score={self.sofa_24hours} at {self.charttime_hour}"
+
+
+class SimPredictionResult(models.Model):
+    """
+    Persisted prediction results computed by the pipeline at each simulation hour.
+    One row per patient per hour. Read by the prediction detail view (no re-computation).
+    """
+    subject_id = models.IntegerField()
+    stay_id = models.IntegerField()
+    hadm_id = models.IntegerField()
+    prediction_hour = models.IntegerField()       # 0-23
+    risk_score = models.FloatField(null=True)
+    latent_class = models.IntegerField(null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        managed = True
+        db_table = 'simulation\".\"sim_prediction_results'
+        unique_together = ('subject_id', 'stay_id', 'hadm_id', 'prediction_hour')
+        indexes = [
+            models.Index(fields=['stay_id', 'prediction_hour'], name='sim_pred_stay_hour_idx'),
+        ]
+
+    def __str__(self):
+        return f"SimPrediction stay={self.stay_id} hour={self.prediction_hour} risk={self.risk_score}"

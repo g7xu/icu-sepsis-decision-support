@@ -11,6 +11,7 @@ app_name = 'demo'
 urlpatterns = [
     path('', demo_views.demo_patient_list, name='index'),
     path('<int:subject_id>/<int:stay_id>/<int:hadm_id>/', demo_views.demo_patient_detail, name='detail'),
+    path('<int:subject_id>/<int:stay_id>/<int:hadm_id>/prediction/', demo_views.demo_prediction_detail, name='prediction_detail'),
 
     # Demo clock controls
     path('advance-time/', demo_views.demo_advance_time, name='advance_time'),
