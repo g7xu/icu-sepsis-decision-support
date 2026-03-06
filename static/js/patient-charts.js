@@ -1,7 +1,7 @@
 (function () {
 
 // =============================================================================
-// HELPERS (unchanged from previous version)
+// HELPERS
 // =============================================================================
 
 function parseJSON(id) {
@@ -16,30 +16,6 @@ function showEmptyState(divId, msg) {
     if (!el) return;
     el.innerHTML = '<p style="padding:2rem 1rem; color:#718096;">' + msg + '</p>';
 }
-
-// =============================================================================
-// TAB SWITCHING (Plotly.relayout removed)
-// =============================================================================
-
-var deferredRenders = {};
-
-document.querySelectorAll('.tab-btn').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-        document.querySelectorAll('.tab-btn').forEach(function (b) { b.classList.remove('active'); });
-        document.querySelectorAll('.tab-panel').forEach(function (p) { p.classList.remove('active'); });
-        btn.classList.add('active');
-        var panel = document.getElementById('tab-' + btn.dataset.tab);
-        if (panel) {
-            panel.classList.add('active');
-            // Trigger deferred render for tabs that were hidden on first load
-            var fn = deferredRenders[btn.dataset.tab];
-            if (fn) {
-                delete deferredRenders[btn.dataset.tab];
-                fn();
-            }
-        }
-    });
-});
 
 // =============================================================================
 // DATA
@@ -58,41 +34,18 @@ var CHART_FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
 var M          = { top: 40, right: 95, bottom: 58, left: 72 };
 var PANEL_H    = 150;  // px per panel row
 
-// Return chart container width, falling back to the card width for hidden tabs
 function getChartWidth(containerId) {
     var el = document.getElementById(containerId);
     if (!el) return 800;
     if (el.offsetWidth > 0) return el.offsetWidth;
-    // Tab is hidden — measure from the visible card instead
-    var card = document.getElementById('vitals-card');
-    if (card && card.offsetWidth > 0) return card.offsetWidth - 48; // subtract card padding
+    // Fallback: measure parent card
+    var card = el.closest('.card');
+    if (card && card.offsetWidth > 0) return card.offsetWidth - 48;
     return 800;
 }
 
 // =============================================================================
 // buildMultiPanel — reusable D3 multi-panel line chart
-//
-// cfg = {
-//   hours:  string[],
-//   panels: [{
-//     label:         string,          // left y-axis label
-//     rightLabel?:   string,          // right y-axis label (dual-axis panels)
-//     yDomain?:      [min, max],      // left axis domain (auto if omitted)
-//     yDomainRight?: [min, max],      // right axis domain (auto if omitted)
-//     normalBands?:  [{y0,y1,color?,axis?}],
-//     warningBands?: [{y0,y1,color?,axis?}],
-//     series: [{
-//       name:      string,
-//       values:    (number|null)[],
-//       color:     string,
-//       yAxis?:    'left'|'right',    // default 'left'
-//       dash?:     string,            // SVG stroke-dasharray e.g. '5,3'
-//       width?:    number,            // stroke-width, default 2.5
-//       unit?:     string,            // shown in tooltip
-//       decimals?: number,            // tooltip decimal places
-//     }],
-//   }],
-// }
 // =============================================================================
 
 function buildMultiPanel(containerId, cfg) {
@@ -428,11 +381,13 @@ function buildSofaChart(containerId, data) {
 
     var SOFA_PANEL_H = 185;
     var n = 2;
+    var SOFA_GAP = 30;       // gap between the two panels
+    var SOFA_M_BOTTOM = 78;  // extra room for component legend + x-axis
 
     var W    = getChartWidth(containerId);
     var iW   = W - M.left - M.right;
-    var iH   = SOFA_PANEL_H * n;
-    var totH = iH + M.top + M.bottom;
+    var iH   = SOFA_PANEL_H * n + SOFA_GAP;
+    var totH = iH + M.top + SOFA_M_BOTTOM;
 
     var components = [
         { key: 'respiration',    label: 'Respiration',    color: '#4299e1' },
@@ -480,13 +435,13 @@ function buildSofaChart(containerId, data) {
 
     var bw = xScale.bandwidth();
 
-    // Panel separator
+    // Panel separator (centered in the gap)
     root.append('line')
         .attr('x1', 0).attr('x2', iW)
-        .attr('y1', SOFA_PANEL_H).attr('y2', SOFA_PANEL_H)
+        .attr('y1', SOFA_PANEL_H + SOFA_GAP / 2).attr('y2', SOFA_PANEL_H + SOFA_GAP / 2)
         .attr('stroke', '#e2e8f0').attr('stroke-width', 1);
 
-    // ── Panel 1: Total SOFA (color-coded bars) ────────────────────────────────
+    // Panel 1: Total SOFA (color-coded bars)
     var p1 = root.append('g');
 
     var y1 = d3.scaleLinear().domain([0, 24]).range([SOFA_PANEL_H - 2, 2]);
@@ -555,8 +510,8 @@ function buildSofaChart(containerId, data) {
             .text(item[1]);
     });
 
-    // ── Panel 2: Stacked organ components ────────────────────────────────────
-    var p2 = root.append('g').attr('transform', 'translate(0,' + SOFA_PANEL_H + ')');
+    // Panel 2: Stacked organ components
+    var p2 = root.append('g').attr('transform', 'translate(0,' + (SOFA_PANEL_H + SOFA_GAP) + ')');
 
     var y2 = d3.scaleLinear().domain([0, 25]).range([SOFA_PANEL_H - 2, 2]);
 
@@ -590,17 +545,6 @@ function buildSofaChart(containerId, data) {
         .attr('font-family', CHART_FONT)
         .text('Organ Score (0\u20134 each)');
 
-    // Component legend
-    var legG2 = p2.append('g').attr('transform', 'translate(0,' + (SOFA_PANEL_H + 5) + ')');
-    components.forEach(function (c, i) {
-        legG2.append('rect').attr('x', i * (iW / 6)).attr('y', 0)
-            .attr('width', 10).attr('height', 10).attr('fill', c.color).attr('rx', 2);
-        legG2.append('text')
-            .attr('x', i * (iW / 6) + 13).attr('y', 9)
-            .attr('font-size', 9).attr('fill', '#4a5568').attr('font-family', CHART_FONT)
-            .text(c.label);
-    });
-
     // -- Shared X axis --------------------------------------------------------
     var tickEvery = hours.length > 12 ? 3 : (hours.length > 6 ? 2 : 1);
     var tickVals  = hours.filter(function (h, i) { return i % tickEvery === 0; });
@@ -613,11 +557,22 @@ function buildSofaChart(containerId, data) {
     xAxisG.selectAll('.tick text').attr('font-size', 10).attr('fill', '#718096');
 
     root.append('text')
-        .attr('x', iW / 2).attr('y', iH + M.bottom - 10)
+        .attr('x', iW / 2).attr('y', iH + 32)
         .attr('text-anchor', 'middle')
         .attr('font-size', 12).attr('fill', '#4a5568')
         .attr('font-family', CHART_FONT)
         .text('Hour of Day');
+
+    // Component legend (below x-axis label)
+    var legG2 = root.append('g').attr('transform', 'translate(0,' + (iH + 44) + ')');
+    components.forEach(function (c, i) {
+        legG2.append('rect').attr('x', i * (iW / 6)).attr('y', 0)
+            .attr('width', 10).attr('height', 10).attr('fill', c.color).attr('rx', 2);
+        legG2.append('text')
+            .attr('x', i * (iW / 6) + 13).attr('y', 9)
+            .attr('font-size', 9).attr('fill', '#4a5568').attr('font-family', CHART_FONT)
+            .text(c.label);
+    });
 
     // -- Crosshair + tooltip --------------------------------------------------
     var crosshairG = root.append('g').style('display', 'none').style('pointer-events', 'none');
@@ -670,196 +625,209 @@ function buildSofaChart(containerId, data) {
 }
 
 // =============================================================================
-// TAB 1 — CARDIOVASCULAR
+// VITAL SIGNS — radio button dispatch
 // =============================================================================
 
-(function renderCardio() {
-    if (isEmpty(vitalsData)) {
-        showEmptyState('chart-cardio', 'No vitals data available yet. Advance the simulation to populate data.');
-        return;
-    }
-    var hours = vitalsData.map(function (v) { return v.hour_label; });
-    buildMultiPanel('chart-cardio', {
-        hours: hours,
-        panels: [
-            {
-                label: 'HR (bpm)',
-                yDomain: [40, 160],
-                normalBands: [{ y0: 60, y1: 100, color: '#48bb78' }],
-                series: [
-                    { name: 'Heart Rate',
-                      values: vitalsData.map(function (v) { return v.heart_rate; }),
-                      color: '#e53e3e', unit: 'bpm', decimals: 0 },
-                ],
-            },
-            {
-                label: 'BP (mmHg)',
-                normalBands: [{ y0: 90, y1: 140, color: '#48bb78' }],
-                series: [
-                    { name: 'SBP',
-                      values: vitalsData.map(function (v) { return v.sbp; }),
-                      color: '#3182ce', unit: 'mmHg', decimals: 0 },
-                    { name: 'DBP',
-                      values: vitalsData.map(function (v) { return v.dbp; }),
-                      color: '#63b3ed', unit: 'mmHg', decimals: 0 },
-                    { name: 'MBP',
-                      values: vitalsData.map(function (v) { return v.mbp; }),
-                      color: '#2b6cb0', unit: 'mmHg', decimals: 0, dash: '5,3', width: 2 },
-                ],
-            },
-        ],
-    });
-})();
+var currentVitalType = 'heart_rate';
 
-// =============================================================================
-// TAB 2 — RESPIRATORY
-// =============================================================================
-
-function renderResp() {
-    if (isEmpty(vitalsData)) {
-        showEmptyState('chart-resp', 'No vitals data available yet. Advance the simulation to populate data.');
-        return;
-    }
-    var hours = vitalsData.map(function (v) { return v.hour_label; });
-    buildMultiPanel('chart-resp', {
-        hours: hours,
-        panels: [
-            {
-                label: 'SpO\u2082 (%)',
-                yDomain: [84, 100],
-                normalBands:  [{ y0: 95, y1: 100, color: '#48bb78' }],
-                warningBands: [{ y0: 88, y1: 95,  color: '#fc8181' }],
-                series: [
-                    { name: 'SpO\u2082',
-                      values: vitalsData.map(function (v) { return v.spo2; }),
-                      color: '#38a169', unit: '%', decimals: 1 },
-                ],
-            },
-            {
-                label: 'RR (/min)',
-                normalBands: [{ y0: 12, y1: 20, color: '#48bb78' }],
-                series: [
-                    { name: 'Resp Rate',
-                      values: vitalsData.map(function (v) { return v.resp_rate; }),
-                      color: '#d69e2e', unit: '/min', decimals: 0 },
-                ],
-            },
-            {
-                label: 'Temp (\u00b0C)',
-                normalBands: [{ y0: 36.5, y1: 37.5, color: '#48bb78' }],
-                series: [
-                    { name: 'Temperature',
-                      values: vitalsData.map(function (v) { return v.temperature; }),
-                      color: '#ed8936', unit: '\u00b0C', decimals: 1 },
-                ],
-            },
-        ],
-    });
+function getVitalsHours() {
+    return vitalsData.map(function (v) { return v.hour_label; });
 }
 
-// Resp tab is hidden on first load — defer until first shown
-var respTab = document.getElementById('tab-resp');
-if (respTab && respTab.classList.contains('active')) {
-    renderResp();
-} else {
-    deferredRenders['resp'] = renderResp;
+function renderVitals() {
+    if (isEmpty(vitalsData)) {
+        showEmptyState('chart-vitals', 'No vitals data available yet. Advance the simulation to populate data.');
+        return;
+    }
+
+    var hours = getVitalsHours();
+    var cfg;
+
+    switch (currentVitalType) {
+        case 'heart_rate':
+            cfg = {
+                hours: hours,
+                panels: [{
+                    label: 'HR (bpm)',
+                    yDomain: [40, 160],
+                    normalBands: [{ y0: 60, y1: 100, color: '#48bb78' }],
+                    series: [{
+                        name: 'Heart Rate',
+                        values: vitalsData.map(function (v) { return v.heart_rate; }),
+                        color: '#e53e3e', unit: 'bpm', decimals: 0
+                    }],
+                }],
+            };
+            break;
+
+        case 'blood_pressure':
+            cfg = {
+                hours: hours,
+                panels: [{
+                    label: 'BP (mmHg)',
+                    normalBands: [{ y0: 90, y1: 140, color: '#48bb78' }],
+                    series: [
+                        { name: 'SBP', values: vitalsData.map(function (v) { return v.sbp; }),
+                          color: '#3182ce', unit: 'mmHg', decimals: 0 },
+                        { name: 'DBP', values: vitalsData.map(function (v) { return v.dbp; }),
+                          color: '#63b3ed', unit: 'mmHg', decimals: 0 },
+                        { name: 'MBP', values: vitalsData.map(function (v) { return v.mbp; }),
+                          color: '#2b6cb0', unit: 'mmHg', decimals: 0, dash: '5,3', width: 2 },
+                    ],
+                }],
+            };
+            break;
+
+        case 'spo2':
+            cfg = {
+                hours: hours,
+                panels: [{
+                    label: 'SpO\u2082 (%)',
+                    yDomain: [84, 100],
+                    normalBands:  [{ y0: 95, y1: 100, color: '#48bb78' }],
+                    warningBands: [{ y0: 88, y1: 95,  color: '#fc8181' }],
+                    series: [{
+                        name: 'SpO\u2082',
+                        values: vitalsData.map(function (v) { return v.spo2; }),
+                        color: '#38a169', unit: '%', decimals: 1
+                    }],
+                }],
+            };
+            break;
+
+        case 'resp_rate':
+            cfg = {
+                hours: hours,
+                panels: [{
+                    label: 'RR (/min)',
+                    normalBands: [{ y0: 12, y1: 20, color: '#48bb78' }],
+                    series: [{
+                        name: 'Resp Rate',
+                        values: vitalsData.map(function (v) { return v.resp_rate; }),
+                        color: '#d69e2e', unit: '/min', decimals: 0
+                    }],
+                }],
+            };
+            break;
+
+        case 'temperature':
+            cfg = {
+                hours: hours,
+                panels: [{
+                    label: 'Temp (\u00b0C)',
+                    normalBands: [{ y0: 36.5, y1: 37.5, color: '#48bb78' }],
+                    series: [{
+                        name: 'Temperature',
+                        values: vitalsData.map(function (v) { return v.temperature; }),
+                        color: '#ed8936', unit: '\u00b0C', decimals: 1
+                    }],
+                }],
+            };
+            break;
+
+        case 'glucose':
+            cfg = {
+                hours: hours,
+                panels: [{
+                    label: 'Glucose (mg/dL)',
+                    normalBands: [{ y0: 70, y1: 140, color: '#48bb78' }],
+                    series: [{
+                        name: 'Glucose',
+                        values: vitalsData.map(function (v) { return v.glucose; }),
+                        color: '#805ad5', unit: 'mg/dL', decimals: 0
+                    }],
+                }],
+            };
+            break;
+    }
+
+    if (cfg) buildMultiPanel('chart-vitals', cfg);
 }
 
+// Wire up radio buttons for vitals
+document.querySelectorAll('input[name="vital-type"]').forEach(function (radio) {
+    radio.addEventListener('change', function () {
+        currentVitalType = this.value;
+        renderVitals();
+    });
+});
+
 // =============================================================================
-// TAB 3 — LABS
+// LABS — radio button dispatch
 // =============================================================================
+
+var currentLabType = 'chemistry';
 
 function renderLabs() {
+    var hasChem = !isEmpty(chemData);
+    var hasCoag = !isEmpty(coagData);
     var hasVitals = !isEmpty(vitalsData);
-    var hasChem   = !isEmpty(chemData);
-    var hasCoag   = !isEmpty(coagData);
 
-    if (!hasVitals && !hasChem && !hasCoag) {
-        showEmptyState('chart-labs', 'No lab data recorded yet. Advance the simulation to populate data.');
-        return;
-    }
+    if (currentLabType === 'chemistry') {
+        if (!hasChem) {
+            showEmptyState('chart-labs', 'No chemistry data recorded yet.');
+            return;
+        }
+        var hours = chemData.map(function (c) { return c.hour_label; });
 
-    // Build a unified hours array covering all data sources
-    var hourSet = {};
-    if (hasVitals) vitalsData.forEach(function (v) { hourSet[v.hour_label] = true; });
-    if (hasChem)   chemData.forEach(function (c)   { hourSet[c.hour_label] = true; });
-    if (hasCoag)   coagData.forEach(function (c)   { hourSet[c.hour_label] = true; });
-    var hours = Object.keys(hourSet).sort();
+        function byHourChem(field) {
+            return chemData.map(function (c) { return c[field]; });
+        }
 
-    // Helper: look up a field value by hour from a dataset
-    function byHour(dataset, field) {
-        var map = {};
-        dataset.forEach(function (d) { map[d.hour_label] = d[field]; });
-        return hours.map(function (h) { return map[h] != null ? map[h] : null; });
-    }
+        buildMultiPanel('chart-labs', {
+            hours: hours,
+            panels: [{
+                label: 'Na / HCO\u2083 (mEq/L)',
+                rightLabel: 'K / Ca (mEq/L)',
+                normalBands: [
+                    { y0: 135, y1: 145, color: '#48bb78', axis: 'left' },
+                    { y0: 3.5, y1: 5.0, color: '#48bb78', axis: 'right' },
+                ],
+                series: [
+                    { name: 'Sodium',      values: byHourChem('sodium'),      color: '#3182ce', unit: 'mEq/L', decimals: 1, yAxis: 'left' },
+                    { name: 'Bicarbonate', values: byHourChem('bicarbonate'), color: '#319795', unit: 'mEq/L', decimals: 1, yAxis: 'left', dash: '4,2', width: 2 },
+                    { name: 'Potassium',   values: byHourChem('potassium'),   color: '#e67e22', unit: 'mEq/L', decimals: 1, yAxis: 'right' },
+                    { name: 'Calcium',     values: byHourChem('calcium'),     color: '#b7791f', unit: 'mg/dL', decimals: 1, yAxis: 'right', dash: '4,2', width: 2 },
+                ],
+            }],
+        });
+    } else {
+        // coagulation
+        if (!hasCoag) {
+            showEmptyState('chart-labs', 'No coagulation data recorded yet.');
+            return;
+        }
+        var hours = coagData.map(function (c) { return c.hour_label; });
 
-    var panels = [];
+        function byHourCoag(field) {
+            return coagData.map(function (c) { return c[field]; });
+        }
 
-    if (hasVitals) {
-        panels.push({
-            label: 'Glucose (mg/dL)',
-            normalBands: [{ y0: 70, y1: 140, color: '#48bb78' }],
-            series: [
-                { name: 'Glucose',
-                  values: byHour(vitalsData, 'glucose'),
-                  color: '#805ad5', unit: 'mg/dL', decimals: 0 },
-            ],
+        buildMultiPanel('chart-labs', {
+            hours: hours,
+            panels: [{
+                label: 'INR',
+                rightLabel: 'PTT (s)',
+                normalBands: [{ y0: 0.8, y1: 1.2, color: '#48bb78', axis: 'left' }],
+                series: [
+                    { name: 'INR', values: byHourCoag('inr'), color: '#e53e3e', decimals: 2, yAxis: 'left' },
+                    { name: 'PTT', values: byHourCoag('ptt'), color: '#6b46c1', unit: 's', decimals: 0, yAxis: 'right' },
+                ],
+            }],
         });
     }
-
-    if (hasChem) {
-        panels.push({
-            label: 'Na / HCO\u2083 (mEq/L)',
-            rightLabel: 'K / Ca (mEq/L)',
-            normalBands: [
-                { y0: 135, y1: 145, color: '#48bb78', axis: 'left' },
-                { y0: 3.5, y1: 5.0, color: '#48bb78', axis: 'right' },
-            ],
-            series: [
-                { name: 'Sodium',
-                  values: byHour(chemData, 'sodium'),
-                  color: '#3182ce', unit: 'mEq/L', decimals: 1, yAxis: 'left' },
-                { name: 'Bicarbonate',
-                  values: byHour(chemData, 'bicarbonate'),
-                  color: '#319795', unit: 'mEq/L', decimals: 1, yAxis: 'left', dash: '4,2', width: 2 },
-                { name: 'Potassium',
-                  values: byHour(chemData, 'potassium'),
-                  color: '#e67e22', unit: 'mEq/L', decimals: 1, yAxis: 'right' },
-                { name: 'Calcium',
-                  values: byHour(chemData, 'calcium'),
-                  color: '#b7791f', unit: 'mg/dL', decimals: 1, yAxis: 'right', dash: '4,2', width: 2 },
-            ],
-        });
-    }
-
-    if (hasCoag) {
-        panels.push({
-            label: 'INR',
-            rightLabel: 'PTT (s)',
-            normalBands: [{ y0: 0.8, y1: 1.2, color: '#48bb78', axis: 'left' }],
-            series: [
-                { name: 'INR',
-                  values: byHour(coagData, 'inr'),
-                  color: '#e53e3e', decimals: 2, yAxis: 'left' },
-                { name: 'PTT',
-                  values: byHour(coagData, 'ptt'),
-                  color: '#6b46c1', unit: 's', decimals: 0, yAxis: 'right' },
-            ],
-        });
-    }
-
-    buildMultiPanel('chart-labs', { hours: hours, panels: panels });
 }
 
-var labsTab = document.getElementById('tab-labs');
-if (labsTab && labsTab.classList.contains('active')) {
-    renderLabs();
-} else {
-    deferredRenders['labs'] = renderLabs;
-}
+// Wire up radio buttons for labs
+document.querySelectorAll('input[name="lab-type"]').forEach(function (radio) {
+    radio.addEventListener('change', function () {
+        currentLabType = this.value;
+        renderLabs();
+    });
+});
 
 // =============================================================================
-// TAB 4 — SOFA SCORE
+// SOFA SCORE — render immediately
 // =============================================================================
 
 function renderSofa() {
@@ -872,45 +840,24 @@ function renderSofa() {
     buildSofaChart('chart-sofa', sofaData);
 }
 
-var sofaTab = document.getElementById('tab-sofa');
-if (sofaTab && sofaTab.classList.contains('active')) {
-    renderSofa();
-} else {
-    deferredRenders['sofa'] = renderSofa;
-}
-
 // =============================================================================
-// PREDICTIONS (unchanged)
+// INITIAL RENDER + RESIZE HANDLER
 // =============================================================================
 
-var pageConfig = document.getElementById('page-config');
-var predUrl = pageConfig ? pageConfig.dataset.predictionUrl : null;
-var patientKey = pageConfig ? pageConfig.dataset.patientKey : null;
-
-if (predUrl) {
-    fetch(predUrl)
-        .then(function (r) {
-            if (!r.ok) throw new Error('prediction not available');
-            return r.json();
-        })
-        .then(function (data) {
-            // Demo batch endpoint returns {predictions: {key: {risk_score, ...}}}
-            // Production endpoint returns {risk_score, latent_class, ...} directly
-            var pred = data;
-            if (patientKey && data.predictions) {
-                pred = data.predictions[patientKey] || {};
-            }
-            var riskEl  = document.getElementById('risk-score');
-            var classEl = document.getElementById('latent-class');
-            if (riskEl)  riskEl.textContent  = pred.risk_score != null ? pred.risk_score.toFixed(3) : '-';
-            if (classEl) classEl.textContent = pred.latent_class != null ? pred.latent_class : '-';
-        })
-        .catch(function () {
-            var riskEl  = document.getElementById('risk-score');
-            var classEl = document.getElementById('latent-class');
-            if (riskEl)  riskEl.textContent  = '-';
-            if (classEl) classEl.textContent = '-';
-        });
+function renderAll() {
+    if (document.getElementById('chart-vitals')) renderVitals();
+    if (document.getElementById('chart-labs'))   renderLabs();
+    if (document.getElementById('chart-sofa'))   renderSofa();
 }
+
+// Initial render
+renderAll();
+
+// Debounced resize handler
+var resizeTimer;
+window.addEventListener('resize', function () {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(renderAll, 200);
+});
 
 })();

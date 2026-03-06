@@ -113,3 +113,46 @@
     color: #e53e3e;
     font-size: 1.25rem;
 }
+
+/* ── Detail page 2-column grid ──────────────────────────────────────────── */
+.detail-main-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 0.5rem;
+    align-items: start;
+    margin-top: 0.5rem;
+}
+.detail-charts-col {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+.sticky-sidebar {
+    position: sticky;
+    top: 4rem;
+    max-height: calc(100vh - 5rem);
+    overflow-y: auto;
+}
+.vitals-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    padding: 0.25rem 0;
+    font-size: 0.85rem;
+}
+.vitals-controls label {
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+@media (max-width: 900px) {
+    .detail-main-grid {
+        grid-template-columns: 1fr;
+    }
+    .sticky-sidebar {
+        position: static;
+        max-height: none;
+    }
+}

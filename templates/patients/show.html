@@ -19,168 +19,156 @@
 {% endif %}
 {% endblock %}
 
+{% block nav_actions %}
+{% if demo_mode_view %}
+<a href="{% url 'demo:index' %}" class="btn-nav-back">&larr; Back to List</a>
+{% else %}
+<a href="{% url 'patients:index' %}" class="btn-nav-back">&larr; Back to List</a>
+{% endif %}
+{% endblock %}
+
 {% block content %}
-<!-- Patient Details -->
+<!-- Patient Header -->
 <div class="card">
     <div class="card-header">
         <h2>Patient Details</h2>
-        <div style="display: flex; gap: 0.5rem; align-items: center;">
-            {% if demo_mode_view %}
-            <a href="{% url 'demo:index' %}" class="btn btn-primary btn-sm">&larr; Back to List</a>
-            <a href="{% url 'demo:prediction_detail' patient.subject_id patient.stay_id patient.hadm_id %}" class="btn btn-primary btn-sm">View Prediction &rarr;</a>
-            {% else %}
-            <a href="{% url 'patients:index' %}" class="btn btn-primary btn-sm">&larr; Back to List</a>
-            <a href="{% url 'patients:prediction_detail' patient.subject_id patient.stay_id patient.hadm_id %}" class="btn btn-primary btn-sm">View Prediction &rarr;</a>
-            {% endif %}
-        </div>
     </div>
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem;">
+
+    <div class="patient-detail-grid">
         <div>
-            <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.25rem;">Patient</p>
-            <p style="font-size: 1.25rem; font-weight: 600;">{{ patient.display_name }}</p>
+            <p class="patient-field-label">Patient</p>
+            <p class="patient-field-value">{{ patient.display_name }}</p>
         </div>
         <div>
-            <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.25rem;">Stay ID</p>
-            <p style="font-size: 1.25rem; font-weight: 600;">{{ patient.stay_id }}</p>
+            <p class="patient-field-label">Age</p>
+            <p class="patient-field-value">{{ patient.anchor_age|default:"-" }}</p>
         </div>
         <div>
-            <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.25rem;">HADM ID</p>
-            <p style="font-size: 1.25rem; font-weight: 600;">{{ patient.hadm_id }}</p>
-        </div>
-        <div>
-            <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.25rem;">Age</p>
-            <p style="font-size: 1.25rem; font-weight: 600;">{{ patient.anchor_age|default:"-" }}</p>
-        </div>
-        <div>
-            <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.25rem;">Gender</p>
-            <p style="font-size: 1.25rem; font-weight: 600;">
+            <p class="patient-field-label">Gender</p>
+            <p class="patient-field-value">
                 {% if patient.gender == 'M' %}Male{% elif patient.gender == 'F' %}Female{% else %}{{ patient.gender|default:"-" }}{% endif %}
             </p>
         </div>
         <div>
-            <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.25rem;">Race</p>
-            <p style="font-size: 1.25rem; font-weight: 600;">{{ patient.race|default:"-" }}</p>
+            <p class="patient-field-label">Race</p>
+            <p class="patient-field-value">{{ patient.race|default:"-" }}</p>
         </div>
         <div>
-            <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.25rem;">First Care Unit</p>
-            <p style="font-size: 1.25rem; font-weight: 600;">{{ patient.first_careunit|default:"-" }}</p>
+            <p class="patient-field-label">First Care Unit</p>
+            <p class="patient-field-value">{{ patient.first_careunit|default:"-" }}</p>
         </div>
         <div>
-            <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.25rem;">Admission Time</p>
-            <p style="font-size: 1.25rem; font-weight: 600;">{{ patient.intime|date:"M d, Y H:i"|default:"-" }}</p>
+            <p class="patient-field-label">Time Since Admission</p>
+            <p class="patient-field-value">{{ patient.time_since_admission|default:"-" }}</p>
         </div>
-    </div>
-</div>
-
-<!-- Clinical Vitals — Tabbed chart card -->
-<div class="card" id="vitals-card" style="margin-top: 1rem;">
-    <div class="card-header" style="flex-wrap: wrap; gap: 0.75rem;">
-        <h2>Clinical Vitals</h2>
-        <div class="tab-bar">
-            <button class="tab-btn active" data-tab="cardio">Cardiovascular</button>
-            <button class="tab-btn" data-tab="resp">Respiratory</button>
-            <button class="tab-btn" data-tab="labs">Labs</button>
-            <button class="tab-btn" data-tab="sofa">SOFA Score</button>
-        </div>
-    </div>
-
-    <div class="tab-panel active" id="tab-cardio">
-        {% if show_sim_dock and current_hour < 0 %}
-        <p class="text-muted chart-empty-msg">Use the simulation clock (top-right) to start collecting vital signs.</p>
-        {% else %}
-        <div id="chart-cardio" style="width:100%; position:relative;"></div>
-        {% endif %}
-    </div>
-
-    <div class="tab-panel" id="tab-resp">
-        {% if show_sim_dock and current_hour < 0 %}
-        <p class="text-muted chart-empty-msg">Use the simulation clock (top-right) to start collecting vital signs.</p>
-        {% else %}
-        <div id="chart-resp" style="width:100%; position:relative;"></div>
-        {% endif %}
-    </div>
-
-    <div class="tab-panel" id="tab-labs">
-        {% if show_sim_dock and current_hour < 0 %}
-        <p class="text-muted chart-empty-msg">Use the simulation clock (top-right) to start collecting data.</p>
-        {% else %}
-        <div id="chart-labs" style="width:100%; position:relative;"></div>
-        {% endif %}
-    </div>
-
-    <div class="tab-panel" id="tab-sofa">
-        {% if show_sim_dock and current_hour < 0 %}
-        <p class="text-muted chart-empty-msg">Use the simulation clock (top-right) to start the simulation.</p>
-        {% else %}
-        <div id="chart-sofa" style="width:100%; position:relative;"></div>
-        {% endif %}
-    </div>
-</div>
-
-<!-- Procedure Events Log -->
-<div class="card" style="margin-top: 1rem;">
-    <div class="card-header">
-        <h2>Procedure Events</h2>
-        <span class="badge">{{ procedures_count }} event{{ procedures_count|pluralize }}</span>
-    </div>
-    <div id="procedures-log" style="max-height: 400px; overflow-y: auto;">
-        {% if procedures %}
-            {% for proc in procedures %}
-            <div style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">
-                <div style="display: flex; justify-content: space-between; align-items: baseline;">
-                    <strong style="color: #2c5282; font-size: 0.9rem;">{{ proc.item_label|default:"-" }}</strong>
-                    <span class="text-muted" style="font-size: 0.8rem; white-space: nowrap; margin-left: 0.5rem;">
-                        {{ proc.charttime_hour|date:"H:i"|default:"-" }}
-                    </span>
-                </div>
-                {% if proc.value %}
-                <div style="font-size: 0.85rem; margin-top: 0.25rem;">
-                    Value: {{ proc.value }} {{ proc.valueuom|default:"" }}
-                </div>
-                {% endif %}
-                {% if proc.ordercategoryname %}
-                <div style="font-size: 0.8rem; color: #718096; margin-top: 0.15rem;">
-                    {{ proc.ordercategoryname }}{% if proc.statusdescription %} &middot; {{ proc.statusdescription }}{% endif %}
-                </div>
-                {% endif %}
-            </div>
-            {% endfor %}
-        {% else %}
-            <p class="text-muted" style="padding: 1rem;">
-                {% if show_sim_dock and current_hour < 0 %}
-                    Use the simulation clock to start collecting data.
+        <div>
+            <p class="patient-field-label">Sepsis Probability</p>
+            <p class="patient-field-value">
+                {% if demo_mode_view %}
+                <a href="{% url 'demo:prediction_detail' patient.subject_id patient.stay_id patient.hadm_id %}" style="color: {{ risk_color }}; text-decoration: underline;">{{ risk_score_display }}</a>
                 {% else %}
-                    No procedure events recorded yet.
+                <a href="{% url 'patients:prediction_detail' patient.subject_id patient.stay_id patient.hadm_id %}" style="color: {{ risk_color }}; text-decoration: underline;">{{ risk_score_display }}</a>
                 {% endif %}
             </p>
-        {% endif %}
+        </div>
     </div>
 </div>
 
-<!-- Predictions -->
-<div class="card" style="margin-top: 1rem;">
-    <div class="card-header">
-        <h2>Predictions</h2>
-    </div>
-    <div id="prediction-panel" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem;">
-        {% if prediction_as_of_iso %}
-        <div>
-            <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.25rem;">Risk Score</p>
-            <p id="risk-score" style="font-size: 1.25rem; font-weight: 600;">&mdash;</p>
-        </div>
-        <div>
-            <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.25rem;">Latent Class</p>
-            <p id="latent-class" style="font-size: 1.25rem; font-weight: 600;">&mdash;</p>
-        </div>
-        {% else %}
-        <p class="text-muted">
-            {% if show_sim_dock %}
-                Use the simulation clock to start the simulation and load predictions.
+<!-- 2-column grid: Charts left, Procedures right -->
+<div class="detail-main-grid">
+    <!-- Left column: Charts -->
+    <div class="detail-charts-col">
+
+        <!-- Vital Signs Card -->
+        <div class="card">
+            <div class="card-header">
+                <h2>Vital Signs</h2>
+            </div>
+            {% if show_sim_dock and current_hour < 0 %}
+            <p class="text-muted chart-empty-msg">Use the simulation clock (top-right) to start collecting vital signs.</p>
             {% else %}
-                No prediction data available.
+            <div class="vitals-controls">
+                <label><input type="radio" name="vital-type" value="heart_rate" checked> Heart Rate</label>
+                <label><input type="radio" name="vital-type" value="blood_pressure"> Blood Pressure</label>
+                <label><input type="radio" name="vital-type" value="spo2"> SpO2</label>
+                <label><input type="radio" name="vital-type" value="resp_rate"> Resp Rate</label>
+                <label><input type="radio" name="vital-type" value="temperature"> Temperature</label>
+                <label><input type="radio" name="vital-type" value="glucose"> Glucose</label>
+            </div>
+            <div id="chart-vitals" style="width:100%; position:relative;"></div>
             {% endif %}
-        </p>
-        {% endif %}
+        </div>
+
+        <!-- Labs Card -->
+        <div class="card">
+            <div class="card-header">
+                <h2>Labs</h2>
+            </div>
+            {% if show_sim_dock and current_hour < 0 %}
+            <p class="text-muted chart-empty-msg">Use the simulation clock (top-right) to start collecting data.</p>
+            {% else %}
+            <div class="vitals-controls">
+                <label><input type="radio" name="lab-type" value="chemistry" checked> Chemistry</label>
+                <label><input type="radio" name="lab-type" value="coagulation"> Coagulation</label>
+            </div>
+            <div id="chart-labs" style="width:100%; position:relative;"></div>
+            {% endif %}
+        </div>
+
+        <!-- SOFA Score Card -->
+        <div class="card">
+            <div class="card-header">
+                <h2>SOFA Score</h2>
+            </div>
+            {% if show_sim_dock and current_hour < 0 %}
+            <p class="text-muted chart-empty-msg">Use the simulation clock (top-right) to start the simulation.</p>
+            {% else %}
+            <div id="chart-sofa" style="width:100%; position:relative;"></div>
+            {% endif %}
+        </div>
+
+    </div>
+
+    <!-- Right column: Procedure Events sidebar -->
+    <div class="sticky-sidebar">
+        <div class="card">
+            <div class="card-header">
+                <h2>Procedure Events</h2>
+                <span class="badge">{{ procedures_count }} event{{ procedures_count|pluralize }}</span>
+            </div>
+            <div id="procedures-log" style="max-height: calc(100vh - 10rem); overflow-y: auto;">
+                {% if procedures %}
+                    {% for proc in procedures %}
+                    <div style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">
+                        <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                            <strong style="color: #2c5282; font-size: 0.9rem;">{{ proc.item_label|default:"-" }}</strong>
+                            <span class="text-muted" style="font-size: 0.8rem; white-space: nowrap; margin-left: 0.5rem;">
+                                {{ proc.charttime_hour|date:"H:i"|default:"-" }}
+                            </span>
+                        </div>
+                        {% if proc.value %}
+                        <div style="font-size: 0.85rem; margin-top: 0.25rem;">
+                            Value: {{ proc.value }} {{ proc.valueuom|default:"" }}
+                        </div>
+                        {% endif %}
+                        {% if proc.ordercategoryname %}
+                        <div style="font-size: 0.8rem; color: #718096; margin-top: 0.15rem;">
+                            {{ proc.ordercategoryname }}{% if proc.statusdescription %} &middot; {{ proc.statusdescription }}{% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted" style="padding: 1rem;">
+                        {% if show_sim_dock and current_hour < 0 %}
+                            Use the simulation clock to start collecting data.
+                        {% else %}
+                            No procedure events recorded yet.
+                        {% endif %}
+                    </p>
+                {% endif %}
+            </div>
+        </div>
     </div>
 </div>
 
@@ -190,18 +178,7 @@
 <script type="application/json" id="chemistry-data">{{ chemistry_json|safe }}</script>
 <script type="application/json" id="coagulation-data">{{ coagulation_json|safe }}</script>
 
-<div id="page-config" style="display:none"
-     {% if prediction_as_of_iso %}
-     {% if demo_mode_view %}
-     data-prediction-url="{% url 'demo:batch_predictions' %}"
-     data-patient-key="{{ patient.subject_id }}_{{ patient.stay_id }}_{{ patient.hadm_id }}"
-     {% else %}
-     data-prediction-url="{% url 'patients:prediction' patient.subject_id patient.stay_id patient.hadm_id %}?as_of={{ prediction_as_of_iso|urlencode }}&window_hours=24"
-     {% endif %}
-     {% endif %}>
-</div>
-
-<!-- D3.js v7 (~280 KB vs Plotly's ~3.4 MB) -->
+<!-- D3.js v7 -->
 <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
 <script src="{% static 'js/patient-charts.js' %}"></script>
 {% endblock %}
