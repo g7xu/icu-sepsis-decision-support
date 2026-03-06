@@ -288,6 +288,12 @@ class SimSofaHourly(models.Model):
     cardiovascular = models.IntegerField(null=True)
     cns = models.IntegerField(null=True)
     renal = models.IntegerField(null=True)
+    pao2fio2ratio_novent = models.FloatField(null=True)
+    pao2fio2ratio_vent = models.FloatField(null=True)
+    rate_epinephrine = models.FloatField(null=True)
+    rate_norepinephrine = models.FloatField(null=True)
+    rate_dopamine = models.FloatField(null=True)
+    rate_dobutamine = models.FloatField(null=True)
 
     class Meta:
         managed = True

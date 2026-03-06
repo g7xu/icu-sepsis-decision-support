@@ -77,6 +77,8 @@ def load():
         'subject_id', 'stay_id', 'charttime_hour',
         'sofa_24hours', 'respiration', 'coagulation', 'liver',
         'cardiovascular', 'cns', 'renal',
+        'pao2fio2ratio_novent', 'pao2fio2ratio_vent',
+        'rate_epinephrine', 'rate_norepinephrine', 'rate_dopamine', 'rate_dobutamine',
     ])
 
     _precompute_predictions()

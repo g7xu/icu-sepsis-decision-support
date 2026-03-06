@@ -188,7 +188,13 @@ class Command(BaseCommand):
                 liver          INTEGER,
                 cardiovascular INTEGER,
                 cns            INTEGER,
-                renal          INTEGER
+                renal          INTEGER,
+                pao2fio2ratio_novent FLOAT,
+                pao2fio2ratio_vent   FLOAT,
+                rate_epinephrine     FLOAT,
+                rate_norepinephrine  FLOAT,
+                rate_dopamine        FLOAT,
+                rate_dobutamine      FLOAT
             )
             """,
             "CREATE INDEX IF NOT EXISTS sim_cache_sofa_idx ON simulation.sim_cache_sofa_hourly (stay_id, charttime_hour)",
@@ -457,7 +463,9 @@ class Command(BaseCommand):
             INSERT INTO simulation.sim_cache_sofa_hourly
                 (subject_id, stay_id, charttime_hour,
                  sofa_24hours, respiration, coagulation, liver,
-                 cardiovascular, cns, renal)
+                 cardiovascular, cns, renal,
+                 pao2fio2ratio_novent, pao2fio2ratio_vent,
+                 rate_epinephrine, rate_norepinephrine, rate_dopamine, rate_dobutamine)
             SELECT
                 sp.subject_id,
                 s.stay_id,
@@ -468,7 +476,13 @@ class Command(BaseCommand):
                 s.liver,
                 s.cardiovascular,
                 s.cns,
-                s.renal
+                s.renal,
+                s.pao2fio2ratio_novent,
+                s.pao2fio2ratio_vent,
+                s.rate_epinephrine,
+                s.rate_norepinephrine,
+                s.rate_dopamine,
+                s.rate_dobutamine
             FROM mimiciv_derived.fisi9t_sofa_hourly s
             JOIN simulation.sim_cache_icustays sp ON sp.stay_id = s.stay_id
             WHERE s.stay_id = ANY(%s)

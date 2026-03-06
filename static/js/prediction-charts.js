@@ -21,15 +21,27 @@ var CHART_FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
 // =============================================================================
 
 var predictionData = parseJSON('prediction-history-data');
-var sofaData       = parseJSON('sofa-data');
+var sofaSeriesData = parseJSON('sofa-series-data');
 var sepsis3Data    = parseJSONObj('sepsis3-data');
 
 var configEl       = document.getElementById('prediction-config');
 var modelOnsetHour = configEl ? configEl.dataset.modelOnsetHour : '';
 modelOnsetHour     = modelOnsetHour !== '' ? parseInt(modelOnsetHour, 10) : null;
 
+// Chart type labels and colors
+var SERIES_CONFIG = {
+    pao2fio2ratio_novent: { label: 'PaO2/FiO2 (no vent)', color: '#3182ce', unit: '' },
+    pao2fio2ratio_vent:   { label: 'PaO2/FiO2 (vent)',    color: '#805ad5', unit: '' },
+    rate_epinephrine:     { label: 'Epinephrine',          color: '#e53e3e', unit: 'mcg/kg/min' },
+    rate_norepinephrine:  { label: 'Norepinephrine',       color: '#dd6b20', unit: 'mcg/kg/min' },
+    rate_dopamine:        { label: 'Dopamine',             color: '#38a169', unit: 'mcg/kg/min' },
+    rate_dobutamine:      { label: 'Dobutamine',           color: '#d69e2e', unit: 'mcg/kg/min' },
+};
+
+var currentChartType = 'sepsis_likelihood';
+
 // =============================================================================
-// RISK TREND CHART
+// RISK TREND CHART (Sepsis Likelihood)
 // =============================================================================
 
 function buildRiskTrendChart(containerId) {
@@ -44,7 +56,7 @@ function buildRiskTrendChart(containerId) {
 
     var M = { top: 40, right: 60, bottom: 58, left: 72 };
     var W = container.offsetWidth || 800;
-    var H = 280;
+    var H = 350;
     var iW = W - M.left - M.right;
     var iH = H - M.top - M.bottom;
 
@@ -81,19 +93,14 @@ function buildRiskTrendChart(containerId) {
         .range([iH, 0]);
 
     // Warning bands
-    // 0-30%: green zone
     root.append('rect')
         .attr('x', 0).attr('width', iW)
         .attr('y', yScale(0.3)).attr('height', yScale(0) - yScale(0.3))
         .attr('fill', '#48bb78').attr('opacity', 0.08);
-
-    // 30-60%: amber zone
     root.append('rect')
         .attr('x', 0).attr('width', iW)
         .attr('y', yScale(0.6)).attr('height', yScale(0.3) - yScale(0.6))
         .attr('fill', '#ed8936').attr('opacity', 0.08);
-
-    // 60-100%: red zone
     root.append('rect')
         .attr('x', 0).attr('width', iW)
         .attr('y', yScale(1)).attr('height', yScale(0.6) - yScale(1))
@@ -108,7 +115,6 @@ function buildRiskTrendChart(containerId) {
             .attr('stroke-width', 1)
             .attr('stroke-dasharray', '5,3')
             .attr('opacity', 0.6);
-
         root.append('text')
             .attr('x', iW + 4).attr('y', yScale(threshold) + 4)
             .attr('font-size', 9)
@@ -322,19 +328,236 @@ function buildRiskTrendChart(containerId) {
 }
 
 // =============================================================================
-// RENDER
+// GENERIC SERIES CHART (PaO2/FiO2, drug rates)
 // =============================================================================
 
-buildRiskTrendChart('chart-risk-trend');
+function buildSeriesChart(containerId, fieldKey) {
+    var container = document.getElementById(containerId);
+    if (!container) return;
 
-// SOFA chart (reuse buildSofaChart from patient-charts.js if available)
-if (typeof buildSofaChart === 'function' && sofaData && sofaData.length > 0) {
-    buildSofaChart('chart-sofa', sofaData);
-} else {
-    var sofaEl = document.getElementById('chart-sofa');
-    if (sofaEl && (!sofaData || sofaData.length === 0)) {
-        sofaEl.innerHTML = '<p style="padding:2rem 1rem; color:#718096;">No SOFA data available yet.</p>';
+    var cfg = SERIES_CONFIG[fieldKey];
+    if (!cfg) return;
+
+    // Filter to rows that have data for this field
+    var hasData = sofaSeriesData.some(function (d) { return d[fieldKey] != null; });
+    if (!hasData || !sofaSeriesData.length) {
+        d3.select(container).selectAll('*').remove();
+        container.innerHTML = '<p style="padding:2rem 1rem; color:#718096;">No ' + cfg.label + ' data available for this patient.</p>';
+        return;
+    }
+
+    d3.select(container).selectAll('*').remove();
+
+    var M = { top: 40, right: 40, bottom: 58, left: 72 };
+    var W = container.offsetWidth || 800;
+    var H = 350;
+    var iW = W - M.left - M.right;
+    var iH = H - M.top - M.bottom;
+
+    var hourLabels = sofaSeriesData.map(function (d) { return d.hour_label; });
+
+    // Tooltip
+    var ttDiv = d3.select(container)
+        .append('div')
+        .attr('class', 'd3-tooltip')
+        .style('display', 'none');
+
+    var svg = d3.select(container)
+        .append('svg')
+        .attr('width', W)
+        .attr('height', H);
+
+    var root = svg.append('g')
+        .attr('transform', 'translate(' + M.left + ',' + M.top + ')');
+
+    // Background
+    root.append('rect')
+        .attr('width', iW).attr('height', iH)
+        .attr('fill', '#fafafa')
+        .attr('stroke', '#e2e8f0').attr('stroke-width', 0.5);
+
+    // Scales
+    var xScale = d3.scalePoint()
+        .domain(hourLabels)
+        .range([0, iW]);
+
+    var vals = sofaSeriesData.map(function (d) { return d[fieldKey]; }).filter(function (v) { return v != null; });
+    var yMin = d3.min(vals) || 0;
+    var yMax = d3.max(vals) || 1;
+    var yPad = (yMax - yMin) * 0.1 || 0.5;
+
+    var yScale = d3.scaleLinear()
+        .domain([Math.max(0, yMin - yPad), yMax + yPad])
+        .range([iH, 0]);
+
+    // Gridlines
+    var yAxisG = root.append('g')
+        .call(d3.axisLeft(yScale)
+            .ticks(5)
+            .tickSizeOuter(0)
+            .tickSize(-iW));
+    yAxisG.select('.domain').remove();
+    yAxisG.selectAll('.tick line')
+        .attr('stroke', '#e2e8f0').attr('stroke-dasharray', '2,2');
+    yAxisG.selectAll('.tick text')
+        .attr('font-size', 10).attr('fill', '#718096');
+
+    // Y label
+    root.append('text')
+        .attr('transform', 'rotate(-90)')
+        .attr('x', -(iH / 2)).attr('y', -M.left + 14)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', 11).attr('fill', '#4a5568')
+        .attr('font-family', CHART_FONT)
+        .text(cfg.label + (cfg.unit ? ' (' + cfg.unit + ')' : ''));
+
+    // X axis
+    var tickEvery = hourLabels.length > 12 ? 3 : (hourLabels.length > 6 ? 2 : 1);
+    var tickVals = hourLabels.filter(function (h, i) { return i % tickEvery === 0; });
+
+    var xAxisG = root.append('g')
+        .attr('transform', 'translate(0,' + iH + ')')
+        .call(d3.axisBottom(xScale).tickValues(tickVals).tickSizeOuter(0));
+    xAxisG.select('.domain').attr('stroke', '#cbd5e0');
+    xAxisG.selectAll('.tick line').remove();
+    xAxisG.selectAll('.tick text').attr('font-size', 10).attr('fill', '#718096');
+
+    root.append('text')
+        .attr('x', iW / 2).attr('y', iH + M.bottom - 10)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', 12).attr('fill', '#4a5568')
+        .attr('font-family', CHART_FONT)
+        .text('Hour of Day');
+
+    // Line
+    var lineGen = d3.line()
+        .defined(function (d) { return d[fieldKey] != null; })
+        .x(function (d, i) { return xScale(hourLabels[i]); })
+        .y(function (d) { return yScale(d[fieldKey]); });
+
+    root.append('path')
+        .datum(sofaSeriesData)
+        .attr('fill', 'none')
+        .attr('stroke', cfg.color)
+        .attr('stroke-width', 2.5)
+        .attr('stroke-linejoin', 'round')
+        .attr('stroke-linecap', 'round')
+        .attr('d', lineGen);
+
+    // Dots
+    root.selectAll('.series-dot')
+        .data(sofaSeriesData.filter(function (d) { return d[fieldKey] != null; }))
+        .enter().append('circle')
+        .attr('cx', function (d) { return xScale(d.hour_label); })
+        .attr('cy', function (d) { return yScale(d[fieldKey]); })
+        .attr('r', 4)
+        .attr('fill', cfg.color)
+        .attr('stroke', 'white').attr('stroke-width', 1.5);
+
+    // Legend
+    var legG = root.append('g').attr('transform', 'translate(0,' + (-M.top + 8) + ')');
+    legG.append('line')
+        .attr('x1', 0).attr('x2', 18)
+        .attr('y1', 6).attr('y2', 6)
+        .attr('stroke', cfg.color).attr('stroke-width', 2);
+    legG.append('circle')
+        .attr('cx', 9).attr('cy', 6).attr('r', 3)
+        .attr('fill', cfg.color);
+    legG.append('text')
+        .attr('x', 22).attr('y', 10)
+        .attr('font-size', 10).attr('fill', '#4a5568')
+        .attr('font-family', CHART_FONT)
+        .text(cfg.label);
+
+    // Crosshair + tooltip
+    var crosshairG = root.append('g').style('display', 'none').style('pointer-events', 'none');
+    crosshairG.append('line')
+        .attr('class', 'ch-line')
+        .attr('y1', 0).attr('y2', iH)
+        .attr('stroke', '#1a365d').attr('stroke-width', 1)
+        .attr('stroke-dasharray', '4,2').attr('opacity', 0.6);
+
+    var chDot = crosshairG.append('circle')
+        .attr('r', 5).attr('fill', cfg.color)
+        .attr('stroke', 'white').attr('stroke-width', 2);
+
+    root.append('rect')
+        .attr('width', iW).attr('height', iH)
+        .attr('fill', 'transparent')
+        .on('mousemove', function (event) {
+            var mx = d3.pointer(event)[0];
+            var step = hourLabels.length > 1 ? iW / (hourLabels.length - 1) : iW;
+            var idx = Math.round(mx / step);
+            idx = Math.max(0, Math.min(hourLabels.length - 1, idx));
+            var cx = xScale(hourLabels[idx]);
+
+            crosshairG.style('display', null);
+            crosshairG.select('.ch-line').attr('x1', cx).attr('x2', cx);
+
+            var d = sofaSeriesData[idx];
+            if (d && d[fieldKey] != null) {
+                chDot.style('display', null)
+                    .attr('cx', cx)
+                    .attr('cy', yScale(d[fieldKey]));
+            } else {
+                chDot.style('display', 'none');
+            }
+
+            var html = '<div class="tt-hour">' + hourLabels[idx] + '</div>';
+            if (d) {
+                var val = d[fieldKey] != null ? d[fieldKey].toFixed(2) : '\u2013';
+                html += '<div class="tt-row">'
+                    + '<span class="tt-dot" style="background:' + cfg.color + '"></span>'
+                    + '<span class="tt-name">' + cfg.label + '</span>'
+                    + '<span class="tt-val">' + val + '</span>'
+                    + '</div>';
+            }
+            ttDiv.style('display', 'block').html(html);
+
+            var ttW = ttDiv.node().offsetWidth;
+            var ttH2 = ttDiv.node().offsetHeight;
+            var tx = cx + M.left + 14;
+            var ty = event.offsetY - ttH2 / 2;
+            if (tx + ttW > W - 4) tx = cx + M.left - ttW - 14;
+            if (ty < 2) ty = 2;
+            if (ty + ttH2 > H - 2) ty = H - ttH2 - 2;
+            ttDiv.style('left', tx + 'px').style('top', ty + 'px');
+        })
+        .on('mouseleave', function () {
+            crosshairG.style('display', 'none');
+            ttDiv.style('display', 'none');
+        });
+}
+
+// =============================================================================
+// CHART DISPATCHER + RADIO BUTTONS + RESIZE
+// =============================================================================
+
+function renderCurrentChart() {
+    if (currentChartType === 'sepsis_likelihood') {
+        buildRiskTrendChart('chart-risk-trend');
+    } else {
+        buildSeriesChart('chart-risk-trend', currentChartType);
     }
 }
+
+// Radio button listeners
+var radios = document.querySelectorAll('input[name="chart-type"]');
+radios.forEach(function (radio) {
+    radio.addEventListener('change', function () {
+        currentChartType = this.value;
+        renderCurrentChart();
+    });
+});
+
+// Responsive resize with debounce
+var resizeTimer;
+window.addEventListener('resize', function () {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(renderCurrentChart, 200);
+});
+
+// Initial render
+renderCurrentChart();
 
 })();

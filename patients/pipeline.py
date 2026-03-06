@@ -349,7 +349,9 @@ def _fetch_sofa_for_hour(stay_ids: list, current_hour: int) -> list:
     sql = """
         SELECT subject_id, stay_id, charttime_hour,
                sofa_24hours, respiration, coagulation, liver,
-               cardiovascular, cns, renal
+               cardiovascular, cns, renal,
+               pao2fio2ratio_novent, pao2fio2ratio_vent,
+               rate_epinephrine, rate_norepinephrine, rate_dopamine, rate_dobutamine
         FROM simulation.sim_cache_sofa_hourly
         WHERE stay_id = ANY(%s)
           AND charttime_hour = MAKE_TIMESTAMP(2025, 3, 13, %s, 0, 0)
@@ -370,6 +372,12 @@ def _fetch_sofa_for_hour(stay_ids: list, current_hour: int) -> list:
             cardiovascular=r.get('cardiovascular'),
             cns=r.get('cns'),
             renal=r.get('renal'),
+            pao2fio2ratio_novent=r.get('pao2fio2ratio_novent'),
+            pao2fio2ratio_vent=r.get('pao2fio2ratio_vent'),
+            rate_epinephrine=r.get('rate_epinephrine'),
+            rate_norepinephrine=r.get('rate_norepinephrine'),
+            rate_dopamine=r.get('rate_dopamine'),
+            rate_dobutamine=r.get('rate_dobutamine'),
         )
         for r in rows
     ]

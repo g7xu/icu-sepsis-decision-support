@@ -12,12 +12,15 @@
     <nav class="app-navbar">
         <div class="app-navbar__brand">
             <h1>ICU Sepsis Decision Support</h1>
-            {% if DEMO_MODE %}
             <div class="app-navbar__links">
+                {% if DEMO_MODE %}
                 <a href="{% url 'patients:index' %}">Production</a>
                 <a href="{% url 'demo:index' %}">Demo</a>
+                {% endif %}
             </div>
-            {% endif %}
+        </div>
+        <div class="app-navbar__actions">
+            {% block nav_actions %}{% endblock %}
         </div>
     </nav>
 

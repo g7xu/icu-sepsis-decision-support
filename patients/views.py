@@ -19,6 +19,7 @@ from .models import (
     SimSofaHourly,
     SimPredictionResult,
 )
+from . import demo_cache
 from .cohort import get_cohort_filter
 from .services import get_sepsis3_info
 from .similarity import build_vector_from_sim_data, get_similar_patients
@@ -167,8 +168,10 @@ def prediction_detail(request, subject_id, stay_id, hadm_id):
         hadm_id=hadm_id,
     )
     patient.display_name = get_display_name(subject_id, stay_id, hadm_id)
+    time_str, _ = _format_time_since(patient.intime, 23)
+    patient.time_since_admission = time_str or "-"
 
-    # Prediction history from sim_prediction_results
+    # Prediction history from sim_prediction_results (fall back to demo_cache)
     pred_qs = SimPredictionResult.objects.filter(
         subject_id=subject_id,
         stay_id=stay_id,
@@ -178,6 +181,10 @@ def prediction_detail(request, subject_id, stay_id, hadm_id):
     prediction_history = []
     for p in pred_qs.values('prediction_hour', 'risk_score', 'latent_class'):
         prediction_history.append(p)
+
+    if not prediction_history:
+        prediction_history = demo_cache.get_prediction_history(stay_id, 23)
+
     prediction_history_json = json.dumps(prediction_history, cls=DjangoJSONEncoder)
 
     # Current risk score from persisted history
@@ -208,21 +215,42 @@ def prediction_detail(request, subject_id, stay_id, hadm_id):
             model_onset_hour = p['prediction_hour']
             break
 
-    # SOFA data
-    sofa_list = list(SimSofaHourly.objects.filter(
-        subject_id=subject_id,
-        stay_id=stay_id,
-    ).order_by('charttime_hour').values(
+    # SOFA data (fall back to demo_cache if sim tables are empty)
+    _sofa_fields = (
         'charttime_hour', 'sofa_24hours',
         'respiration', 'coagulation', 'liver',
         'cardiovascular', 'cns', 'renal',
-    ))
+        'pao2fio2ratio_novent', 'pao2fio2ratio_vent',
+        'rate_epinephrine', 'rate_norepinephrine', 'rate_dopamine', 'rate_dobutamine',
+    )
+    sofa_list = list(SimSofaHourly.objects.filter(
+        subject_id=subject_id,
+        stay_id=stay_id,
+    ).order_by('charttime_hour').values(*_sofa_fields))
     for row in sofa_list:
         row['hour_label'] = f"{row['charttime_hour'].hour:02d}:00"
-    sofa_json = json.dumps(sofa_list, cls=DjangoJSONEncoder)
+
+    if not sofa_list:
+        sofa_rows = demo_cache.get_data_up_to(demo_cache.sofa, stay_id, 23)
+        for row in sofa_rows:
+            entry = {k: row.get(k) for k in _sofa_fields}
+            ct = entry['charttime_hour']
+            entry['hour_label'] = f"{ct.hour:02d}:00" if hasattr(ct, 'hour') else str(ct)
+            sofa_list.append(entry)
 
     # Latest SOFA components for sidebar
     latest_sofa = sofa_list[-1] if sofa_list else {}
+
+    # SOFA series data for chart radio buttons
+    _series_keys = [
+        'pao2fio2ratio_novent', 'pao2fio2ratio_vent',
+        'rate_epinephrine', 'rate_norepinephrine', 'rate_dopamine', 'rate_dobutamine',
+    ]
+    sofa_series_list = [
+        {**{k: row.get(k) for k in _series_keys}, 'hour_label': row.get('hour_label', '')}
+        for row in sofa_list
+    ]
+    sofa_series_json = json.dumps(sofa_series_list, cls=DjangoJSONEncoder)
 
     # Sepsis3 onset data
     sepsis3 = get_sepsis3_info(subject_id, stay_id)
@@ -231,23 +259,43 @@ def prediction_detail(request, subject_id, stay_id, hadm_id):
         'sofa_time': sepsis3.get('sofa_time'),
     }, cls=DjangoJSONEncoder)
 
+    # Latest clinical values for sidebar
+    latest_vitals = SimVitalsignHourly.objects.filter(
+        subject_id=subject_id, stay_id=stay_id,
+    ).order_by('-charttime_hour').values().first()
+
+    latest_chem = SimChemistryHourly.objects.filter(
+        subject_id=subject_id, stay_id=stay_id,
+    ).order_by('-charttime_hour').values().first()
+
+    latest_coag = SimCoagulationHourly.objects.filter(
+        subject_id=subject_id, stay_id=stay_id,
+    ).order_by('-charttime_hour').values().first()
+
+    # Fallback to demo_cache if sim tables are empty
+    if not latest_vitals:
+        vitals_rows = demo_cache.get_data_up_to(demo_cache.vitals, stay_id, 23)
+        latest_vitals = vitals_rows[-1] if vitals_rows else {}
+    if not latest_chem:
+        chem_rows = demo_cache.get_data_up_to(demo_cache.chemistry, stay_id, 23)
+        latest_chem = chem_rows[-1] if chem_rows else {}
+    if not latest_coag:
+        coag_rows = demo_cache.get_data_up_to(demo_cache.coagulation, stay_id, 23)
+        latest_coag = coag_rows[-1] if coag_rows else {}
+
+    # Suspected infection time
+    suspected_infection_time = sepsis3.get('suspected_infection_time')
+
     # Similar patients — build current feature vector from latest sim_* rows
     similar_patients = []
     try:
-        latest_vitals = SimVitalsignHourly.objects.filter(
-            subject_id=subject_id, stay_id=stay_id,
-        ).order_by('-charttime_hour').values().first()
-
         if latest_vitals:
-            latest_chem = SimChemistryHourly.objects.filter(
-                subject_id=subject_id, stay_id=stay_id,
-            ).order_by('-charttime_hour').values().first()
-            latest_coag = SimCoagulationHourly.objects.filter(
-                subject_id=subject_id, stay_id=stay_id,
-            ).order_by('-charttime_hour').values().first()
             latest_sofa_row = SimSofaHourly.objects.filter(
                 subject_id=subject_id, stay_id=stay_id,
             ).order_by('-charttime_hour').values().first()
+            if not latest_sofa_row:
+                sofa_rows_fb = demo_cache.get_data_up_to(demo_cache.sofa, stay_id, 23)
+                latest_sofa_row = sofa_rows_fb[-1] if sofa_rows_fb else None
 
             current_vector = build_vector_from_sim_data(
                 latest_vitals, latest_chem, latest_coag, latest_sofa_row,
@@ -265,8 +313,12 @@ def prediction_detail(request, subject_id, stay_id, hadm_id):
         'risk_color': risk_color,
         'latent_class': latent_class,
         'prediction_history_json': prediction_history_json,
-        'sofa_json': sofa_json,
+        'sofa_series_json': sofa_series_json,
         'latest_sofa': latest_sofa,
+        'latest_vitals': latest_vitals,
+        'latest_chemistry': latest_chem,
+        'latest_coagulation': latest_coag,
+        'suspected_infection_time': suspected_infection_time,
         'sepsis3_json': sepsis3_json,
         'model_onset_hour': model_onset_hour,
         'similar_patients': similar_patients,
