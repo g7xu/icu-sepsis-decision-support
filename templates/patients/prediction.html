@@ -68,7 +68,7 @@
             <p class="patient-field-value">{{ patient.time_since_admission|default:"-" }}</p>
         </div>
         <div>
-            <p class="patient-field-label">Sepsis Likelihood</p>
+            <p class="patient-field-label">Sepsis Probability</p>
             <p class="patient-field-value" style="color: {{ risk_color }};">{{ risk_score_display }}</p>
         </div>
         {% if suspected_infection_time %}
@@ -89,7 +89,7 @@
         <!-- Left: Risk Trend Chart -->
         <div class="prediction-chart-section">
             <div class="vitals-controls" style="display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; padding: 0.25rem 0;">
-                <label><input type="radio" name="chart-type" value="sepsis_likelihood" checked> Sepsis Likelihood</label>
+                <label><input type="radio" name="chart-type" value="sepsis_likelihood" checked> Sepsis Probability</label>
                 <label><input type="radio" name="chart-type" value="pao2fio2ratio_novent"> PaO2/FiO2 (no vent)</label>
                 <label><input type="radio" name="chart-type" value="pao2fio2ratio_vent"> PaO2/FiO2 (vent)</label>
                 <label><input type="radio" name="chart-type" value="rate_epinephrine"> Epinephrine</label>

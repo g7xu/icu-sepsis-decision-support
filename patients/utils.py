@@ -41,6 +41,49 @@ def get_display_name(subject_id, stay_id, hadm_id):
     return fake.name()
 
 
+def format_procedure_value(value, uom):
+    """Format a procedure value for human-readable display.
+
+    MIMIC stores durations as fractional days (e.g. 0.170 day = ~4h 5m).
+    Convert to hours:minutes for display.
+    """
+    if value is None:
+        return None, None
+    try:
+        val = float(value)
+    except (TypeError, ValueError):
+        return str(value), uom
+
+    uom_lower = (uom or '').lower().strip()
+
+    # Binary flag (value=1, no unit) — just means "procedure occurred"; hide it
+    if val == 1 and uom_lower in ('', 'none'):
+        return None, None
+
+    if uom_lower in ('day', 'days'):
+        total_minutes = round(val * 24 * 60)
+        hours = total_minutes // 60
+        minutes = total_minutes % 60
+        return f"{hours}h {minutes:02d}m", None
+    if uom_lower in ('hour', 'hours'):
+        total_minutes = round(val * 60)
+        hours = total_minutes // 60
+        minutes = total_minutes % 60
+        return f"{hours}h {minutes:02d}m", None
+    if uom_lower in ('min', 'minute', 'minutes'):
+        total_minutes = round(val)
+        hours = total_minutes // 60
+        minutes = total_minutes % 60
+        if hours > 0:
+            return f"{hours}h {minutes:02d}m", None
+        return f"{minutes}m", None
+
+    # For other units, round to 2 decimal places if it's a float
+    if val == int(val):
+        return str(int(val)), uom
+    return f"{val:.2f}", uom
+
+
 def prediction_as_of_iso(current_hour: int) -> str | None:
     """Return the ISO timestamp used as `as_of` for the prediction API call.
 

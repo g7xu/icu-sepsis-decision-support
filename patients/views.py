@@ -23,7 +23,7 @@ from . import demo_cache
 from .cohort import get_cohort_filter
 from .services import get_sepsis3_info
 from .similarity import build_vector_from_sim_data, get_similar_patients
-from .utils import prediction_as_of_iso as _prediction_as_of_iso, get_display_name
+from .utils import prediction_as_of_iso as _prediction_as_of_iso, get_display_name, format_procedure_value
 
 
 def _format_time_since(intime, current_hour):
@@ -87,6 +87,38 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
     )
     patient.display_name = get_display_name(subject_id, stay_id, hadm_id)
 
+    current_hour = 23
+
+    # Time since admission
+    time_str, _ = _format_time_since(patient.intime, current_hour)
+    patient.time_since_admission = time_str or "-"
+
+    # Risk score
+    risk_score_display = "\u2014"
+    risk_color = "#718096"
+    pred_row = SimPredictionResult.objects.filter(
+        subject_id=subject_id,
+        stay_id=stay_id,
+        hadm_id=hadm_id,
+    ).order_by('-prediction_hour').values('risk_score').first()
+
+    if not pred_row:
+        # Fallback to demo_cache
+        pred = demo_cache.get_prediction_at(stay_id, current_hour)
+        score = pred.get("risk_score") if pred else None
+    else:
+        score = pred_row.get('risk_score')
+
+    if score is not None:
+        pct = round(score * 100)
+        risk_score_display = f"{pct}%"
+        if score >= 0.6:
+            risk_color = "#e53e3e"
+        elif score >= 0.3:
+            risk_color = "#dd6b20"
+        else:
+            risk_color = "#38a169"
+
     vitalsigns_qs = SimVitalsignHourly.objects.filter(
         subject_id=subject_id,
         stay_id=stay_id,
@@ -134,7 +166,7 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
         row['hour_label'] = f"{row['charttime_hour'].hour:02d}:00"
     coagulation_json = json.dumps(coag_list, cls=DjangoJSONEncoder)
 
-    procedures = list(SimProcedureeventsHourly.objects.filter(
+    procedures_raw = list(SimProcedureeventsHourly.objects.filter(
         subject_id=subject_id,
         stay_id=stay_id,
     ).order_by('charttime_hour').values(
@@ -142,6 +174,12 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
         'item_label', 'value', 'valueuom',
         'ordercategoryname', 'statusdescription',
     ))
+    procedures = []
+    for row in procedures_raw:
+        fmt_val, fmt_uom = format_procedure_value(row.get('value'), row.get('valueuom'))
+        row['value'] = fmt_val
+        row['valueuom'] = fmt_uom
+        procedures.append(row)
 
     context = {
         'patient': patient,
@@ -151,9 +189,11 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
         'coagulation_json': coagulation_json,
         'procedures': procedures,
         'procedures_count': len(procedures),
-        'current_hour': 23,
+        'risk_score_display': risk_score_display,
+        'risk_color': risk_color,
+        'current_hour': current_hour,
         'current_time_display': '',
-        'prediction_as_of_iso': _prediction_as_of_iso(23),
+        'prediction_as_of_iso': _prediction_as_of_iso(current_hour),
         'show_sim_dock': False,
     }
     return render(request, 'patients/show.html', context)

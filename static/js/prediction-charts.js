@@ -41,7 +41,7 @@ var SERIES_CONFIG = {
 var currentChartType = 'sepsis_likelihood';
 
 // =============================================================================
-// RISK TREND CHART (Sepsis Likelihood)
+// RISK TREND CHART (Sepsis Probability)
 // =============================================================================
 
 function buildRiskTrendChart(containerId) {

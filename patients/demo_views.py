@@ -15,7 +15,7 @@ from django.views.decorators.http import require_POST, require_GET
 from . import demo_cache
 from .cohort import get_cohort_filter
 from .similarity import build_vector_from_sim_data, get_similar_patients
-from .utils import display_time as _display_time, prediction_as_of_iso as _prediction_as_of_iso, get_display_name
+from .utils import display_time as _display_time, prediction_as_of_iso as _prediction_as_of_iso, get_display_name, format_procedure_value
 
 
 # ---------------------------------------------------------------------------
@@ -173,17 +173,54 @@ def demo_patient_detail(request, subject_id, stay_id, hadm_id):
 
         # Procedures
         proc_rows = demo_cache.get_data_up_to(demo_cache.procedures, stay_id, current_hour)
-        procedures = [
-            {k: row.get(k) for k in [
+        procedures = []
+        for row in proc_rows:
+            entry = {k: row.get(k) for k in [
                 'charttime_hour', 'charttime',
                 'item_label', 'value', 'valueuom',
                 'ordercategoryname', 'statusdescription',
             ]}
-            for row in proc_rows
-        ]
+            fmt_val, fmt_uom = format_procedure_value(entry.get('value'), entry.get('valueuom'))
+            entry['value'] = fmt_val
+            entry['valueuom'] = fmt_uom
+            procedures.append(entry)
 
     # Build a patient-like object for the template
     patient['display_name'] = get_display_name(subject_id, stay_id, hadm_id)
+
+    # Time since admission
+    intime = patient.get('intime')
+    if current_hour >= 0 and intime and hasattr(intime, 'hour'):
+        display_hour = current_hour + 1
+        sim_now_minutes = display_hour * 60
+        intime_minutes = intime.hour * 60 + intime.minute
+        total_minutes = sim_now_minutes - intime_minutes
+        if total_minutes < 0:
+            patient['time_since_admission'] = "Not yet admitted"
+        else:
+            hours = total_minutes // 60
+            minutes = total_minutes % 60
+            admitted_time = f"{intime.hour:02d}:{intime.minute:02d}"
+            patient['time_since_admission'] = f"{hours}:{minutes:02d} (admitted {admitted_time})"
+    else:
+        patient['time_since_admission'] = None
+
+    # Risk score
+    risk_score_display = "\u2014"
+    risk_color = "#718096"
+    if current_hour >= 0:
+        pred = demo_cache.get_prediction_at(stay_id, current_hour)
+        score = pred.get("risk_score") if pred else None
+        if score is not None:
+            pct = round(score * 100)
+            risk_score_display = f"{pct}%"
+            if score >= 0.6:
+                risk_color = "#e53e3e"
+            elif score >= 0.3:
+                risk_color = "#dd6b20"
+            else:
+                risk_color = "#38a169"
+
     patient_obj = _PatientProxy(patient)
 
     context = {
@@ -194,6 +231,8 @@ def demo_patient_detail(request, subject_id, stay_id, hadm_id):
         'coagulation_json': coagulation_json,
         'procedures': procedures,
         'procedures_count': len(procedures),
+        'risk_score_display': risk_score_display,
+        'risk_color': risk_color,
         'current_hour': current_hour,
         'current_time_display': _display_time(current_hour),
         'prediction_as_of_iso': _prediction_as_of_iso(current_hour),
