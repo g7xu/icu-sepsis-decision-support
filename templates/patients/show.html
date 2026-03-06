@@ -24,11 +24,15 @@
 <div class="card">
     <div class="card-header">
         <h2>Patient Details</h2>
-        {% if demo_mode_view %}
-        <a href="{% url 'demo:index' %}" class="btn btn-primary btn-sm">&larr; Back to List</a>
-        {% else %}
-        <a href="{% url 'patients:index' %}" class="btn btn-primary btn-sm">&larr; Back to List</a>
-        {% endif %}
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+            {% if demo_mode_view %}
+            <a href="{% url 'demo:index' %}" class="btn btn-primary btn-sm">&larr; Back to List</a>
+            <a href="{% url 'demo:prediction_detail' patient.subject_id patient.stay_id patient.hadm_id %}" class="btn btn-primary btn-sm">View Prediction &rarr;</a>
+            {% else %}
+            <a href="{% url 'patients:index' %}" class="btn btn-primary btn-sm">&larr; Back to List</a>
+            <a href="{% url 'patients:prediction_detail' patient.subject_id patient.stay_id patient.hadm_id %}" class="btn btn-primary btn-sm">View Prediction &rarr;</a>
+            {% endif %}
+        </div>
     </div>
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem;">
         <div>
@@ -187,7 +191,14 @@
 <script type="application/json" id="coagulation-data">{{ coagulation_json|safe }}</script>
 
 <div id="page-config" style="display:none"
-     {% if prediction_as_of_iso %}data-prediction-url="{% url 'patients:prediction' patient.subject_id patient.stay_id patient.hadm_id %}?as_of={{ prediction_as_of_iso|urlencode }}&window_hours=24"{% endif %}>
+     {% if prediction_as_of_iso %}
+     {% if demo_mode_view %}
+     data-prediction-url="{% url 'demo:batch_predictions' %}"
+     data-patient-key="{{ patient.subject_id }}_{{ patient.stay_id }}_{{ patient.hadm_id }}"
+     {% else %}
+     data-prediction-url="{% url 'patients:prediction' patient.subject_id patient.stay_id patient.hadm_id %}?as_of={{ prediction_as_of_iso|urlencode }}&window_hours=24"
+     {% endif %}
+     {% endif %}>
 </div>
 
 <!-- D3.js v7 (~280 KB vs Plotly's ~3.4 MB) -->

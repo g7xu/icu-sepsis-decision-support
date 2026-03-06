@@ -1,41 +1,136 @@
 {% extends 'base.html' %}
+{% load static %}
 
 {% block title %}Prediction - {{ patient.display_name }}{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/charts.css' %}">
+{% endblock %}
+
+{% block sim_state %}
+{% if show_sim_dock %}
+<div id="sim-initial-state" style="display:none"
+     data-current-hour="{{ current_hour }}"
+     data-current-time="{{ current_time_display }}"
+     data-auto-play="{{ auto_play|yesno:'true,false' }}"
+     data-speed-seconds="{{ speed_seconds|default:5 }}"
+     data-csrf="{{ csrf_token }}">
+</div>
+{% endif %}
+{% endblock %}
+
 {% block content %}
+<!-- Patient Header -->
 <div class="card">
-    <div class="card-header">
+    <div class="card-header" style="flex-wrap: wrap; gap: 0.75rem;">
         <h2>Sepsis Prediction</h2>
-        <a href="{% url 'patients:index' %}" class="btn btn-primary btn-sm">&larr; Back to Patient List</a>
-    </div>
-
-    <div style="display: flex; gap: 2rem; padding: 1rem 0;">
-        <div>
-            <div class="text-muted" style="font-size: 0.875rem;">Patient</div>
-            <div style="font-size: 1.25rem; font-weight: 600;">{{ patient.display_name }}</div>
-        </div>
-        <div>
-            <div class="text-muted" style="font-size: 0.875rem;">Subject ID</div>
-            <div style="font-size: 1.25rem; font-weight: 600;">{{ patient.subject_id }}</div>
-        </div>
-        <div>
-            <div class="text-muted" style="font-size: 0.875rem;">Stay ID</div>
-            <div style="font-size: 1.25rem; font-weight: 600;">{{ patient.stay_id }}</div>
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+            {% if demo_mode_view %}
+            <a href="{% url 'demo:detail' patient.subject_id patient.stay_id patient.hadm_id %}" class="btn btn-primary btn-sm">&larr; Patient Detail</a>
+            <a href="{% url 'demo:index' %}" class="btn btn-primary btn-sm">&larr; Patient List</a>
+            {% else %}
+            <a href="{% url 'patients:detail' patient.subject_id patient.stay_id patient.hadm_id %}" class="btn btn-primary btn-sm">&larr; Patient Detail</a>
+            <a href="{% url 'patients:index' %}" class="btn btn-primary btn-sm">&larr; Patient List</a>
+            {% endif %}
         </div>
     </div>
 
-    <div style="margin-top: 1rem; padding: 1.5rem; background: #f7fafc; border-radius: 6px; text-align: center;">
-        <div class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.5rem;">Current Risk Score</div>
-        <div style="font-size: 2.5rem; font-weight: 700; color: {{ risk_color }};">
-            {{ risk_score_display }}
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1.5rem; align-items: start;">
+        <div>
+            <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.25rem;">Patient</p>
+            <p style="font-size: 1.25rem; font-weight: 600;">{{ patient.display_name }}</p>
         </div>
-        {% if latent_class %}
-        <div class="text-muted" style="margin-top: 0.5rem;">Latent Class: {{ latent_class }}</div>
-        {% endif %}
-    </div>
-
-    <div style="margin-top: 1.5rem; padding: 1rem; border: 1px dashed #e2e8f0; border-radius: 6px; text-align: center;">
-        <p class="text-muted">Detailed prediction breakdown coming soon.</p>
+        <div>
+            <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.25rem;">Age</p>
+            <p style="font-size: 1.25rem; font-weight: 600;">{{ patient.anchor_age|default:"-" }}</p>
+        </div>
+        <div>
+            <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.25rem;">Gender</p>
+            <p style="font-size: 1.25rem; font-weight: 600;">
+                {% if patient.gender == 'M' %}Male{% elif patient.gender == 'F' %}Female{% else %}{{ patient.gender|default:"-" }}{% endif %}
+            </p>
+        </div>
+        <div>
+            <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.25rem;">Current Risk</p>
+            <p style="font-size: 1.5rem; font-weight: 700; color: {{ risk_color }};">{{ risk_score_display }}</p>
+        </div>
     </div>
 </div>
+
+<!-- Risk Score Trend Chart -->
+<div class="card" style="margin-top: 1rem;">
+    <div class="card-header">
+        <h2>Risk Score Trend</h2>
+    </div>
+    <div id="chart-risk-trend" style="width:100%; position:relative;"></div>
+</div>
+
+<!-- Bottom Section: SOFA Chart + SOFA Sidebar -->
+<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; margin-top: 1rem;">
+    <!-- SOFA Chart -->
+    <div class="card">
+        <div class="card-header">
+            <h2>SOFA Score</h2>
+        </div>
+        <div id="chart-sofa" style="width:100%; position:relative;"></div>
+    </div>
+
+    <!-- SOFA Components Sidebar -->
+    <div class="card">
+        <div class="card-header">
+            <h2>Latest SOFA</h2>
+        </div>
+        <div style="padding: 0.5rem 0;">
+            {% with s=latest_sofa %}
+            {% if s %}
+            <table style="width: 100%; font-size: 0.9rem;">
+                <tr style="border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 0.5rem; font-weight: 600; color: #2d3748;">Total</td>
+                    <td style="padding: 0.5rem; text-align: right; font-weight: 700; font-size: 1.1rem;">{{ s.sofa_24hours|default:"-" }}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 0.5rem;"><span style="display:inline-block;width:10px;height:10px;background:#4299e1;border-radius:2px;margin-right:6px;"></span>Respiration</td>
+                    <td style="padding: 0.5rem; text-align: right;">{{ s.respiration|default:"-" }}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 0.5rem;"><span style="display:inline-block;width:10px;height:10px;background:#ed8936;border-radius:2px;margin-right:6px;"></span>Coagulation</td>
+                    <td style="padding: 0.5rem; text-align: right;">{{ s.coagulation|default:"-" }}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 0.5rem;"><span style="display:inline-block;width:10px;height:10px;background:#ecc94b;border-radius:2px;margin-right:6px;"></span>Liver</td>
+                    <td style="padding: 0.5rem; text-align: right;">{{ s.liver|default:"-" }}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 0.5rem;"><span style="display:inline-block;width:10px;height:10px;background:#e53e3e;border-radius:2px;margin-right:6px;"></span>Cardiovascular</td>
+                    <td style="padding: 0.5rem; text-align: right;">{{ s.cardiovascular|default:"-" }}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 0.5rem;"><span style="display:inline-block;width:10px;height:10px;background:#9f7aea;border-radius:2px;margin-right:6px;"></span>CNS</td>
+                    <td style="padding: 0.5rem; text-align: right;">{{ s.cns|default:"-" }}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 0.5rem;"><span style="display:inline-block;width:10px;height:10px;background:#38b2ac;border-radius:2px;margin-right:6px;"></span>Renal</td>
+                    <td style="padding: 0.5rem; text-align: right;">{{ s.renal|default:"-" }}</td>
+                </tr>
+            </table>
+            {% else %}
+            <p class="text-muted" style="padding: 1rem;">No SOFA data available.</p>
+            {% endif %}
+            {% endwith %}
+        </div>
+    </div>
+</div>
+
+<!-- Data payloads -->
+<script type="application/json" id="prediction-history-data">{{ prediction_history_json|safe }}</script>
+<script type="application/json" id="sofa-data">{{ sofa_json|safe }}</script>
+<script type="application/json" id="sepsis3-data">{{ sepsis3_json|safe }}</script>
+<div id="prediction-config" style="display:none"
+     data-model-onset-hour="{{ model_onset_hour|default_if_none:'' }}">
+</div>
+
+<!-- D3.js -->
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<script src="{% static 'js/patient-charts.js' %}"></script>
+<script src="{% static 'js/prediction-charts.js' %}"></script>
 {% endblock %}

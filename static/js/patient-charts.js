@@ -417,6 +417,9 @@ function buildMultiPanel(containerId, cfg) {
 // buildSofaChart — colored bar (total) + stacked bar (organ components)
 // =============================================================================
 
+// Expose globally so prediction-charts.js can reuse it
+window.buildSofaChart = buildSofaChart;
+
 function buildSofaChart(containerId, data) {
     var container = document.getElementById(containerId);
     if (!container) return;
@@ -880,7 +883,10 @@ if (sofaTab && sofaTab.classList.contains('active')) {
 // PREDICTIONS (unchanged)
 // =============================================================================
 
-var predUrl = document.getElementById('page-config').dataset.predictionUrl;
+var pageConfig = document.getElementById('page-config');
+var predUrl = pageConfig ? pageConfig.dataset.predictionUrl : null;
+var patientKey = pageConfig ? pageConfig.dataset.patientKey : null;
+
 if (predUrl) {
     fetch(predUrl)
         .then(function (r) {
@@ -888,10 +894,16 @@ if (predUrl) {
             return r.json();
         })
         .then(function (data) {
+            // Demo batch endpoint returns {predictions: {key: {risk_score, ...}}}
+            // Production endpoint returns {risk_score, latent_class, ...} directly
+            var pred = data;
+            if (patientKey && data.predictions) {
+                pred = data.predictions[patientKey] || {};
+            }
             var riskEl  = document.getElementById('risk-score');
             var classEl = document.getElementById('latent-class');
-            if (riskEl)  riskEl.textContent  = data.risk_score != null ? data.risk_score.toFixed(3) : '-';
-            if (classEl) classEl.textContent = data.latent_class != null ? data.latent_class : '-';
+            if (riskEl)  riskEl.textContent  = pred.risk_score != null ? pred.risk_score.toFixed(3) : '-';
+            if (classEl) classEl.textContent = pred.latent_class != null ? pred.latent_class : '-';
         })
         .catch(function () {
             var riskEl  = document.getElementById('risk-score');
