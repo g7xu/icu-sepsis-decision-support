@@ -441,6 +441,40 @@ def batch_predict(patient_triples, as_of, window_hours=24):
     return results
 
 
+def get_sepsis3_info(subject_id, stay_id):
+    """Query sepsis3 table for suspected_infection_time and sofa_time.
+
+    Returns a dict with 'suspected_infection_time' and 'sofa_time' (both
+    datetime or None), or an empty dict if no data / table missing.
+    """
+    candidates = [
+        'mimiciv_derived.sepsis3',
+        'sepsis3',
+    ]
+    table = _pick_first_existing(candidates)
+    if not table:
+        return {}
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"SELECT suspected_infection_time, sofa_time "
+                f"FROM {table} "
+                f"WHERE subject_id = %(subject_id)s AND stay_id = %(stay_id)s "
+                f"LIMIT 1",
+                {'subject_id': subject_id, 'stay_id': stay_id},
+            )
+            row = cursor.fetchone()
+            if row:
+                return {
+                    'suspected_infection_time': row[0],
+                    'sofa_time': row[1],
+                }
+    except Exception:
+        pass
+    return {}
+
+
 def _get_prediction_stub(subject_id, stay_id, hadm_id, as_of):
     """Stub prediction when model artifacts are not loaded."""
     import hashlib

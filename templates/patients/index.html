@@ -79,7 +79,11 @@
                 <td>{{ patient.first_careunit|default:"-" }}</td>
                 <td class="text-muted">{{ patient.time_since_admission|default:"-" }}</td>
                 <td class="risk-score-cell"
-                    data-prediction-url="{% url 'patients:prediction_detail' patient.subject_id patient.stay_id patient.hadm_id %}">
+                    {% if demo_mode_view %}
+                    data-prediction-url="{% url 'demo:prediction_detail' patient.subject_id patient.stay_id patient.hadm_id %}"
+                    {% else %}
+                    data-prediction-url="{% url 'patients:prediction_detail' patient.subject_id patient.stay_id patient.hadm_id %}"
+                    {% endif %}>
                     <span class="loading-dot">.</span><span class="loading-dot">.</span><span class="loading-dot">.</span>
                 </td>
             </tr>

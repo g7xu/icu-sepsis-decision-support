@@ -9,7 +9,6 @@ import json
 
 from django.shortcuts import render, get_object_or_404
 from django.core.serializers.json import DjangoJSONEncoder
-from django.utils.dateparse import parse_datetime
 
 from .models import (
     SimPatient,
@@ -18,9 +17,10 @@ from .models import (
     SimChemistryHourly,
     SimCoagulationHourly,
     SimSofaHourly,
+    SimPredictionResult,
 )
 from .cohort import get_cohort_filter
-from .services import get_prediction
+from .services import get_sepsis3_info
 from .utils import prediction_as_of_iso as _prediction_as_of_iso, get_display_name
 
 
@@ -158,7 +158,7 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
 
 
 def prediction_detail(request, subject_id, stay_id, hadm_id):
-    """Temporary prediction detail page for a patient."""
+    """Full prediction detail page — reads persisted predictions from DB."""
     patient = get_object_or_404(
         SimPatient,
         subject_id=subject_id,
@@ -167,35 +167,68 @@ def prediction_detail(request, subject_id, stay_id, hadm_id):
     )
     patient.display_name = get_display_name(subject_id, stay_id, hadm_id)
 
-    current_hour = 23
-    as_of_iso = _prediction_as_of_iso(current_hour)
+    # Prediction history from sim_prediction_results
+    pred_qs = SimPredictionResult.objects.filter(
+        subject_id=subject_id,
+        stay_id=stay_id,
+        hadm_id=hadm_id,
+    ).order_by('prediction_hour')
+
+    prediction_history = []
+    for p in pred_qs.values('prediction_hour', 'risk_score', 'latent_class'):
+        prediction_history.append(p)
+    prediction_history_json = json.dumps(prediction_history, cls=DjangoJSONEncoder)
+
+    # Current risk score from persisted history
     risk_score = None
     risk_score_display = "\u2014"
     risk_color = "#718096"
     latent_class = None
 
-    if as_of_iso:
-        as_of = parse_datetime(as_of_iso)
-        result = get_prediction(
-            subject_id=subject_id,
-            stay_id=stay_id,
-            hadm_id=hadm_id,
-            as_of=as_of,
-            window_hours=24,
-        )
-        if result.get("ok"):
-            score = result.get("risk_score")
-            if score is not None:
-                risk_score = score
-                pct = round(score * 100)
-                risk_score_display = f"{pct}%"
-                if score >= 0.6:
-                    risk_color = "#e53e3e"
-                elif score >= 0.3:
-                    risk_color = "#dd6b20"
-                else:
-                    risk_color = "#38a169"
-            latent_class = result.get("latent_class")
+    if prediction_history:
+        latest = prediction_history[-1]
+        score = latest.get('risk_score')
+        if score is not None:
+            risk_score = score
+            pct = round(score * 100)
+            risk_score_display = f"{pct}%"
+            if score >= 0.6:
+                risk_color = "#e53e3e"
+            elif score >= 0.3:
+                risk_color = "#dd6b20"
+            else:
+                risk_color = "#38a169"
+        latent_class = latest.get('latent_class')
+
+    # Model onset hour: first hour where risk_score >= 0.5
+    model_onset_hour = None
+    for p in prediction_history:
+        if p.get('risk_score') is not None and p['risk_score'] >= 0.5:
+            model_onset_hour = p['prediction_hour']
+            break
+
+    # SOFA data
+    sofa_list = list(SimSofaHourly.objects.filter(
+        subject_id=subject_id,
+        stay_id=stay_id,
+    ).order_by('charttime_hour').values(
+        'charttime_hour', 'sofa_24hours',
+        'respiration', 'coagulation', 'liver',
+        'cardiovascular', 'cns', 'renal',
+    ))
+    for row in sofa_list:
+        row['hour_label'] = f"{row['charttime_hour'].hour:02d}:00"
+    sofa_json = json.dumps(sofa_list, cls=DjangoJSONEncoder)
+
+    # Latest SOFA components for sidebar
+    latest_sofa = sofa_list[-1] if sofa_list else {}
+
+    # Sepsis3 onset data
+    sepsis3 = get_sepsis3_info(subject_id, stay_id)
+    sepsis3_json = json.dumps({
+        'suspected_infection_time': sepsis3.get('suspected_infection_time'),
+        'sofa_time': sepsis3.get('sofa_time'),
+    }, cls=DjangoJSONEncoder)
 
     context = {
         'patient': patient,
@@ -203,6 +236,11 @@ def prediction_detail(request, subject_id, stay_id, hadm_id):
         'risk_score_display': risk_score_display,
         'risk_color': risk_color,
         'latent_class': latent_class,
+        'prediction_history_json': prediction_history_json,
+        'sofa_json': sofa_json,
+        'latest_sofa': latest_sofa,
+        'sepsis3_json': sepsis3_json,
+        'model_onset_hour': model_onset_hour,
         'show_sim_dock': False,
     }
     return render(request, 'patients/prediction.html', context)

@@ -34,6 +34,7 @@ from .models import (
     SimChemistryHourly,
     SimCoagulationHourly,
     SimSofaHourly,
+    SimPredictionResult,
 )
 
 logger = logging.getLogger(__name__)
@@ -119,6 +120,9 @@ def advance_hour(current_hour: int) -> dict:
             SimSofaHourly.objects.bulk_create(sofa)
             logger.info("[pipeline] sofa inserted: %d", len(sofa))
 
+        # 8. Predictions — compute and persist for each admitted patient
+        _persist_predictions(admitted_stay_ids, current_hour)
+
     new_patient_data = [
         {
             'subject_id': p.subject_id,
@@ -156,6 +160,7 @@ def rewind_hour(hour_to_remove: int) -> None:
     SimChemistryHourly.objects.filter(charttime_hour=rewind_dt).delete()
     SimCoagulationHourly.objects.filter(charttime_hour=rewind_dt).delete()
     SimSofaHourly.objects.filter(charttime_hour=rewind_dt).delete()
+    SimPredictionResult.objects.filter(prediction_hour=hour_to_remove).delete()
 
     # Remove patients admitted on March 13 at this hour (any year — MIMIC year-shifted)
     SimPatient.objects.filter(
@@ -368,6 +373,55 @@ def _fetch_sofa_for_hour(stay_ids: list, current_hour: int) -> list:
         )
         for r in rows
     ]
+
+
+def _persist_predictions(admitted_stay_ids: list, current_hour: int):
+    """Compute and persist predictions for all admitted patients at current_hour."""
+    from .services import get_prediction
+    from .utils import prediction_as_of_iso as _prediction_as_of_iso
+    from django.utils.dateparse import parse_datetime
+
+    as_of_iso = _prediction_as_of_iso(current_hour)
+    if not as_of_iso:
+        return
+
+    as_of = parse_datetime(as_of_iso)
+    to_create = []
+
+    for stay_id in admitted_stay_ids:
+        ids = STAY_TO_IDS.get(stay_id)
+        if not ids:
+            continue
+        subject_id, hadm_id = ids
+
+        # Skip if already persisted (e.g. duplicate advance call)
+        if SimPredictionResult.objects.filter(
+            subject_id=subject_id, stay_id=stay_id,
+            hadm_id=hadm_id, prediction_hour=current_hour,
+        ).exists():
+            logger.debug("[pipeline] prediction already exists for stay=%d hour=%d, skipping", stay_id, current_hour)
+            continue
+
+        result = get_prediction(
+            subject_id=subject_id, stay_id=stay_id,
+            hadm_id=hadm_id, as_of=as_of, window_hours=24,
+        )
+
+        risk_score = result.get('risk_score') if result.get('ok') else None
+        latent_class = result.get('latent_class') if result.get('ok') else None
+
+        to_create.append(SimPredictionResult(
+            subject_id=subject_id,
+            stay_id=stay_id,
+            hadm_id=hadm_id,
+            prediction_hour=current_hour,
+            risk_score=risk_score,
+            latent_class=latent_class,
+        ))
+
+    if to_create:
+        SimPredictionResult.objects.bulk_create(to_create, ignore_conflicts=True)
+        logger.info("[pipeline] predictions persisted: %d", len(to_create))
 
 
 def _run_query(sql: str, params: list) -> list:
