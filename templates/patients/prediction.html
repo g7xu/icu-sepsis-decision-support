@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+
+{% block title %}Prediction - {{ patient.display_name }}{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h2>Sepsis Prediction</h2>
+        <a href="{% url 'patients:index' %}" class="btn btn-primary btn-sm">&larr; Back to Patient List</a>
+    </div>
+
+    <div style="display: flex; gap: 2rem; padding: 1rem 0;">
+        <div>
+            <div class="text-muted" style="font-size: 0.875rem;">Patient</div>
+            <div style="font-size: 1.25rem; font-weight: 600;">{{ patient.display_name }}</div>
+        </div>
+        <div>
+            <div class="text-muted" style="font-size: 0.875rem;">Subject ID</div>
+            <div style="font-size: 1.25rem; font-weight: 600;">{{ patient.subject_id }}</div>
+        </div>
+        <div>
+            <div class="text-muted" style="font-size: 0.875rem;">Stay ID</div>
+            <div style="font-size: 1.25rem; font-weight: 600;">{{ patient.stay_id }}</div>
+        </div>
+    </div>
+
+    <div style="margin-top: 1rem; padding: 1.5rem; background: #f7fafc; border-radius: 6px; text-align: center;">
+        <div class="text-muted" style="font-size: 0.875rem; margin-bottom: 0.5rem;">Current Risk Score</div>
+        <div style="font-size: 2.5rem; font-weight: 700; color: {{ risk_color }};">
+            {{ risk_score_display }}
+        </div>
+        {% if latent_class %}
+        <div class="text-muted" style="margin-top: 0.5rem;">Latent Class: {{ latent_class }}</div>
+        {% endif %}
+    </div>
+
+    <div style="margin-top: 1.5rem; padding: 1rem; border: 1px dashed #e2e8f0; border-radius: 6px; text-align: center;">
+        <p class="text-muted">Detailed prediction breakdown coming soon.</p>
+    </div>
+</div>
+{% endblock %}
