@@ -21,7 +21,7 @@ Choose one option:
    ```bash
    createdb mimiciv
    ```
-3. Load MIMIC-IV data using the [mimic-code repo](https://github.com/MIT-LCP/mimic-code) scripts (see [Loading MIMIC-IV Data](#2-load-mimic-iv-data) below)
+3. Load MIMIC-IV data using the vendored scripts in `scripts/buildmimic/` (see [Loading MIMIC-IV Data](#2-load-mimic-iv-data) below)
 
 ### Option B: AWS RDS
 
@@ -30,6 +30,8 @@ Choose one option:
 - **AWS CLI** installed and configured (`aws configure` with IAM user access keys)
   - Verify: `aws sts get-caller-identity`
 - **Terraform** >= 1.0: macOS `brew install terraform`, Windows `choco install terraform`
+
+> **Note:** `terraform apply` provisions the full AWS stack (RDS, EC2, and ECR) together. If you only need the database for local development, the EC2 and ECR resources will still be created but can be ignored — they incur minimal cost when idle.
 
 #### Provision
 
@@ -78,19 +80,14 @@ terraform output -raw env_file_content > ../.env
 
 > **Duration:** 4-8 hours depending on internet/disk speed. Safe to run overnight.
 
-### Clone the mimic-code repository
-
-```bash
-git clone https://github.com/MIT-LCP/mimic-code.git
-cd mimic-code/mimic-iv/buildmimic/postgres/
-```
+The SQL scripts for loading MIMIC-IV data are included in this repo at `scripts/buildmimic/`. These are from [MIT-LCP/mimic-code](https://github.com/MIT-LCP/mimic-code) (MIT License).
 
 You need four SQL scripts: `create.sql`, `load_gz.sql`, `constraint.sql`, `index.sql`.
 
 ### Create tables
 
 ```bash
-psql -h <DB_HOST> -U postgres -d mimiciv -f create.sql
+psql -h <DB_HOST> -U postgres -d mimiciv -f scripts/buildmimic/create.sql
 ```
 Creates `mimiciv_hosp` and `mimiciv_icu` schemas with ~30 empty tables (2-5 minutes).
 
@@ -101,7 +98,7 @@ psql -h <DB_HOST> \
      -U postgres \
      -d mimiciv \
      -v mimic_data_dir=/path/to/mimiciv/3.1 \
-     -f load_gz.sql
+     -f scripts/buildmimic/load_gz.sql
 ```
 
 This streams compressed CSVs into the database. Largest tables: `chartevents` (~40 GB), `labevents` (~30 GB).
@@ -120,10 +117,10 @@ ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;"
 
 ```bash
 # Primary/foreign keys (20-30 minutes)
-psql -h <DB_HOST> -U postgres -d mimiciv -f constraint.sql
+psql -h <DB_HOST> -U postgres -d mimiciv -f scripts/buildmimic/constraint.sql
 
 # Performance indexes (1-2 hours)
-psql -h <DB_HOST> -U postgres -d mimiciv -f index.sql
+psql -h <DB_HOST> -U postgres -d mimiciv -f scripts/buildmimic/index.sql
 ```
 
 ### Verify
@@ -143,33 +140,20 @@ SELECT pg_size_pretty(pg_database_size('mimiciv'));
 
 ## 3. Create Application Views
 
-The SQL scripts in `scripts/` create **regular views** (not materialized views) in the `mimiciv_derived` schema. Views compute on each query and add no extra storage.
+The SQL scripts in `scripts/views/` create **regular views** (not materialized views) in the `mimiciv_derived` schema. Views compute on each query and add no extra storage.
 
 ### Prerequisites
 
 These must already exist in your database:
 - `mimiciv_hosp`, `mimiciv_icu` schemas (from MIMIC-IV base data)
 - `mimiciv_derived` schema with: `age`, `icustay_detail`, `vitalsign`, `chemistry`, `coagulation` (from mimic-code derived tables)
-- Optional: `sofa_hourly` or `sofa` (from mimic-code, used for prediction)
+- `sofa_hourly` or `sofa` (from mimic-code, used for prediction and SOFA charts)
 
 ### Run the setup script
 
-**Option A: Use the bash script** (reads `DB_HOST`, `DB_USER`, etc. from `.env`):
+Run the bash script (reads `DB_HOST`, `DB_USER`, etc. from `.env`):
 ```bash
 ./run_setup_views.sh
-```
-
-**Option B: Run manually with psql:**
-```bash
-psql -h <DB_HOST> -U postgres -d mimiciv -f scripts/01_first_icu_stay.sql
-psql -h <DB_HOST> -U postgres -d mimiciv -f scripts/02_fis_icd9.sql
-psql -h <DB_HOST> -U postgres -d mimiciv -f scripts/03_fis_icd9_titled.sql
-psql -h <DB_HOST> -U postgres -d mimiciv -f scripts/04_fisi9t_profile.sql
-psql -h <DB_HOST> -U postgres -d mimiciv -f scripts/05_fisi9t_unique_patient_profile.sql
-psql -h <DB_HOST> -U postgres -d mimiciv -f scripts/06_fisi9t_vitalsign_hourly.sql
-psql -h <DB_HOST> -U postgres -d mimiciv -f scripts/07_fisi9t_procedureevents_hourly.sql
-psql -h <DB_HOST> -U postgres -d mimiciv -f scripts/08_fisi9t_chemistry_hourly.sql
-psql -h <DB_HOST> -U postgres -d mimiciv -f scripts/09_fisi9t_coagulation_hourly.sql
 ```
 
 ### Schema note

@@ -33,15 +33,15 @@ export PGPASSWORD="${DB_PASSWORD:-}"
 echo "Running view setup scripts against $DB_HOST:$DB_PORT/$DB_NAME ..."
 echo ""
 
-for f in scripts/01_first_icu_stay.sql \
-         scripts/02_fis_icd9.sql \
-         scripts/03_fis_icd9_titled.sql \
-         scripts/04_fisi9t_profile.sql \
-         scripts/05_fisi9t_unique_patient_profile.sql \
-         scripts/06_fisi9t_vitalsign_hourly.sql \
-         scripts/07_fisi9t_procedureevents_hourly.sql \
-         scripts/08_fisi9t_chemistry_hourly.sql \
-         scripts/09_fisi9t_coagulation_hourly.sql; do
+for f in scripts/views/01_first_icu_stay.sql \
+         scripts/views/02_fis_icd9.sql \
+         scripts/views/03_fis_icd9_titled.sql \
+         scripts/views/04_fisi9t_profile.sql \
+         scripts/views/05_fisi9t_unique_patient_profile.sql \
+         scripts/views/06_fisi9t_vitalsign_hourly.sql \
+         scripts/views/07_fisi9t_procedureevents_hourly.sql \
+         scripts/views/08_fisi9t_chemistry_hourly.sql \
+         scripts/views/09_fisi9t_coagulation_hourly.sql; do
   if [[ ! -f "$f" ]]; then
     echo "Error: $f not found"
     exit 1

@@ -135,7 +135,8 @@ resource "aws_db_instance" "mimiciv" {
   identifier     = "${var.project_name}-db"
   engine         = "postgres"
   engine_version = var.db_engine_version
-  instance_class = var.db_instance_class
+  instance_class    = var.db_instance_class
+  apply_immediately = true
 
   # Database configuration
   db_name  = var.db_name

@@ -2,8 +2,6 @@
 
 An interpretable early warning system for adult ICU sepsis risk. The application reads from a MIMIC-IV PostgreSQL database, runs a time-stepped ICU simulation, and serves real-time sepsis predictions using an in-process scikit-learn model.
 
-**Stack**: Python 3.11 · Django 4.2 · PostgreSQL 14 · Docker Compose · joblib · scikit-learn · D3.js v7
-
 ## Getting Started
 
 ### Prerequisites
@@ -62,7 +60,9 @@ TODO: Add screenshots and usage guide showing:
 │   └── model_artifacts/ #   ML model files (joblib)
 ├── templates/           # Django HTML templates
 ├── static/              # CSS, JavaScript, images
-├── scripts/             # SQL scripts for MIMIC-IV views
+├── scripts/
+│   ├── views/           #   SQL scripts for application views
+│   └── buildmimic/      #   MIMIC-IV data loading scripts (from MIT-LCP/mimic-code)
 ├── terraform/           # AWS infrastructure (RDS, EC2, ECR)
 ├── docs/                # Setup and deployment guides
 ├── deploy.sh            # Automated AWS deployment
@@ -73,9 +73,8 @@ TODO: Add screenshots and usage guide showing:
 
 To learn more about the architecture, see [PLACEHOLDER].
 
-## Contributing
 
-### Team
+## Team
 
 - [Guoxuan Xu](https://www.linkedin.com/in/guoxuan-xu-30a572269/)
 - [Varun Pabreja](https://www.linkedin.com/in/varun-pabreja/)
