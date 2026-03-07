@@ -1,74 +1,88 @@
-# icu-sepsis-decision-support
+# ICU Sepsis Decision Support
 
-An interpretable early warning system for Adult ICU sepsis risk, focusing on trend analysis and 6-hour prediction windows.
+An interpretable early warning system for adult ICU sepsis risk. The application reads from a MIMIC-IV PostgreSQL database, runs a time-stepped ICU simulation, and serves real-time sepsis predictions using an in-process scikit-learn model.
 
-- **Runtime**: Python 3.11
-- **Framework**: Django
-- **DB**: PostgreSQL 14
-- **Local dev**: Docker + Docker Compose
+**Stack**: Python 3.11 · Django 4.2 · PostgreSQL 14 · Docker Compose · joblib · scikit-learn · D3.js v7
 
-## Quickstart
-
-```bash
-docker compose up --build
-```
-
-Then open `http://localhost:8000/patients/`. See [RUNNING.md](RUNNING.md) for detailed run instructions and model service setup.
-
-## Repository structure
-
-```
-.
-├── config/            # Django settings
-├── patients/          # Patient app (views, API, services)
-├── scripts/           # SQL for views (run on MIMIC-IV DB)
-├── templates/
-├── SETUP_VIEWS.md     # View setup & env config procedure
-├── requirements.txt
-├── Dockerfile
-├── docker-compose.yml
-├── .env.example
-└── RUNNING.md         # Run instructions, model service contract
-```
-
-## API Endpoints
-
-**Patient Features (ML model input)**
-- `GET /patients/<ids>/features/static` - Demographics
-- `GET /patients/<ids>/features/hourly` - Raw hourly streams (vitals, procedures, SOFA)
-- `GET /patients/<ids>/features/hourly-wide` - Merged wide table for ML (1 row/hour)
-- `GET /patients/<ids>/feature-bundle` - Combined static + hourly
-
-**Prediction**
-- `GET /patients/<ids>/prediction?as_of=<ISO datetime>&window_hours=24` - Risk score + comorbidity group
-
-## SQL & Data Sources
-
-The `scripts/` directory contains SQL for regular **views** (no materialized views — zero extra storage). Run them in order on your MIMIC-IV database. See [SETUP_VIEWS.md](SETUP_VIEWS.md) for the full procedure.
-
-## Deployment (AWS)
+## Getting Started
 
 ### Prerequisites
 
-- AWS CLI configured with ECR push permissions
-- Terraform applied (`terraform/` — creates ECR, EC2, RDS)
-- Docker running locally
-- `.env` with `TF_VAR_db_password` and `TF_VAR_django_secret_key`
-- Cloudflare Origin Certificate at `ssl/cloudflare-origin.pem` and `ssl/cloudflare-origin.key`
+- [Docker & Docker Compose](https://docs.docker.com/get-docker/)
+- [MIMIC-IV access](https://physionet.org/content/mimiciv/3.1/) — requires a PhysioNet credentialed account
+- PostgreSQL client (`psql`)
 
-### Deploy
+### Database Setup
+
+All modes (including demo) require MIMIC-IV data in PostgreSQL. Follow the full guide:
+
+**[Database Setup Guide](docs/database-setup.md)** — covers local PostgreSQL or AWS RDS provisioning, loading MIMIC-IV data, creating application views, and running migrations.
+
+### Environment Setup
+
+1. **Copy environment file**
+   ```bash
+   cp .env.example .env
+   ```
+
+2. **Edit `.env`** with your database credentials (`DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, etc.). See `.env.example` for all options.
+
+### Run Locally
 
 ```bash
-./deploy.sh              # Build, push to ECR, deploy to EC2
-./deploy.sh --build-only # Build and push to ECR only (no SSH deploy)
+docker compose up --build
+open http://localhost:8000/demo/patients/
 ```
 
-This builds a `linux/amd64` image, pushes to ECR, SSHs into EC2, pulls the image, runs migrations, and configures Nginx with SSL. The app URL is printed on completion.
+## Deployment
 
-### Infrastructure
+Deploy to AWS using Terraform and the provided deploy script. See the full guide:
 
-See `terraform/README.md` for provisioning RDS, ECR, and EC2.
+**[Deployment Guide](docs/deployment.md)**
 
-## Environment
+<!-- ## Application Usage
 
-Copy `.env.example` to `.env` and fill in your values. For AWS RDS, see [SETUP_VIEWS.md](SETUP_VIEWS.md) Step 2.
+TODO: Add screenshots and usage guide showing:
+- Patient list view with simulation clock
+- Patient detail view with clinical charts
+- Prediction detail view with risk score timeline
+-->
+
+## Repository Structure
+
+```
+.
+├── config/              # Django settings
+├── patients/            # Main Django app
+│   ├── views.py         #   HTML views + simulation clock controls
+│   ├── api.py           #   JSON API endpoints
+│   ├── services.py      #   Business logic (raw SQL, predictions)
+│   ├── pipeline.py      #   Simulation engine (advance/rewind hour)
+│   ├── models.py        #   Django ORM models
+│   └── model_artifacts/ #   ML model files (joblib)
+├── templates/           # Django HTML templates
+├── static/              # CSS, JavaScript, images
+├── scripts/             # SQL scripts for MIMIC-IV views
+├── terraform/           # AWS infrastructure (RDS, EC2, ECR)
+├── docs/                # Setup and deployment guides
+├── deploy.sh            # Automated AWS deployment
+├── docker-compose.yml
+├── Dockerfile
+└── requirements.txt
+```
+
+To learn more about the architecture, see [PLACEHOLDER].
+
+## Contributing
+
+### Team
+
+- [Guoxuan Xu](https://www.linkedin.com/in/guoxuan-xu-30a572269/)
+- [Varun Pabreja](https://www.linkedin.com/in/varun-pabreja/)
+- [Yash Patel](https://www.linkedin.com/in/ypat353/)
+- [Ethan Vo](https://www.linkedin.com/in/vo-ethan/)
+
+
+## License
+
+This project uses [MIMIC-IV](https://physionet.org/content/mimiciv/), which requires PhysioNet credentialed access. Users must have an approved PhysioNet account to access the underlying clinical data.
