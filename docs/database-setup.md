@@ -76,27 +76,28 @@ terraform output -raw env_file_content > ../.env
 
 ---
 
-## 2. Load MIMIC-IV Data
+## 2. Load MIMIC-IV Data & Create Derived Tables
 
-> **Duration:** 4-8 hours depending on internet/disk speed. Safe to run overnight.
+> **Duration:** 5-9 hours total (4-8 hours for base data + ~35 min for SOFA/sepsis). Safe to run overnight.
 
-The SQL scripts for loading MIMIC-IV data are included in this repo at `scripts/buildmimic/`. These are from [MIT-LCP/mimic-code](https://github.com/MIT-LCP/mimic-code) (MIT License).
+All SQL scripts are included in `scripts/buildmimic/` (from [MIT-LCP/mimic-code](https://github.com/MIT-LCP/mimic-code), MIT License).
 
-You need four SQL scripts: `create.sql`, `load_gz.sql`, `constraint.sql`, `index.sql`.
+```bash
+set -a && source .env && set +a
+export PGPASSWORD=$DB_PASSWORD
+```
 
 ### Create tables
 
 ```bash
-psql -h <DB_HOST> -U postgres -d mimiciv -f scripts/buildmimic/create.sql
+psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -f scripts/buildmimic/create.sql
 ```
 Creates `mimiciv_hosp` and `mimiciv_icu` schemas with ~30 empty tables (2-5 minutes).
 
 ### Load data
 
 ```bash
-psql -h <DB_HOST> \
-     -U postgres \
-     -d mimiciv \
+psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME \
      -v mimic_data_dir=/path/to/mimiciv/3.1 \
      -f scripts/buildmimic/load_gz.sql
 ```
@@ -105,7 +106,7 @@ This streams compressed CSVs into the database. Largest tables: `chartevents` (~
 
 **Monitor progress** (in a separate terminal):
 ```bash
-psql -h <DB_HOST> -U postgres -d mimiciv -c "
+psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -c "
 SELECT schemaname, tablename,
        pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) as size
 FROM pg_tables
@@ -117,10 +118,45 @@ ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;"
 
 ```bash
 # Primary/foreign keys (20-30 minutes)
-psql -h <DB_HOST> -U postgres -d mimiciv -f scripts/buildmimic/constraint.sql
+psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -f scripts/buildmimic/constraint.sql
 
 # Performance indexes (1-2 hours)
-psql -h <DB_HOST> -U postgres -d mimiciv -f scripts/buildmimic/index.sql
+psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -f scripts/buildmimic/index.sql
+```
+
+### SOFA scores (10-30 min)
+
+Creates `mimiciv_derived.sofa` (~8.2M rows). We use a **chunked** version that breaks the original monolithic query into 10 independent steps to avoid connection timeouts.
+
+```bash
+psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME \
+  -f scripts/buildmimic/sofa_chunked.sql
+```
+
+> **Note:** The original `sofa.sql` runs as a single massive CTE and will likely timeout over a remote connection. `sofa_chunked.sql` creates intermediate tables for each SOFA organ component (respiration, coagulation, liver, cardiovascular, CNS, renal), combines them, then cleans up.
+
+### Suspicion of infection (1-3 min)
+
+Creates `mimiciv_derived.suspicion_of_infection` (~950K rows).
+
+```bash
+psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME \
+  -f scripts/buildmimic/suspicion_of_infection.sql
+```
+
+### Sepsis-3 diagnoses (depends on SOFA + suspicion_of_infection)
+
+Creates `mimiciv_derived.sepsis3` (~41K rows).
+
+```bash
+psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME \
+  -f scripts/buildmimic/sepsis3.sql
+```
+
+### Cleanup
+
+```bash
+unset PGPASSWORD
 ```
 
 ### Verify
@@ -134,6 +170,12 @@ UNION ALL SELECT 'icustays', COUNT(*) FROM mimiciv_icu.icustays;
 
 SELECT pg_size_pretty(pg_database_size('mimiciv'));
 -- Expected: ~128 GB
+
+-- SOFA & sepsis tables
+SELECT 'sofa' AS tbl, COUNT(*) FROM mimiciv_derived.sofa
+UNION ALL SELECT 'suspicion_of_infection', COUNT(*) FROM mimiciv_derived.suspicion_of_infection
+UNION ALL SELECT 'sepsis3', COUNT(*) FROM mimiciv_derived.sepsis3;
+-- Expected: sofa ~8.2M, suspicion_of_infection ~950K, sepsis3 ~41K
 ```
 
 ---
@@ -147,7 +189,7 @@ The SQL scripts in `scripts/views/` create **regular views** (not materialized v
 These must already exist in your database:
 - `mimiciv_hosp`, `mimiciv_icu` schemas (from MIMIC-IV base data)
 - `mimiciv_derived` schema with: `age`, `icustay_detail`, `vitalsign`, `chemistry`, `coagulation` (from mimic-code derived tables)
-- `sofa_hourly` or `sofa` (from mimic-code, used for prediction and SOFA charts)
+- `mimiciv_derived.sofa` (from step 2 above)
 
 ### Run the setup script
 
@@ -155,6 +197,8 @@ Run the bash script (reads `DB_HOST`, `DB_USER`, etc. from `.env`):
 ```bash
 ./run_setup_views.sh
 ```
+
+This runs scripts 01-11 including `fisi9t_sofa_hourly` and `fisi9t_feature_matrix_hourly`.
 
 ### Schema note
 
