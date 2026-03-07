@@ -1,6 +1,5 @@
-# Large model artifacts (loaded via bind mount in dev)
+# External model service (not used)
 service_model/
-patients/model_artifacts/*.joblib
 
 # Infrastructure / secrets
 .env
