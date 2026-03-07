@@ -25,7 +25,7 @@ from .utils import display_time as _display_time, prediction_as_of_iso as _predi
 _DEFAULT_SIM_STATE = {
     'current_hour': -1,
     'auto_play': False,
-    'speed_seconds': 5.0,
+    'speed_seconds': 1.0,
     'direction': 'forward',
 }
 

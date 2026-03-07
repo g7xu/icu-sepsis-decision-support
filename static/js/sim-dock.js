@@ -18,12 +18,9 @@
     let autoPlay = stateEl ? stateEl.dataset.autoPlay === 'true' : false;
     let lastHour = stateEl ? parseInt(stateEl.dataset.currentHour, 10) : -1;
     const csrf   = stateEl ? stateEl.dataset.csrf : '';
-    let direction = 'forward';
 
     const timeEl    = document.getElementById('dock-time');
     const playBtn   = document.getElementById('dock-play');
-    const rewindBtn = document.getElementById('dock-rewind');
-    const fwdBtn    = document.getElementById('dock-forward');
     const backBtn   = document.getElementById('dock-back');
     const stepBtn   = document.getElementById('dock-fwd');
     const resetBtn  = document.getElementById('dock-reset');
@@ -61,7 +58,7 @@
         if (autoPlayTimer) return;
         var speed = parseFloat(speedSel.value) * 1000;
         autoPlayTimer = setInterval(function() {
-            var url = direction === 'forward' ? URLS.advance : URLS.rewind;
+            var url = URLS.advance;
             post(url).then(function(data) {
                 if (data.error) {
                     stopAutoPlay();
@@ -126,7 +123,6 @@
                 location.reload();
             });
         } else {
-            direction = 'forward';
             post(URLS.play, 'speed_seconds=' + speedSel.value + '&direction=forward')
                 .then(() => {
                     autoPlay = true;
@@ -139,41 +135,6 @@
                     }
                 });
         }
-    });
-
-    // ── Rewind (auto backward) ────────────────────────────────────────────
-    rewindBtn.addEventListener('click', function() {
-        direction = 'backward';
-        post(URLS.play, 'speed_seconds=' + speedSel.value + '&direction=backward')
-            .then(data => {
-                if (data.status === 'already_playing') { setStatus('Pause first.'); return; }
-                autoPlay = true;
-                playBtn.innerHTML = '&#9646;&#9646; Pause';
-                setStatus('Rewinding\u2026');
-                if (isDemoMode) {
-                    startAutoPlay();
-                } else {
-                    startPolling();
-                }
-            });
-    });
-
-    // ── Fast forward (2x) ─────────────────────────────────────────────────
-    fwdBtn.addEventListener('click', function() {
-        direction = 'forward';
-        const speed = Math.max(1, parseFloat(speedSel.value) / 2).toString();
-        post(URLS.play, 'speed_seconds=' + speed + '&direction=forward')
-            .then(data => {
-                if (data.status === 'already_playing') { setStatus('Pause first.'); return; }
-                autoPlay = true;
-                playBtn.innerHTML = '&#9646;&#9646; Pause';
-                setStatus('Fast-forward\u2026');
-                if (isDemoMode) {
-                    startAutoPlay();
-                } else {
-                    startPolling();
-                }
-            });
     });
 
     // ── Step +1 ───────────────────────────────────────────────────────────
