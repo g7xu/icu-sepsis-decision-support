@@ -66,13 +66,16 @@ def demo_patient_list(request):
                 total_minutes = sim_now_minutes - intime_minutes
                 if total_minutes < 0:
                     p['time_since_admission'] = "Not yet admitted"
+                    p['time_since_minutes'] = -1
                 else:
                     hours = total_minutes // 60
                     minutes = total_minutes % 60
                     admitted_time = f"{intime.hour:02d}:{intime.minute:02d}"
                     p['time_since_admission'] = f"{hours}:{minutes:02d} (admitted {admitted_time})"
+                    p['time_since_minutes'] = total_minutes
             else:
                 p['time_since_admission'] = None
+                p['time_since_minutes'] = -1
 
             # Get risk score from demo cache
             pred = demo_cache.get_prediction_at(p['stay_id'], current_hour)
