@@ -50,7 +50,7 @@
             <p class="patient-field-value">{{ patient.time_since_admission }}</p>
         </div>
         <div>
-            <p class="patient-field-label">Sepsis Likelihood</p>
+            <p class="patient-field-label">Sepsis Probability</p>
             <p class="patient-field-value">
                 {% if patient.risk_score is not None %}
                 <a href="{% url 'patients:prediction_view' patient.subject_id patient.stay_id patient.hadm_id %}" 
@@ -452,7 +452,7 @@ if (coagulationData.length > 0) {
     });
 }
 
-    // Prediction fetch (commented out — Sepsis Likelihood now in patient details)
+    // Prediction fetch (commented out — Sepsis Probability now in patient details)
     // const pageConfig = document.getElementById('page-config');
     // const predUrl = pageConfig ? pageConfig.dataset.predictionUrl : null;
     // if (predUrl) {

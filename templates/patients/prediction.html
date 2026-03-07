@@ -53,7 +53,7 @@
             <p class="patient-field-value">{{ patient.time_since_admission }}</p>
         </div>
         <div>
-            <p class="patient-field-label">Sepsis Likelihood</p>
+            <p class="patient-field-label">Sepsis Probability</p>
             <p class="patient-field-value">
                 {% if patient.risk_score is not None %}
                 {{ patient.risk_score|floatformat:2 }}%
@@ -79,7 +79,7 @@
     <div class="prediction-combined-layout">
         <div class="prediction-chart-section">
             <div class="vitals-controls">
-                <label><input type="radio" name="combined" value="sepsis_only" checked>Sepsis Likelihood</label>
+                <label><input type="radio" name="combined" value="sepsis_only" checked>Sepsis Probability</label>
                 <label><input type="radio" name="combined" value="pao2fio2ratio_novent">PaO2/FiO2 (no vent)</label>
                 <label><input type="radio" name="combined" value="pao2fio2ratio_vent">PaO2/FiO2 (vent)</label>
                 <label><input type="radio" name="combined" value="rate_epinephrine">Epinephrine</label>
@@ -332,7 +332,7 @@ if (predictionsData.length > 0 || sofaOtherData.length > 0) {
     };
 
     const TRACE_STYLES = {
-        risk_score: { name: 'Sepsis Likelihood', line: { color: '#e53e3e', width: 2 }, marker: { size: 10 } },
+        risk_score: { name: 'Sepsis Probability', line: { color: '#e53e3e', width: 2 }, marker: { size: 10 } },
         pao2fio2ratio_novent: { name: 'PaO2/FiO2 (no vent)', line: { color: '#38a169', width: 2 }, marker: { size: 10 } },
         pao2fio2ratio_vent: { name: 'PaO2/FiO2 (vent)', line: { color: '#38a169', width: 2 }, marker: { size: 10 } },
         rate_epinephrine: { name: 'Epinephrine', line: { color: '#38a169', width: 2 }, marker: { size: 10 } },
@@ -342,7 +342,7 @@ if (predictionsData.length > 0 || sofaOtherData.length > 0) {
     };
 
     const CHARTS = {
-        sepsis_only: { title: 'Sepsis Likelihood', yTitle: 'Sepsis Likelihood (%)', series: ['risk_score'], dataSource: 'predictions' },
+        sepsis_only: { title: 'Sepsis Probability', yTitle: 'Sepsis Probability (%)', series: ['risk_score'], dataSource: 'predictions' },
         pao2fio2ratio_novent: { title: 'PaO2/FiO2 (no vent)', yTitle: 'PaO2/FiO2 (no vent)', series: ['pao2fio2ratio_novent'], dataSource: 'sofa' },
         pao2fio2ratio_vent: { title: 'PaO2/FiO2 (vent)', yTitle: 'PaO2/FiO2 (vent)', series: ['pao2fio2ratio_vent'], dataSource: 'sofa' },
         rate_epinephrine: { title: 'Epinephrine', yTitle: 'Epinephrine', series: ['rate_epinephrine'], dataSource: 'sofa' },
