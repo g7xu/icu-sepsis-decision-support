@@ -34,9 +34,7 @@ open http://localhost:8000/demo/patients/
 
 ## Deployment
 
-Deploy to AWS using Terraform and the provided deploy script. See the full guide:
-
-**[Deployment Guide](docs/deployment.md)**
+See the full guide: **[Deployment Guide](docs/deployment.md)**
 
 <!-- ## Application Usage
 
