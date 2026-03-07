@@ -45,17 +45,20 @@
         <thead>
             <tr>
                 <th>Patient</th>
-                <th>Age</th>
+                <th class="sortable" data-sort-key="age"><span class="sort-arrow">▼</span> Age</th>
                 <th>Gender</th>
                 <th>Race</th>
                 <th>Care Unit</th>
-                <th>Time Since Admission</th>
-                <th>Sepsis Probability</th>
+                <th class="sortable" data-sort-key="time"><span class="sort-arrow">▼</span> Time Since Admission</th>
+                <th class="sortable" data-sort-key="risk"><span class="sort-arrow">▼</span> Sepsis Probability</th>
             </tr>
         </thead>
         <tbody>
             {% for patient in patients %}
-            <tr data-patient-key="{{ patient.subject_id }}_{{ patient.stay_id }}_{{ patient.hadm_id }}">
+            <tr data-patient-key="{{ patient.subject_id }}_{{ patient.stay_id }}_{{ patient.hadm_id }}"
+                data-age="{{ patient.anchor_age|default:'' }}"
+                data-time="{{ patient.time_since_minutes|default:'-1' }}"
+                data-risk="">
                 <td>
                     {% if demo_mode_view %}
                     <a href="{% url 'demo:detail' patient.subject_id patient.stay_id patient.hadm_id %}"
@@ -113,6 +116,89 @@
 </div>
 <script>
 (function() {
+    var currentSortKey = null;
+    var currentSortDir = null;
+    var riskLoaded = false;
+    // Save original DOM order for unsort
+    var originalOrder = [];
+    var tbody = document.querySelector('#patient-table tbody');
+    if (tbody) {
+        originalOrder = Array.from(tbody.querySelectorAll('tr'));
+    }
+
+    function sortTable(key, dir) {
+        if (!tbody) return;
+        var rows = Array.from(tbody.querySelectorAll('tr'));
+        rows.sort(function(a, b) {
+            var aRaw = a.dataset[key];
+            var bRaw = b.dataset[key];
+            var aVal = (aRaw === '' || aRaw == null) ? null : parseFloat(aRaw);
+            var bVal = (bRaw === '' || bRaw == null) ? null : parseFloat(bRaw);
+            if (isNaN(aVal)) aVal = null;
+            if (isNaN(bVal)) bVal = null;
+            // nulls always last regardless of direction
+            if (aVal == null && bVal == null) return 0;
+            if (aVal == null) return 1;
+            if (bVal == null) return -1;
+            return dir === 'asc' ? aVal - bVal : bVal - aVal;
+        });
+        rows.forEach(function(row) { tbody.appendChild(row); });
+        updateArrows(key, dir);
+        currentSortKey = key;
+        currentSortDir = dir;
+    }
+
+    function unsort() {
+        if (!tbody) return;
+        originalOrder.forEach(function(row) { tbody.appendChild(row); });
+        currentSortKey = null;
+        currentSortDir = null;
+        updateArrows(null, null);
+    }
+
+    function updateArrows(key, dir) {
+        document.querySelectorAll('#patient-table th.sortable').forEach(function(th) {
+            var arrow = th.querySelector('.sort-arrow');
+            if (key && th.dataset.sortKey === key) {
+                th.classList.add('active');
+                th.classList.toggle('desc', dir === 'desc');
+                th.classList.toggle('asc', dir === 'asc');
+                arrow.textContent = dir === 'desc' ? '▼' : '▲';
+            } else {
+                th.classList.remove('active', 'asc', 'desc');
+                arrow.textContent = '▼';
+            }
+        });
+    }
+
+    // Click handlers on sortable headers
+    document.querySelectorAll('#patient-table th.sortable').forEach(function(th) {
+        th.addEventListener('click', function() {
+            var key = th.dataset.sortKey;
+            // Disable risk sorting while predictions are loading
+            if (key === 'risk' && !riskLoaded) return;
+            if (key === currentSortKey) {
+                if (currentSortDir === 'desc') {
+                    sortTable(key, 'asc');
+                } else {
+                    // Already asc — third click removes sorting
+                    unsort();
+                }
+            } else {
+                sortTable(key, 'desc');
+            }
+        });
+    });
+
+    // Disable risk header while loading
+    var riskHeader = document.querySelector('#patient-table th[data-sort-key="risk"]');
+    if (riskHeader) {
+        riskHeader.classList.add('disabled');
+        riskHeader.classList.remove('active', 'desc');
+        riskHeader.querySelector('.sort-arrow').textContent = '▼';
+    }
+
+    // Load predictions
     var config = document.getElementById('predictions-config');
     if (!config) return;
     var url = config.dataset.url;
@@ -132,26 +218,23 @@
                 if (pred && pred.risk_score != null) {
                     var pct = (pred.risk_score * 100).toFixed(2);
                     cell.innerHTML = '<a href="' + predUrl + '" class="patient-name-link">' + pct + '%</a>';
+                    row.dataset.risk = pred.risk_score;
                 } else {
                     cell.textContent = '\u2014';
+                    row.dataset.risk = '';
                 }
             });
-            // Sort rows by risk score (highest first, nulls last)
-            var tbody = document.querySelector('#patient-table tbody');
-            var sortedRows = Array.from(tbody.querySelectorAll('tr'));
-            sortedRows.sort(function(a, b) {
-                var aVal = (preds[a.dataset.patientKey] || {}).risk_score;
-                var bVal = (preds[b.dataset.patientKey] || {}).risk_score;
-                if (aVal == null && bVal == null) return 0;
-                if (aVal == null) return 1;
-                if (bVal == null) return -1;
-                return bVal - aVal;
-            });
-            sortedRows.forEach(function(row) { tbody.appendChild(row); });
+            riskLoaded = true;
+            if (riskHeader) riskHeader.classList.remove('disabled');
+            // Save original order before first sort
+            originalOrder = Array.from(tbody.querySelectorAll('tr'));
+            sortTable('risk', 'desc');
         })
         .catch(function() {
             var cells = document.querySelectorAll('.risk-score-cell');
             cells.forEach(function(cell) { cell.textContent = '\u2014'; });
+            riskLoaded = true;
+            if (riskHeader) riskHeader.classList.remove('disabled');
         });
 })();
 </script>
