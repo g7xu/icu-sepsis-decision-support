@@ -41,7 +41,9 @@ for f in scripts/views/01_first_icu_stay.sql \
          scripts/views/06_fisi9t_vitalsign_hourly.sql \
          scripts/views/07_fisi9t_procedureevents_hourly.sql \
          scripts/views/08_fisi9t_chemistry_hourly.sql \
-         scripts/views/09_fisi9t_coagulation_hourly.sql; do
+         scripts/views/09_fisi9t_coagulation_hourly.sql \
+         scripts/views/10_fisi9t_sofa_hourly.sql \
+         scripts/views/11_fisi9t_feature_matrix_hourly.sql; do
   if [[ ! -f "$f" ]]; then
     echo "Error: $f not found"
     exit 1
