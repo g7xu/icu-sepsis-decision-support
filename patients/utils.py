@@ -1,5 +1,5 @@
 """
-Shared simulation constants and helpers used by views.py and pipeline.py.
+Shared simulation constants and helpers used by views.py and demo_views.py.
 
 To change the simulation date, update SIM_YEAR/SIM_MONTH/SIM_DAY here —
 all derived labels and ISO strings update automatically.

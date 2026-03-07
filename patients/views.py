@@ -1,7 +1,7 @@
 """
 Production patient views — no simulation clock.
 
-Shows all data currently in sim_* tables (populated by the pipeline).
+Shows all data currently in sim_* tables.
 The simulation dock is NOT shown on production views.
 """
 

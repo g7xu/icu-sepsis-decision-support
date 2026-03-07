@@ -5,8 +5,8 @@ Unmanaged models (managed=False) map to existing MIMIC-IV materialized views
 and are kept as a read-only fallback for the services.py dynamic table resolution.
 
 Managed Sim* models (managed=True) map to Django-owned simulation.* tables
-populated by the advance_time pipeline at runtime. These are the primary data
-source for the patient list, detail views, and prediction API after migration.
+populated at runtime. These are the primary data source for the patient list,
+detail views, and prediction API after migration.
 """
 
 from django.db import models
@@ -119,8 +119,8 @@ class ProcedureeventsHourly(models.Model):
 class SimPatient(models.Model):
     """
     Live admitted patients in the current simulation.
-    Populated by pipeline.advance_hour() when a patient's intime hour is reached.
-    Deleted by pipeline.rewind_hour() when rewinding past their admission hour.
+    Populated when a patient's intime hour is reached.
+    Deleted when rewinding past their admission hour.
     """
     subject_id = models.IntegerField()
     stay_id = models.IntegerField(unique=True)
@@ -152,7 +152,7 @@ class SimPatient(models.Model):
 
 class SimVitalsignHourly(models.Model):
     """
-    Hourly vitals inserted one hour at a time by the pipeline.
+    Hourly vitals inserted one hour at a time.
     Source: mimiciv_derived.vitalsign (hourly AVG per stay).
     """
     subject_id = models.IntegerField()
@@ -184,7 +184,7 @@ class SimVitalsignHourly(models.Model):
 
 class SimProcedureeventsHourly(models.Model):
     """
-    Hourly procedure events inserted by the pipeline.
+    Hourly procedure events.
     Source: mimiciv_icu.procedureevents + mimiciv_icu.d_items.
     """
     subject_id = models.IntegerField()
@@ -225,7 +225,7 @@ class SimProcedureeventsHourly(models.Model):
 
 class SimChemistryHourly(models.Model):
     """
-    Hourly chemistry labs inserted by the pipeline.
+    Hourly chemistry labs.
     Source: mimiciv_derived.chemistry (hourly MIN/AVG/MAX per stay).
     """
     subject_id = models.IntegerField()
@@ -249,7 +249,7 @@ class SimChemistryHourly(models.Model):
 
 class SimCoagulationHourly(models.Model):
     """
-    Hourly coagulation labs inserted by the pipeline.
+    Hourly coagulation labs.
     Source: mimiciv_derived.coagulation.
     """
     subject_id = models.IntegerField()
@@ -275,7 +275,7 @@ class SimCoagulationHourly(models.Model):
 
 class SimSofaHourly(models.Model):
     """
-    Hourly SOFA scores inserted by the pipeline.
+    Hourly SOFA scores.
     Source: mimiciv_derived.sofa_hourly (skipped gracefully if not present).
     """
     subject_id = models.IntegerField()
@@ -308,7 +308,7 @@ class SimSofaHourly(models.Model):
 
 class SimPredictionResult(models.Model):
     """
-    Persisted prediction results computed by the pipeline at each simulation hour.
+    Persisted prediction results computed at each simulation hour.
     One row per patient per hour. Read by the prediction detail view (no re-computation).
     """
     subject_id = models.IntegerField()

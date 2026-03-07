@@ -8,7 +8,7 @@ db_username = "postgres"
 db_password = "CHANGE_ME_TO_STRONG_PASSWORD"  # Use a strong password!
 
 # Instance configuration
-db_instance_class      = "db.t4g.medium"  # Matches existing RDS instance class
+db_instance_class      = "db.t4g.micro"   # Sufficient for cached queries; free tier eligible
 db_allocated_storage   = 20               # Initial storage in GB
 max_allocated_storage  = 160              # Matches existing RDS max storage ceiling
 db_storage_type        = "gp2"
