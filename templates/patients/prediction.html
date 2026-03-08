@@ -58,12 +58,6 @@
                 {% endif %}
             </p>
         </div>
-        {% if suspected_infection_time %}
-        <div>
-            <p class="patient-field-label">suspected_infection_time (dev)</p>
-            <p class="patient-field-value text-muted">{{ suspected_infection_time|date:"Y-m-d H:i" }}</p>
-        </div>
-        {% endif %}
     </div>
 </div>
 
@@ -371,18 +365,152 @@ if (predictionsData.length > 0 || sofaOtherData.length > 0) {
         });
     }
 
+    function formatClockTime(hour, minute) {
+        return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+    }
+
+    function buildClockSlots(totalSlots) {
+        const admissionHour = Number(predictionsMeta.admission_hour ?? 0);
+        const admissionMinute = Number(predictionsMeta.admission_minute ?? 0);
+        const slots = [];
+        for (let i = 0; i < totalSlots; i += 1) {
+            const totalMinutes = (admissionHour * 60) + admissionMinute + (i * 60);
+            const hour = ((Math.floor(totalMinutes / 60) % 24) + 24) % 24;
+            const minute = ((totalMinutes % 60) + 60) % 60;
+            const label = formatClockTime(hour, minute);
+            slots.push({ key: `${label}__${i}`, label: label });
+        }
+        return slots;
+    }
+
+    function buildSepsisCandlestickTraces() {
+        const admissionHour = Number(predictionsMeta.admission_hour ?? 0);
+        const plottedPoints = predictionsData
+            .map(d => {
+                const currentRaw = d.risk_score;
+                const hourVal = Number(d.hour_val); // 1-based simulation hour
+                if (currentRaw == null || Number.isNaN(hourVal)) return null;
+                const slotIndex = (hourVal - 1) - admissionHour;
+                if (slotIndex < 0) return null;
+                return {
+                    slotIndex: slotIndex,
+                    currentValue: Number(currentRaw)
+                };
+            })
+            .filter(p => p && !Number.isNaN(p.currentValue));
+
+        const maxSlotIndex = plottedPoints.reduce((maxVal, p) => Math.max(maxVal, p.slotIndex), -1);
+        const totalSlots = Math.max(24, maxSlotIndex + 1);
+        const clockSlots = buildClockSlots(totalSlots);
+        const xKeys = clockSlots.map(s => s.key);
+        const xData = [];
+
+        const openValues = [];
+        const closeValues = [];
+        const highValues = [];
+        const lowValues = [];
+        const customData = [];
+        const hoverText = [];
+
+        for (let i = 0; i < plottedPoints.length; i += 1) {
+            const currentValue = plottedPoints[i].currentValue;
+            const previousValue = i > 0 ? plottedPoints[i - 1].currentValue : plottedPoints[i].currentValue;
+
+            let direction = 'unchanged';
+            if (currentValue > previousValue) direction = 'increased';
+            else if (currentValue < previousValue) direction = 'decreased';
+            const directionLabel = direction.charAt(0).toUpperCase() + direction.slice(1);
+
+            xData.push(xKeys[plottedPoints[i].slotIndex]);
+            openValues.push(previousValue);
+            closeValues.push(currentValue);
+            // No wick look by matching candle bounds to body bounds.
+            highValues.push(previousValue);
+            lowValues.push(currentValue);
+            customData.push([previousValue, direction]);
+            hoverText.push(
+                `Current Risk: ${currentValue.toFixed(2)}%<br>` +
+                `Previous Risk: ${previousValue.toFixed(2)}%<br>` +
+                `Trend: ${directionLabel}`
+            );
+        }
+
+        const allHoursAnchorTrace = {
+            type: 'scatter',
+            x: xKeys,
+            y: xKeys.map(() => 0),
+            mode: 'markers',
+            marker: { size: 1, opacity: 0 },
+            hoverinfo: 'skip',
+            showlegend: false
+        };
+
+        const candlestickTrace = {
+            type: 'candlestick',
+            name: 'Sepsis Risk Trend',
+            x: xData,
+            open: openValues,
+            close: closeValues,
+            high: highValues,
+            low: lowValues,
+            customdata: customData,
+            text: hoverText,
+            hoverinfo: 'text',
+            hovertemplate: '%{text}<extra></extra>',
+            increasing: { line: { color: '#f97316', width: 2 }, fillcolor: '#f97316' },
+            decreasing: { line: { color: '#3b82f6', width: 2 }, fillcolor: '#3b82f6' },
+            whiskerwidth: 0,
+            showlegend: false
+        };
+
+        const increasingLegendTrace = {
+            type: 'scatter',
+            mode: 'markers',
+            x: [null],
+            y: [null],
+            name: 'Risk Increasing',
+            marker: { symbol: 'square', size: 10, color: '#f97316' },
+            hoverinfo: 'skip',
+            visible: 'legendonly',
+            showlegend: true
+        };
+
+        const decreasingLegendTrace = {
+            type: 'scatter',
+            mode: 'markers',
+            x: [null],
+            y: [null],
+            name: 'Risk Decreasing',
+            marker: { symbol: 'square', size: 10, color: '#3b82f6' },
+            hoverinfo: 'skip',
+            visible: 'legendonly',
+            showlegend: true
+        };
+
+        return {
+            traces: [allHoursAnchorTrace, candlestickTrace, increasingLegendTrace, decreasingLegendTrace],
+            xKeys: xKeys,
+            xLabels: clockSlots.map(s => s.label)
+        };
+    }
+
     const baseLayout = {
         height: 450,
         showlegend: true,
         legend: { orientation: 'h', y: 1.15, x: 0.45, font: { size: 12 } },
         margin: { l: 60, r: 60, t: 50, b: 45 },
-        xaxis: { title: { text: 'Hour', font: { size: 12 } }, tickfont: { size: 10 }, automargin: true },
+        xaxis: {
+            title: { text: 'Hour', font: { size: 12 } },
+            tickfont: { size: 10 },
+            automargin: true,
+            rangeslider: { visible: false }
+        },
         yaxis: { tickfont: { size: 10 }, automargin: true, autorange: true }
     };
 
     function renderChart(chartKey) {
         const chart = CHARTS[chartKey] || CHARTS.sepsis_only;
-        const traces = buildTraces(chart.series, chart.dataSource);
+        let traces = buildTraces(chart.series, chart.dataSource);
         
         const layout = {
             ...baseLayout,
@@ -395,29 +523,51 @@ if (predictionsData.length > 0 || sofaOtherData.length > 0) {
         };
 
         if (chartKey === 'sepsis_only') {
-            layout.shapes = [];
-            const modelIdx = predictionsMeta.model_sepsis_hour_index;
-            if (modelIdx != null && modelIdx >= 0 && modelIdx < predTimes.length) {
-                const x0 = predTimes[modelIdx];
-                layout.shapes.push({
-                    type: 'line',
-                    x0: x0, x1: x0, y0: 0, y1: 1,
-                    yref: 'paper', xref: 'x',
-                    line: { color: '#3182ce', width: 1.5, dash: 'dash' }
-                });
-            }
-            const actualX = predictionsMeta.actual_sepsis_x;
-            if (actualX != null) {
-                const actualHour = Math.floor(actualX);
-                const actualMinute = Math.round((actualX - actualHour) * 60);
-                const actualLabel = `${actualHour.toString().padStart(2, '0')}:${actualMinute.toString().padStart(2, '0')}`;
-                layout.shapes.push({
-                    type: 'line',
-                    x0: actualLabel, x1: actualLabel, y0: 0, y1: 1,
-                    yref: 'paper', xref: 'x',
-                    line: { color: '#38a169', width: 1.5, dash: 'dash' }
-                });
-            }
+            const sepsisCandles = buildSepsisCandlestickTraces();
+            traces = sepsisCandles.traces;
+            layout.xaxis = {
+                ...baseLayout.xaxis,
+                title: { text: 'Time of Day', font: { size: 12 } },
+                type: 'category',
+                categoryorder: 'array',
+                categoryarray: sepsisCandles.xKeys,
+                tickmode: 'array',
+                tickvals: sepsisCandles.xKeys,
+                ticktext: sepsisCandles.xLabels,
+                tickangle: -45,
+                rangeslider: { visible: false }
+            };
+            layout.yaxis = {
+                ...layout.yaxis,
+                rangemode: 'tozero',
+                autorange: true
+            };
+            layout.shapes = [{
+                type: 'line',
+                xref: 'paper',
+                x0: 0,
+                x1: 1,
+                yref: 'y',
+                y0: 30,
+                y1: 30,
+                line: { color: '#dc2626', width: 2 }
+            }];
+            layout.annotations = [{
+                xref: 'paper',
+                x: 0.98,
+                xanchor: 'right',
+                yref: 'y',
+                y: 30,
+                text: 'Treatment Threshold (30%)',
+                showarrow: false,
+                yshift: 10,
+                font: { size: 11, color: '#dc2626' },
+                bgcolor: '#ffffff',
+                bordercolor: '#dc2626',
+                borderwidth: 1,
+                borderpad: 3
+            }];
+            layout.bargap = 0.2;
         }
 
         Plotly.newPlot('combined-chart', traces, layout, { responsive: true });
