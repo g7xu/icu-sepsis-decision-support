@@ -171,9 +171,11 @@ def get_prediction_view(request, subject_id, stay_id, hadm_id):
 
 
 def _enrich_similar_patients(similar):
-    """Add profile data (anchor_age, gender, race, hours_since_admission) to similar patients."""
+    """Add profile data (anchor_age, gender, race, hours_since_admission) and display names to similar patients."""
     from datetime import timezone as dt_tz
+    from .display_names import get_display_name_mapping, DISPLAY_NAMES
 
+    name_mapping = get_display_name_mapping()
     enriched = []
     for s in similar:
         charttime_dt = parse_datetime(s.get('charttime_hour_str', '')) if s.get('charttime_hour_str') else None
@@ -195,10 +197,20 @@ def _enrich_similar_patients(similar):
         except UniquePatientProfile.DoesNotExist:
             pass
 
+        # Try cohort mapping first, then generate deterministic name from DISPLAY_NAMES pool
+        cohort_name = name_mapping.get((s['subject_id'], s['stay_id'], s['hadm_id']))
+        if cohort_name:
+            display_name = cohort_name
+        else:
+            # Use subject_id as seed for deterministic but unique name assignment
+            name_idx = s['subject_id'] % len(DISPLAY_NAMES)
+            display_name = DISPLAY_NAMES[name_idx]
+
         enriched.append({
             'subject_id': s['subject_id'],
             'stay_id': s['stay_id'],
             'hadm_id': s['hadm_id'],
+            'display_name': display_name,
             'similarity_score': s['similarity_score'],
             'had_sepsis': s['had_sepsis'],
             'anchor_age': profile.anchor_age if profile else None,

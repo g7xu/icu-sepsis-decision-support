@@ -656,6 +656,18 @@ def patient_prediction(request, subject_id, stay_id, hadm_id):
     patient.time_since_admission, _ = _time_since_admission(patient.intime, current_hour)
     patient.risk_score = (risk_score * 100) if risk_score is not None else None
 
+    # Attach display names to similar patients (generate deterministic names for non-cohort patients)
+    from .display_names import DISPLAY_NAMES
+    for sp in similar_patients:
+        # Try cohort mapping first, then generate deterministic name from DISPLAY_NAMES pool
+        cohort_name = name_mapping.get((sp['subject_id'], sp['stay_id'], sp['hadm_id']))
+        if cohort_name:
+            sp['display_name'] = cohort_name
+        else:
+            # Use subject_id as seed for deterministic but unique name assignment
+            name_idx = sp['subject_id'] % len(DISPLAY_NAMES)
+            sp['display_name'] = DISPLAY_NAMES[name_idx]
+
     # Sepsis3 suspected_infection_time (use time only: hour + minute)
     suspected_infection_time = get_sepsis3_suspected_infection_time(subject_id, stay_id)
 
