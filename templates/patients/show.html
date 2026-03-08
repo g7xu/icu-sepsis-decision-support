@@ -158,7 +158,7 @@
                                 {% if proc.item_label %}
                                 <div class="procedure-item__header">
                                     <strong class="procedure-item__label">{{ proc.item_label|default:"-" }}</strong>
-                                    <span class="procedure-item__time text-muted">{{ proc.charttime_hour|date:"H:i" }}</span>
+                                    <span class="procedure-item__time text-muted">{{ proc.charttime|date:"H:i" }}</span>
                                 </div>
                                 {% endif %}
                         
