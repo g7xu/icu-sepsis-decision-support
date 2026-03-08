@@ -167,27 +167,19 @@
     <div class="grid gap-4 md:grid-cols-3">
         {% for sp in similar_patients %}
         <div class="border rounded-lg p-4 bg-gray-50">
-            <p class="font-medium">Patient {{ sp.subject_id }}</p>
-            <p class="text-sm text-gray-600">Age {{ sp.anchor_age|default:"—" }} · {{ sp.gender|default:"" }} · {{ sp.race|default:"" }}</p>
-            {% if sp.hours_since_admission is not None %}
-            <p class="text-sm text-gray-600">{{ sp.hours_since_admission }}h since admission</p>
-            {% endif %}
-            <p class="text-sm mt-2">
-                <span class="font-medium">Sepsis outcome:</span>
-                {% if sp.had_sepsis %}
-                <span class="text-red-600">Yes</span>
-                {% else %}
-                <span class="text-green-600">No</span>
-                {% endif %}
+            <p class="text-sm font-medium mb-2">{{ sp.display_name|default:sp.subject_id }}</p>
+            <p class="text-sm text-gray-700 mb-2">
+                Age {{ sp.anchor_age|default:"—" }} · {{ sp.gender|default:"—" }} · {{ sp.race|default:"—" }} · {{ sp.hours_since_admission|default:"—" }}h ·
+                Sepsis: {% if sp.had_sepsis %}<span class="text-red-600">Yes</span>{% else %}<span class="text-green-600">No</span>{% endif %} ·
+                Sim: {{ sp.similarity_score|floatformat:3 }}
             </p>
-            <p class="text-xs text-gray-500 mt-1">Similarity: {{ sp.similarity_score|floatformat:3 }}</p>
 
             {% if sp.features %}
-            <div class="mt-3 pt-3 border-t border-gray-200">
-                <p class="text-xs font-medium text-gray-600 mb-2">Feature matrix (hour)</p>
-                <div class="similar-cases-feature-scroll text-xs space-y-0.5 max-h-48 overflow-y-auto font-mono">
+            <div class="pt-2 border-t border-gray-200">
+                <p class="text-sm font-medium text-gray-600 mb-1">Feature matrix (hour)</p>
+                <div class="similar-cases-feature-scroll text-sm space-y-0.5 max-h-48 overflow-y-auto font-mono">
                     {% for key, val in sp.features.items %}
-                    <div class="flex justify-between gap-2">
+                    <div class="flex justify-between gap-2 text-sm">
                         <span class="text-gray-600">{{ key }}</span>
                         <span>{% if val is not None %}{{ val }}{% else %}—{% endif %}</span>
                     </div>
@@ -245,18 +237,29 @@ document.addEventListener('DOMContentLoaded', syncSimilarCasesScroll);
             }
             var html = '<div class="grid gap-4 md:grid-cols-3">';
             list.forEach(function(sp) {
+                var displayName = sp.display_name || sp.subject_id;
+                var age = sp.anchor_age != null ? sp.anchor_age : '—';
+                var gender = sp.gender || '—';
+                var race = sp.race || '—';
+                var hours = sp.hours_since_admission != null ? sp.hours_since_admission : '—';
                 var sepsis = sp.had_sepsis ? '<span class="text-red-600">Yes</span>' : '<span class="text-green-600">No</span>';
+                var sim = sp.similarity_score != null ? sp.similarity_score.toFixed(3) : '—';
+                
                 var featuresHtml = '';
                 if (sp.features && Object.keys(sp.features).length) {
-                    featuresHtml = '<div class="mt-3 pt-3 border-t border-gray-200"><p class="text-xs font-medium text-gray-600 mb-2">Feature matrix (hour)</p><div class="similar-cases-feature-scroll text-xs space-y-0.5 max-h-48 overflow-y-auto font-mono">';
+                    featuresHtml = '<div class="pt-2 border-t border-gray-200"><p class="text-sm font-medium text-gray-600 mb-1">Feature matrix (hour)</p><div class="similar-cases-feature-scroll text-sm space-y-0.5 max-h-48 overflow-y-auto font-mono">';
                     for (var k in sp.features) {
                         var v = sp.features[k] != null ? sp.features[k] : '—';
-                        featuresHtml += '<div class="flex justify-between gap-2"><span class="text-gray-600">' + k + '</span><span>' + v + '</span></div>';
+                        featuresHtml += '<div class="flex justify-between gap-2 text-sm"><span class="text-gray-600">' + k + '</span><span>' + v + '</span></div>';
                     }
                     featuresHtml += '</div></div>';
                 }
-                var hours = sp.hours_since_admission != null ? '<p class="text-sm text-gray-600">' + sp.hours_since_admission + 'h since admission</p>' : '';
-                html += '<div class="border rounded-lg p-4 bg-gray-50"><p class="font-medium">Patient ' + sp.subject_id + '</p><p class="text-sm text-gray-600">Age ' + (sp.anchor_age || '—') + ' · ' + (sp.gender || '') + ' · ' + (sp.race || '') + '</p>' + hours + '<p class="text-sm mt-2"><span class="font-medium">Sepsis outcome:</span> ' + sepsis + '</p><p class="text-xs text-gray-500 mt-1">Similarity: ' + (sp.similarity_score != null ? sp.similarity_score.toFixed(3) : '—') + '</p>' + featuresHtml + '</div>';
+                
+                html += '<div class="border rounded-lg p-4 bg-gray-50">';
+                html += '<p class="text-sm font-medium mb-2">' + displayName + '</p>';
+                html += '<p class="text-sm text-gray-700 mb-2">Age ' + age + ' · ' + gender + ' · ' + race + ' · ' + hours + 'h · Sepsis: ' + sepsis + ' · Sim: ' + sim + '</p>';
+                html += featuresHtml;
+                html += '</div>';
             });
             html += '</div>';
             container.innerHTML = html;
