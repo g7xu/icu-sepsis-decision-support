@@ -474,8 +474,8 @@ if (predictionsData.length > 0 || sofaOtherData.length > 0) {
             y: [null],
             name: 'Risk Increasing',
             marker: { symbol: 'square', size: 10, color: '#f97316' },
-            hoverinfo: 'skip',
-            visible: 'legendonly',
+            // hoverinfo: 'skip',
+            // visible: 'legendonly',
             showlegend: true
         };
 
@@ -486,8 +486,8 @@ if (predictionsData.length > 0 || sofaOtherData.length > 0) {
             y: [null],
             name: 'Risk Decreasing',
             marker: { symbol: 'square', size: 10, color: '#3b82f6' },
-            hoverinfo: 'skip',
-            visible: 'legendonly',
+            // hoverinfo: 'skip',
+            // visible: 'legendonly',
             showlegend: true
         };
 
@@ -554,7 +554,7 @@ if (predictionsData.length > 0 || sofaOtherData.length > 0) {
                 yref: 'y',
                 y0: 30,
                 y1: 30,
-                line: { color: '#dc2626', width: 2 }
+                line: { color: '#dc2626', width: 1, dash: 'dot' }
             }];
             layout.annotations = [{
                 xref: 'paper',
@@ -574,7 +574,15 @@ if (predictionsData.length > 0 || sofaOtherData.length > 0) {
             layout.bargap = 0.2;
         }
 
-        Plotly.newPlot('combined-chart', traces, layout, { responsive: true });
+        // Plotly.newPlot('combined-chart', traces, layout, { responsive: true })
+        Plotly.newPlot('combined-chart', traces, layout, { responsive: true }).then(function(gd) {
+            gd.on('plotly_legendclick', function() {
+                return false;
+            });
+            gd.on('plotly_legenddoubleclick', function() {
+                return false;
+            });
+        });
         updateValueLists();
     }
 
