@@ -18,10 +18,6 @@
 {% block content %}
 <!-- Patient Details -->
 <div class="card">
-    <div class="card-header">
-        <h2>Patient Details</h2>
-    </div>
-    
     <div class="patient-detail-grid">
         <div>
             <p class="patient-field-label">Patient</p>
@@ -73,9 +69,6 @@
 
 <!-- Combined Sepsis Predictions and SOFA Values Chart -->
 <div class="card prediction-combined-card">
-    <div class="card-header">
-        <h2>Sepsis Predictions</h2>
-    </div>
     <div class="prediction-combined-layout">
         <div class="prediction-chart-section">
             <div class="vitals-controls">
@@ -156,17 +149,16 @@
 
 <!-- Similar Cases -->
 <div class="card">
-    <div class="card-header">
-        <h2>Similar Cases</h2>
+    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <h2 style="margin: 0;">Similar Cases</h2>
+        <span class="text-sm text-gray-600" id="similar-cases-time-label">
+            {% if load_similar_async %}
+            Loading for {{ current_time_display }}…
+            {% elif similar_patients %}
+            At {{ current_time_display }}
+            {% endif %}
+        </span>
     </div>
-    <p class="text-muted text-sm mb-4">Top 3 most similar patients (by feature vector) from outside the demo cohort.</p>
-    <p class="text-sm text-gray-600 mb-2" id="similar-cases-time-label">
-        {% if load_similar_async %}
-        Loading for {{ current_time_display }}…
-        {% elif similar_patients %}
-        At {{ current_time_display }}
-        {% endif %}
-    </p>
     <div id="similar-patients-container">
     {% if load_similar_async %}
         <p class="text-muted" id="similar-loading">Calculating similar patients…</p>
