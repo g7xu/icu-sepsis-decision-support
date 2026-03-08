@@ -148,7 +148,7 @@ def _time_since_admission(intime, current_hour):
         delta += 24 * 60  # Overnight (e.g. admitted 22:00, sim 06:00)
     hours = delta // 60
     minutes = delta % 60
-    return (f"{hours}:{minutes:02d}", delta)
+    return (f"{hours:02d}:{minutes:02d}", delta)
 
 
 def _prediction_as_of_dt(current_hour, patient_intime=None):
