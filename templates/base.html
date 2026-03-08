@@ -28,6 +28,17 @@
         var config = document.getElementById('app-config');
         if (!advanceBtn || !config) return;
         var ds = config.dataset;
+        var ADVANCE_LOADING_UI = {
+            idleLabel: '+1',
+            spinnerMarkup: [
+                '<span class="advance-btn__content" aria-hidden="true">',
+                '<svg class="advance-spinner" viewBox="0 0 24 24" focusable="false">',
+                '<circle class="advance-spinner__track" cx="12" cy="12" r="9"></circle>',
+                '<circle class="advance-spinner__arc" cx="12" cy="12" r="9"></circle>',
+                '</svg>',
+                '</span>'
+            ].join('')
+        };
 
         // Cross-tab sync: when +1 is clicked in any tab, all tabs show "..." and reload
         var channel = typeof BroadcastChannel !== 'undefined'
@@ -40,7 +51,13 @@
             isProcessing = loading;
             if (advanceBtn) {
                 advanceBtn.disabled = loading;
-                advanceBtn.textContent = loading ? '...' : '+1';
+                advanceBtn.classList.toggle('btn-loading', loading);
+                advanceBtn.setAttribute('aria-label', loading ? 'Advancing time' : 'Advance time by one hour');
+                if (loading) {
+                    advanceBtn.innerHTML = ADVANCE_LOADING_UI.spinnerMarkup;
+                } else {
+                    advanceBtn.textContent = ADVANCE_LOADING_UI.idleLabel;
+                }
             }
             // Store state in sessionStorage for new tabs
             try {
