@@ -330,7 +330,18 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
             'heart_rate', 'sbp', 'dbp', 'mbp',
             'resp_rate', 'temperature', 'spo2', 'glucose',
         ):
-            row['hour_label'] = f"{row['charttime_hour'].hour:02d}:00"
+            charttime = row['charttime_hour']
+            hours_since_admission = (charttime - start_hour).total_seconds() / 3600
+            row['hours_since_admission'] = int(hours_since_admission)
+            hours_since_admission = (charttime - start_hour).total_seconds() / 3600
+            # Calculate what "sim clock time" this represents
+            # admission time + hours elapsed = sim clock time
+            admission_minutes = patient.intime.hour * 60 + patient.intime.minute
+            total_minutes = admission_minutes + int(hours_since_admission * 60)
+            display_hour = (total_minutes // 60) % 24
+            display_minute = total_minutes % 60
+            row['hour_label'] = f"{display_hour:02d}:{display_minute:02d}"
+            #row['hour_label'] = f"{charttime.hour:02d}:{charttime.minute:02d}"
             vitalsigns_list.append(row)
 
         vitalsigns_json = json.dumps(vitalsigns_list, cls=DjangoJSONEncoder)
@@ -351,8 +362,18 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
             'charttime_hour',
             'bicarbonate', 'calcium', 'sodium', 'potassium',
         ):
-
-            row['hour_label'] = f"{row['charttime_hour'].hour:02d}:00"
+            charttime = row['charttime_hour']
+            hours_since_admission = (charttime - start_hour).total_seconds() / 3600
+            row['hours_since_admission'] = int(hours_since_admission)
+            hours_since_admission = (charttime - start_hour).total_seconds() / 3600
+            # Calculate what "sim clock time" this represents
+            # admission time + hours elapsed = sim clock time
+            admission_minutes = patient.intime.hour * 60 + patient.intime.minute
+            total_minutes = admission_minutes + int(hours_since_admission * 60)
+            display_hour = (total_minutes // 60) % 24
+            display_minute = total_minutes % 60
+            row['hour_label'] = f"{display_hour:02d}:{display_minute:02d}"
+            #row['hour_label'] = f"{charttime.hour:02d}:{charttime.minute:02d}"
             chemistry_list.append(row)
 
         chemistry_json = json.dumps(chemistry_list, cls=DjangoJSONEncoder)
@@ -373,8 +394,18 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
             'charttime_hour',
             'd_dimer', 'fibrinogen', 'thrombin', 'inr', 'pt', 'ptt',
         ):
-
-            row['hour_label'] = f"{row['charttime_hour'].hour:02d}:00"
+            charttime = row['charttime_hour']
+            hours_since_admission = (charttime - start_hour).total_seconds() / 3600
+            row['hours_since_admission'] = int(hours_since_admission)
+            hours_since_admission = (charttime - start_hour).total_seconds() / 3600
+            # Calculate what "sim clock time" this represents
+            # admission time + hours elapsed = sim clock time
+            admission_minutes = patient.intime.hour * 60 + patient.intime.minute
+            total_minutes = admission_minutes + int(hours_since_admission * 60)
+            display_hour = (total_minutes // 60) % 24
+            display_minute = total_minutes % 60
+            row['hour_label'] = f"{display_hour:02d}:{display_minute:02d}"
+            #row['hour_label'] = f"{charttime.hour:02d}:{charttime.minute:02d}"
             coagulation_list.append(row)
 
         coagulation_json = json.dumps(coagulation_list, cls=DjangoJSONEncoder)
@@ -440,6 +471,8 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
         'current_hour': current_hour,
         'current_time_display': _display_time(current_hour),
         'prediction_as_of_iso': prediction_as_of_iso,
+        'admission_hour': patient.intime.hour if patient.intime else 0,
+        'admission_minute': patient.intime.minute if patient.intime else 0,
     }
     return render(request, 'patients/show.html', context)
 
