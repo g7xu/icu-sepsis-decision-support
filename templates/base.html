@@ -34,24 +34,73 @@
             ? new BroadcastChannel('icu-sepsis-advance')
             : null;
 
+        var isProcessing = false;
+
         function setAdvanceLoading(loading) {
+            isProcessing = loading;
             if (advanceBtn) {
                 advanceBtn.disabled = loading;
                 advanceBtn.textContent = loading ? '...' : '+1';
             }
+            // Store state in sessionStorage for new tabs
+            try {
+                if (loading) {
+                    sessionStorage.setItem('advance_loading', Date.now().toString());
+                } else {
+                    sessionStorage.removeItem('advance_loading');
+                }
+            } catch (e) {}
         }
+
+        // Check if advance is in progress when tab loads (with timeout protection)
+        try {
+            var loadingTimestamp = sessionStorage.getItem('advance_loading');
+            if (loadingTimestamp) {
+                var age = Date.now() - parseInt(loadingTimestamp, 10);
+                // Only show loading if timestamp is recent (< 60 seconds)
+                if (age < 60000) {
+                    setAdvanceLoading(true);
+                    // Ask other tabs if they're still processing
+                    if (channel) {
+                        channel.postMessage('advance_status_request');
+                        // If no response in 2 seconds, assume stale state
+                        setTimeout(function() {
+                            if (isProcessing && !advanceBtn.classList.contains('confirmed-processing')) {
+                                setAdvanceLoading(false);
+                            }
+                        }, 2000);
+                    }
+                } else {
+                    // Stale state, clear it
+                    sessionStorage.removeItem('advance_loading');
+                }
+            }
+        } catch (e) {}
 
         if (channel) {
             channel.onmessage = function(e) {
                 if (e.data === 'advance_started') {
                     setAdvanceLoading(true);
+                    if (advanceBtn) advanceBtn.classList.add('confirmed-processing');
                 } else if (e.data === 'advance_done') {
+                    sessionStorage.removeItem('advance_loading');
                     location.reload();
+                } else if (e.data === 'advance_status_request') {
+                    // Respond if this tab is processing
+                    if (isProcessing && advanceBtn && advanceBtn.disabled) {
+                        channel.postMessage('advance_in_progress');
+                    }
+                } else if (e.data === 'advance_in_progress') {
+                    setAdvanceLoading(true);
+                    if (advanceBtn) advanceBtn.classList.add('confirmed-processing');
                 }
             };
         }
 
         advanceBtn.addEventListener('click', function() {
+            if (advanceBtn.classList.contains('confirmed-processing')) {
+                advanceBtn.classList.remove('confirmed-processing');
+            }
             setAdvanceLoading(true);
             if (channel) channel.postMessage('advance_started');
 
@@ -74,11 +123,13 @@
             .then(function(data) {
                 var el = document.getElementById('current-time');
                 if (el && data.current_time) el.textContent = data.current_time;
+                setAdvanceLoading(false);
                 if (channel) channel.postMessage('advance_done');
                 location.reload();
             })
             .catch(function(err) {
                 setAdvanceLoading(false);
+                if (channel) channel.postMessage('advance_done');
                 alert('Error advancing time: ' + err.message);
             });
         });
