@@ -330,7 +330,6 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
             'heart_rate', 'sbp', 'dbp', 'mbp',
             'resp_rate', 'temperature', 'spo2', 'glucose',
         ):
-            # Add a clean hour label for the Plotly x-axis
             row['hour_label'] = f"{row['charttime_hour'].hour:02d}:00"
             vitalsigns_list.append(row)
 
@@ -352,7 +351,7 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
             'charttime_hour',
             'bicarbonate', 'calcium', 'sodium', 'potassium',
         ):
-            # Add a clean hour label for the Plotly x-axis
+
             row['hour_label'] = f"{row['charttime_hour'].hour:02d}:00"
             chemistry_list.append(row)
 
@@ -374,7 +373,7 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
             'charttime_hour',
             'd_dimer', 'fibrinogen', 'thrombin', 'inr', 'pt', 'ptt',
         ):
-            # Add a clean hour label for the Plotly x-axis
+
             row['hour_label'] = f"{row['charttime_hour'].hour:02d}:00"
             coagulation_list.append(row)
 

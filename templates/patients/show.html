@@ -73,18 +73,25 @@
             <div class="card-header">
                 <h2>Vital Signs</h2>
             </div>
-            <div class="vitals-controls">
-                <label><input type="radio" name="vital" value="hr" checked>Heart Rate</label>
-                <label><input type="radio" name="vital" value="bp">Blood Pressure</label>
-                <label><input type="radio" name="vital" value="spo2">SpO2</label>
-                <label><input type="radio" name="vital" value="resp">Resp Rate</label>
-                <label><input type="radio" name="vital" value="temp">Temperature</label>
-                <label><input type="radio" name="vital" value="glucose">Glucose</label>
-              </div>
-              
-            <div id="vitals-chart" class="vitals-chart"></div>
             {% if current_hour < 0 %}
-            <p class="text-muted">Press <strong>+1</strong> to start collecting vital signs.</p>
+            <p class="text-muted" style="padding: 1rem;">Press <strong>+1</strong> to start collecting vital signs.</p>
+            {% else %}
+            <div class="chart-split-container">
+                <div class="chart-controls-left">
+                    <div class="vitals-controls">
+                        <label><input type="radio" name="vital" value="hr"><span class="radio-label-text" id="vital-label-hr">Heart Rate</span></label>
+                        <label><input type="radio" name="vital" value="bp"><span class="radio-label-text" id="vital-label-bp">Blood Pressure</span></label>
+                        <label><input type="radio" name="vital" value="spo2"><span class="radio-label-text" id="vital-label-spo2">SpO2</span></label>
+                        <label><input type="radio" name="vital" value="resp"><span class="radio-label-text" id="vital-label-resp">Resp Rate</span></label>
+                        <label><input type="radio" name="vital" value="temp"><span class="radio-label-text" id="vital-label-temp">Temperature</span></label>
+                        <label><input type="radio" name="vital" value="glucose"><span class="radio-label-text" id="vital-label-glucose">Glucose</span></label>
+                    </div>
+                </div>
+                <div class="chart-divider"></div>
+                <div class="chart-display-right">
+                    <div id="vitals-chart" class="vitals-chart"></div>
+                </div>
+            </div>
             {% endif %}
         </div>
 
@@ -93,16 +100,23 @@
             <div class="card-header">
                 <h2>Chemistry Values</h2>
             </div>
-            <div class="chemistry-controls">
-                <label><input type="radio" name="chemistry" value="bicarbonate" checked>Bicarbonate</label>
-                <label><input type="radio" name="chemistry" value="calcium">Calcium</label>
-                <label><input type="radio" name="chemistry" value="sodium">Sodium</label>
-                <label><input type="radio" name="chemistry" value="potassium">Potassium</label>
-            </div>
-            
-            <div id="chemistry-chart" class="chemistry-chart"></div>
             {% if current_hour < 0 %}
-            <p class="text-muted">Press <strong>+1</strong> to start collecting chemistry data.</p>
+            <p class="text-muted" style="padding: 1rem;">Press <strong>+1</strong> to start collecting chemistry data.</p>
+            {% else %}
+            <div class="chart-split-container">
+                <div class="chart-controls-left">
+                    <div class="chemistry-controls">
+                        <label><input type="radio" name="chemistry" value="bicarbonate"><span class="radio-label-text" id="chem-label-bicarbonate">Bicarbonate</span></label>
+                        <label><input type="radio" name="chemistry" value="calcium"><span class="radio-label-text" id="chem-label-calcium">Calcium</span></label>
+                        <label><input type="radio" name="chemistry" value="sodium"><span class="radio-label-text" id="chem-label-sodium">Sodium</span></label>
+                        <label><input type="radio" name="chemistry" value="potassium"><span class="radio-label-text" id="chem-label-potassium">Potassium</span></label>
+                    </div>
+                </div>
+                <div class="chart-divider"></div>
+                <div class="chart-display-right">
+                    <div id="chemistry-chart" class="chemistry-chart"></div>
+                </div>
+            </div>
             {% endif %}
         </div>
 
@@ -111,18 +125,25 @@
             <div class="card-header">
                 <h2>Coagulation Values</h2>
             </div>
-            <div class="coagulation-controls">
-                <label><input type="radio" name="coagulation" value="d_dimer" checked>D-Dimer</label>
-                <label><input type="radio" name="coagulation" value="fibrinogen">Fibrinogen</label>
-                <label><input type="radio" name="coagulation" value="thrombin">Thrombin</label>
-                <label><input type="radio" name="coagulation" value="inr">INR</label>
-                <label><input type="radio" name="coagulation" value="pt">PT</label>
-                <label><input type="radio" name="coagulation" value="ptt">PTT</label>
-            </div>
-
-            <div id="coagulation-chart" class="coagulation-chart"></div>
             {% if current_hour < 0 %}
-            <p class="text-muted">Press <strong>+1</strong> to start collecting coagulation data.</p>
+            <p class="text-muted" style="padding: 1rem;">Press <strong>+1</strong> to start collecting coagulation data.</p>
+            {% else %}
+            <div class="chart-split-container">
+                <div class="chart-controls-left">
+                    <div class="coagulation-controls">
+                        <label><input type="radio" name="coagulation" value="d_dimer"><span class="radio-label-text" id="coag-label-d_dimer">D-Dimer</span></label>
+                        <label><input type="radio" name="coagulation" value="fibrinogen"><span class="radio-label-text" id="coag-label-fibrinogen">Fibrinogen</span></label>
+                        <label><input type="radio" name="coagulation" value="thrombin"><span class="radio-label-text" id="coag-label-thrombin">Thrombin</span></label>
+                        <label><input type="radio" name="coagulation" value="inr"><span class="radio-label-text" id="coag-label-inr">INR</span></label>
+                        <label><input type="radio" name="coagulation" value="pt"><span class="radio-label-text" id="coag-label-pt">PT</span></label>
+                        <label><input type="radio" name="coagulation" value="ptt"><span class="radio-label-text" id="coag-label-ptt">PTT</span></label>
+                    </div>
+                </div>
+                <div class="chart-divider"></div>
+                <div class="chart-display-right">
+                    <div id="coagulation-chart" class="coagulation-chart"></div>
+                </div>
+            </div>
             {% endif %}
         </div>
 
@@ -213,14 +234,11 @@ const vitalsData = JSON.parse(document.getElementById('vitalsigns-data').textCon
 if (vitalsData.length > 0) {
     const times = vitalsData.map(v => v.hour_label);
 
-    // 1) One base trace definition for ALL series (since all are scatter lines+markers)
     const BASE_TRACE = {
         type: 'scatter',
         mode: 'lines+markers'
     };
 
-    // 2) Centralized styling (not duplicated 6 times)
-    // NOTE: This is Plotly config (cannot be moved to CSS), but it’s centralized here.
     const TRACE_STYLES = {
         heart_rate: {name: 'Heart Rate', line: {color: '#e53e3e', width: 2}, marker: {size: 10}},
         sbp: {name: 'SBP', line: {color: '#3182ce', width: 2}, marker: {size: 5}},
@@ -232,10 +250,15 @@ if (vitalsData.length > 0) {
         glucose: {name: 'Glucose', line: {color: '#805ad5', width: 2}, marker: {size: 10}}
     };
 
-    // 3) Define each radio "chart" in terms of:
-    //    - title
-    //    - y axis label
-    //    - which series keys to include
+    const METRIC_METADATA = {
+        hr: {label: 'Heart Rate', keys: ['heart_rate'], unit: 'bpm'},
+        bp: {label: 'Blood Pressure', keys: ['sbp'], unit: 'mmHg'},
+        spo2: {label: 'SpO2', keys: ['spo2'], unit: '%'},
+        resp: {label: 'Resp Rate', keys: ['resp_rate'], unit: '/min'},
+        temp: {label: 'Temperature', keys: ['temperature'], unit: '°C'},
+        glucose: {label: 'Glucose', keys: ['glucose'], unit: 'mg/dL'}
+    };
+
     const CHARTS = {
         hr: {title: 'Heart Rate', yTitle: 'HR (bpm)', series: ['heart_rate'] },
         bp: {title: 'Blood Pressure', yTitle: 'BP (mmHg)', series: ['sbp', 'dbp', 'mbp'] },
@@ -245,11 +268,65 @@ if (vitalsData.length > 0) {
         glucose: {title: 'Glucose', yTitle: 'Glucose (mg/dL)', series: ['glucose'] }
     };
 
+    function getRecentValues(dataKey) {
+        const values = [];
+        for (let i = vitalsData.length - 1; i >= 0; i--) {
+            const val = vitalsData[i][dataKey];
+            if (val !== null && val !== undefined) {
+                values.push({
+                    value: val,
+                    hour: vitalsData[i].hour_label,
+                    index: i
+                });
+                if (values.length === 2) break;
+            }
+        }
+        return values;
+    }
+
+    function formatLabel(metricKey) {
+        const meta = METRIC_METADATA[metricKey];
+        if (!meta) return meta;
+        
+        const primaryKey = meta.keys[0];
+        const recent = getRecentValues(primaryKey);
+        
+        if (recent.length === 0) {
+            return `${meta.label}: <span style="color: #1a365d;">--</span> (${meta.unit})`;
+        }
+        
+        const mostRecent = recent[0];
+        const formattedValue = mostRecent.value.toFixed(1);
+        
+        if (recent.length === 1) {
+            return `${meta.label}: ${formattedValue} (${meta.unit})`;
+        }
+        
+        const previous = recent[1];
+        let arrow = '';
+        if (mostRecent.value > previous.value) {
+            arrow = ' <span style="color: #1a365d;">↑</span>';
+        } else if (mostRecent.value < previous.value) {
+            arrow = ' <span style="color: #1a365d;">↓</span>';
+        }
+        
+        return `${meta.label}: ${formattedValue} (${meta.unit})${arrow}`;
+    }
+
+    function updateAllLabels() {
+        Object.keys(METRIC_METADATA).forEach(key => {
+            const labelElem = document.getElementById(`vital-label-${key}`);
+            if (labelElem) {
+                labelElem.innerHTML = formatLabel(key);
+            }
+        });
+    }
+
     function buildTraces(seriesKeys) {
         return seriesKeys.map(key => {
             const style = TRACE_STYLES[key] || { name: key };
             return {
-                BASE_TRACE,
+                ...BASE_TRACE,
                 x: times,
                 y: vitalsData.map(v => v[key]),
                 name: style.name,
@@ -278,17 +355,15 @@ if (vitalsData.length > 0) {
             yaxis: {
                 ...baseLayout.yaxis,
                 title: { text: chart.yTitle, font: { size: 11 } },
-                autorange: true // force rescale per selection
+                autorange: true
             }
         };
 
         Plotly.newPlot('vitals-chart', traces, layout, { responsive: true });
     }
 
-    // initial render
-    renderChart('hr');
+    updateAllLabels();
 
-    // radio handlers
     document.querySelectorAll('input[name="vital"]').forEach(radio => {
         radio.addEventListener('change', (e) => {
             if (e.target && e.target.checked) renderChart(e.target.value);
@@ -316,6 +391,13 @@ if (chemistryData.length > 0) {
         potassium: {name: 'Potassium', line: {color: '#d69e2e', width: 2}, marker: {size: 10}}
     };
 
+    const CHEM_METADATA = {
+        bicarbonate: {label: 'Bicarbonate', key: 'bicarbonate', unit: 'mEq/L'},
+        calcium: {label: 'Calcium', key: 'calcium', unit: 'mg/dL'},
+        sodium: {label: 'Sodium', key: 'sodium', unit: 'mEq/L'},
+        potassium: {label: 'Potassium', key: 'potassium', unit: 'mEq/L'}
+    };
+
     const CHEM_CHARTS = {
         bicarbonate: {title: 'Bicarbonate', yTitle: 'Bicarbonate (mEq/L)', series: ['bicarbonate']},
         calcium: {title: 'Calcium', yTitle: 'Calcium (mg/dL)', series: ['calcium']},
@@ -323,11 +405,64 @@ if (chemistryData.length > 0) {
         potassium: {title: 'Potassium', yTitle: 'Potassium (mEq/L)', series: ['potassium']}
     };
 
+    function getChemRecentValues(dataKey) {
+        const values = [];
+        for (let i = chemistryData.length - 1; i >= 0; i--) {
+            const val = chemistryData[i][dataKey];
+            if (val !== null && val !== undefined) {
+                values.push({
+                    value: val,
+                    hour: chemistryData[i].hour_label,
+                    index: i
+                });
+                if (values.length === 2) break;
+            }
+        }
+        return values;
+    }
+
+    function formatChemLabel(metricKey) {
+        const meta = CHEM_METADATA[metricKey];
+        if (!meta) return metricKey;
+        
+        const recent = getChemRecentValues(meta.key);
+        
+        if (recent.length === 0) {
+            return `${meta.label}: <span style="color: #1a365d;">--</span> (${meta.unit})`;
+        }
+        
+        const mostRecent = recent[0];
+        const formattedValue = mostRecent.value.toFixed(1);
+        
+        if (recent.length === 1) {
+            return `${meta.label}: ${formattedValue} (${meta.unit})`;
+        }
+        
+        const previous = recent[1];
+        let arrow = '';
+        if (mostRecent.value > previous.value) {
+            arrow = ' <span style="color: #1a365d;">↑</span>';
+        } else if (mostRecent.value < previous.value) {
+            arrow = ' <span style="color: #1a365d;">↓</span>';
+        }
+        
+        return `${meta.label}: ${formattedValue} (${meta.unit})${arrow}`;
+    }
+
+    function updateChemLabels() {
+        Object.keys(CHEM_METADATA).forEach(key => {
+            const labelElem = document.getElementById(`chem-label-${key}`);
+            if (labelElem) {
+                labelElem.innerHTML = formatChemLabel(key);
+            }
+        });
+    }
+
     function buildChemTraces(seriesKeys) {
         return seriesKeys.map(key => {
             const style = CHEM_TRACE_STYLES[key] || { name: key };
             return {
-                CHEM_BASE_TRACE,
+                ...CHEM_BASE_TRACE,
                 x: chemTimes,
                 y: chemistryData.map(c => c[key]),
                 name: style.name,
@@ -363,7 +498,7 @@ if (chemistryData.length > 0) {
         Plotly.newPlot('chemistry-chart', traces, layout, { responsive: true });
     }
 
-    renderChemChart('bicarbonate');
+    updateChemLabels();
 
     document.querySelectorAll('input[name="chemistry"]').forEach(radio => {
         radio.addEventListener('change', (e) => {
@@ -394,6 +529,15 @@ if (coagulationData.length > 0) {
         ptt: {name: 'PTT', line: {color: '#dd6b20', width: 2}, marker: {size: 10}}
     };
 
+    const COAG_METADATA = {
+        d_dimer: {label: 'D-Dimer', key: 'd_dimer', unit: 'µg/mL'},
+        fibrinogen: {label: 'Fibrinogen', key: 'fibrinogen', unit: 'mg/dL'},
+        thrombin: {label: 'Thrombin', key: 'thrombin', unit: 'sec'},
+        inr: {label: 'INR', key: 'inr', unit: ''},
+        pt: {label: 'PT', key: 'pt', unit: 'sec'},
+        ptt: {label: 'PTT', key: 'ptt', unit: 'sec'}
+    };
+
     const COAG_CHARTS = {
         d_dimer: {title: 'D-Dimer', yTitle: 'D-Dimer (\u00b5g/mL)', series: ['d_dimer']},
         fibrinogen: {title: 'Fibrinogen', yTitle: 'Fibrinogen (mg/dL)', series: ['fibrinogen']},
@@ -402,6 +546,59 @@ if (coagulationData.length > 0) {
         pt: {title: 'PT', yTitle: 'PT (sec)', series: ['pt']},
         ptt: {title: 'PTT', yTitle: 'PTT (sec)', series: ['ptt']}
     };
+
+    function getCoagRecentValues(dataKey) {
+        const values = [];
+        for (let i = coagulationData.length - 1; i >= 0; i--) {
+            const val = coagulationData[i][dataKey];
+            if (val !== null && val !== undefined) {
+                values.push({
+                    value: val,
+                    hour: coagulationData[i].hour_label,
+                    index: i
+                });
+                if (values.length === 2) break;
+            }
+        }
+        return values;
+    }
+
+    function formatCoagLabel(metricKey) {
+        const meta = COAG_METADATA[metricKey];
+        if (!meta) return metricKey;
+        
+        const recent = getCoagRecentValues(meta.key);
+        
+        if (recent.length === 0) {
+            return `${meta.label}: <span style="color: #1a365d;">--</span>${meta.unit ? ` (${meta.unit})` : ''}`;
+        }
+        
+        const mostRecent = recent[0];
+        const formattedValue = mostRecent.value.toFixed(1);
+        
+        if (recent.length === 1) {
+            return `${meta.label}: ${formattedValue}${meta.unit ? ` (${meta.unit})` : ''}`;
+        }
+        
+        const previous = recent[1];
+        let arrow = '';
+        if (mostRecent.value > previous.value) {
+            arrow = ' <span style="color: #1a365d;">↑</span>';
+        } else if (mostRecent.value < previous.value) {
+            arrow = ' <span style="color: #1a365d;">↓</span>';
+        }
+        
+        return `${meta.label}: ${formattedValue}${meta.unit ? ` (${meta.unit})` : ''}${arrow}`;
+    }
+
+    function updateCoagLabels() {
+        Object.keys(COAG_METADATA).forEach(key => {
+            const labelElem = document.getElementById(`coag-label-${key}`);
+            if (labelElem) {
+                labelElem.innerHTML = formatCoagLabel(key);
+            }
+        });
+    }
 
     function buildCoagTraces(seriesKeys) {
         return seriesKeys.map(key => {
@@ -443,7 +640,7 @@ if (coagulationData.length > 0) {
         Plotly.newPlot('coagulation-chart', traces, layout, { responsive: true });
     }
 
-    renderCoagChart('d_dimer');
+    updateCoagLabels();
 
     document.querySelectorAll('input[name="coagulation"]').forEach(radio => {
         radio.addEventListener('change', (e) => {
@@ -452,15 +649,6 @@ if (coagulationData.length > 0) {
     });
 }
 
-    // Prediction fetch (commented out — Sepsis Probability now in patient details)
-    // const pageConfig = document.getElementById('page-config');
-    // const predUrl = pageConfig ? pageConfig.dataset.predictionUrl : null;
-    // if (predUrl) {
-    //     fetch(predUrl)
-    //         .then(response => response.json())
-    //         .then(data => { ... })
-    //         .catch(...);
-    // }
 })();
 </script>
 {% endblock %}
