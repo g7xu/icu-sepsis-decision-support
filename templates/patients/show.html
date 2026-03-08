@@ -20,33 +20,33 @@
 <div class="card sticky-card">
     <div class="patient-detail-grid">
         <div>
-            <p class="patient-field-label">Patient</p>
+            <p class="patient-field-label">PATIENT</p>
             <p class="patient-field-value">{{ patient.display_name }}</p>
         </div>
         <div>
-            <p class="patient-field-label">Age</p>
+            <p class="patient-field-label">AGE</p>
             <p class="patient-field-value">{{ patient.anchor_age|default:"-" }}</p>
         </div>
         <div>
-            <p class="patient-field-label">Gender</p>
+            <p class="patient-field-label">GENDER</p>
             <p class="patient-field-value">
                 {% if patient.gender == 'M' %}Male{% elif patient.gender == 'F' %}Female{% else %}{{ patient.gender|default:"-" }}{% endif %}
             </p>
         </div>
         <div>
-            <p class="patient-field-label">Race</p>
-            <p class="patient-field-value">{{ patient.race|default:"-" }}</p>
+            <p class="patient-field-label">RACE</p>
+            <p class="patient-field-value">{{ patient.race_display|default:"-" }}</p>
         </div>
         <div>
-            <p class="patient-field-label">First Care Unit</p>
+            <p class="patient-field-label">CARE UNIT</p>
             <p class="patient-field-value">{{ patient.first_careunit|default:"-" }}</p>
         </div>
         <div>
-            <p class="patient-field-label">Time Since Admission</p>
+            <p class="patient-field-label">TIME SINCE ADMISSION</p>
             <p class="patient-field-value">{{ patient.time_since_admission }}</p>
         </div>
         <div>
-            <p class="patient-field-label">Sepsis Probability</p>
+            <p class="patient-field-label">SEPSIS PROBABILITY</p>
             <p class="patient-field-value">
                 {% if patient.risk_score is not None %}
                 <a href="{% url 'patients:prediction_view' patient.subject_id patient.stay_id patient.hadm_id %}" 

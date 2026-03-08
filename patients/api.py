@@ -5,7 +5,7 @@ from django.utils import timezone as django_tz
 from django.utils.dateparse import parse_datetime
 from django.views.decorators.http import require_GET
 
-from .models import UniquePatientProfile
+from .models import UniquePatientProfile, format_race_label
 from .services import (
     get_static_feature_sources,
     get_hourly_feature_sources,
@@ -215,7 +215,7 @@ def _enrich_similar_patients(similar):
             'had_sepsis': s['had_sepsis'],
             'anchor_age': profile.anchor_age if profile else None,
             'gender': profile.gender if profile else None,
-            'race': profile.race if profile else None,
+            'race': format_race_label(profile.race) if profile else None,
             'hours_since_admission': hours_since_admission,
             'features': s.get('features') or {},
         })

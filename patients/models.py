@@ -10,6 +10,19 @@ from django.db import models
 from django.utils import timezone
 
 
+def format_race_label(value):
+    """
+    Convert uppercase race labels into display-friendly title case while
+    preserving separators like spaces and slashes.
+    """
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return text
+    return text.lower().title()
+
+
 class NaiveDateTimeField(models.DateTimeField):
     """
     DateTimeField that converts naive datetimes from the database to UTC-aware.
@@ -66,6 +79,10 @@ class UniquePatientProfile(models.Model):
     def composite_key(self):
         """Returns the composite key tuple for this patient stay."""
         return (self.subject_id, self.stay_id, self.hadm_id)
+
+    @property
+    def race_display(self):
+        return format_race_label(self.race)
 
 
 class VitalsignHourly(models.Model):

@@ -89,7 +89,7 @@
                         {{ patient.gender|default:"-" }}
                     {% endif %}
                 </td>
-                <td>{{ patient.race|default:"-"|truncatechars:20 }}</td>
+                <td>{{ patient.race_display|default:"-"|truncatechars:20 }}</td>
                 <td>{{ patient.first_careunit|default:"-" }}</td>
                 <td class="text-muted">{{ patient.time_since_admission }}</td>
                 <td>
