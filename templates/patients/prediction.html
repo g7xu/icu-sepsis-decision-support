@@ -65,80 +65,114 @@
     </div>
 </div>
 
-<!-- Combined Sepsis Predictions and SOFA Values Chart -->
-<div class="card prediction-combined-card">
-    <div class="prediction-combined-layout">
-        <div class="prediction-chart-section">
-            <div class="vitals-controls">
-                <label><input type="radio" name="combined" value="sepsis_only" checked>Sepsis Probability</label>
-                <label><input type="radio" name="combined" value="pao2fio2ratio_novent">PaO2/FiO2 (no vent)</label>
-                <label><input type="radio" name="combined" value="pao2fio2ratio_vent">PaO2/FiO2 (vent)</label>
-                <label><input type="radio" name="combined" value="rate_epinephrine">Epinephrine</label>
-                <label><input type="radio" name="combined" value="rate_norepinephrine">Norepinephrine</label>
-                <label><input type="radio" name="combined" value="rate_dopamine">Dopamine</label>
-                <label><input type="radio" name="combined" value="rate_dobutamine">Dobutamine</label>
+<!-- Charts (left) + SOFA Values (right) -->
+<div class="main-content-grid">
+    <div class="charts-column">
+        <!-- Sepsis Predictions Chart -->
+        <div class="card">
+            <div class="card-header">
+                <h2>Sepsis Predictions by Hour</h2>
             </div>
-            <div id="combined-chart" class="prediction-combined-chart"></div>
             {% if current_hour < 0 %}
-            <p class="text-muted">Press <strong>+1</strong> to start the simulation and load data.</p>
+            <p class="text-muted" style="padding: 1rem;">Press <strong>+1</strong> to start the simulation and load predictions.</p>
+            {% else %}
+            <div id="sepsis-chart" class="prediction-combined-chart"></div>
             {% endif %}
         </div>
-        <div class="prediction-values-section">
-            <div class="prediction-values-list">
-                <h3 class="prediction-values-header">Discrete Values</h3>
-                <div class="prediction-value-item">
-                    <span class="prediction-value-label">Mean BP (min)</span>
-                    <span class="prediction-value-data" id="value-meanbp_min">-</span>
+
+        <!-- Relevant SOFA Values Chart -->
+        <div class="card">
+            <div class="card-header">
+                <h2>Relevant SOFA Values</h2>
+            </div>
+            {% if current_hour < 0 %}
+            <p class="text-muted" style="padding: 1rem;">Press <strong>+1</strong> to start collecting SOFA data.</p>
+            {% else %}
+            <div class="chart-split-container">
+                <div class="chart-controls-left">
+                    <div class="chemistry-controls">
+                        <label><input type="radio" name="sofa" value="pao2fio2ratio_novent" checked><span class="radio-label-text" id="sofa-label-pao2fio2ratio_novent">PaO2/FiO2 (no vent)</span></label>
+                        <label><input type="radio" name="sofa" value="pao2fio2ratio_vent"><span class="radio-label-text" id="sofa-label-pao2fio2ratio_vent">PaO2/FiO2 (vent)</span></label>
+                        <label><input type="radio" name="sofa" value="rate_epinephrine"><span class="radio-label-text" id="sofa-label-rate_epinephrine">Epinephrine</span></label>
+                        <label><input type="radio" name="sofa" value="rate_norepinephrine"><span class="radio-label-text" id="sofa-label-rate_norepinephrine">Norepinephrine</span></label>
+                        <label><input type="radio" name="sofa" value="rate_dopamine"><span class="radio-label-text" id="sofa-label-rate_dopamine">Dopamine</span></label>
+                        <label><input type="radio" name="sofa" value="rate_dobutamine"><span class="radio-label-text" id="sofa-label-rate_dobutamine">Dobutamine</span></label>
+                    </div>
                 </div>
-                <div class="prediction-value-item">
-                    <span class="prediction-value-label">GCS (min)</span>
-                    <span class="prediction-value-data" id="value-gcs_min">-</span>
-                </div>
-                <div class="prediction-value-item">
-                    <span class="prediction-value-label">Bilirubin (max)</span>
-                    <span class="prediction-value-data" id="value-bilirubin_max">-</span>
-                </div>
-                <div class="prediction-value-item">
-                    <span class="prediction-value-label">Creatinine (max)</span>
-                    <span class="prediction-value-data" id="value-creatinine_max">-</span>
-                </div>
-                <div class="prediction-value-item">
-                    <span class="prediction-value-label">Platelet (min)</span>
-                    <span class="prediction-value-data" id="value-platelet_min">-</span>
+                <div class="chart-divider"></div>
+                <div class="chart-display-right">
+                    <div id="sofa-chart" class="chemistry-chart"></div>
                 </div>
             </div>
-            <div class="prediction-values-list">
-                <h3 class="prediction-values-header">24-Hour Aggregates</h3>
-                <div class="prediction-value-item">
-                    <span class="prediction-value-label">Respiration</span>
-                    <span class="prediction-value-data" id="value-respiration_24hours">-</span>
-                </div>
-                <div class="prediction-value-item">
-                    <span class="prediction-value-label">Coagulation</span>
-                    <span class="prediction-value-data" id="value-coagulation_24hours">-</span>
-                </div>
-                <div class="prediction-value-item">
-                    <span class="prediction-value-label">Liver</span>
-                    <span class="prediction-value-data" id="value-liver_24hours">-</span>
-                </div>
-                <div class="prediction-value-item">
-                    <span class="prediction-value-label">Cardiovascular</span>
-                    <span class="prediction-value-data" id="value-cardiovascular_24hours">-</span>
-                </div>
-                <div class="prediction-value-item">
-                    <span class="prediction-value-label">CNS</span>
-                    <span class="prediction-value-data" id="value-cns_24hours">-</span>
-                </div>
-                <div class="prediction-value-item">
-                    <span class="prediction-value-label">Renal</span>
-                    <span class="prediction-value-data" id="value-renal_24hours">-</span>
-                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Right Column: Sticky SOFA Values -->
+    <div class="procedures-column">
+        <div class="card sticky-procedures">
+            <div class="card-header">
+                <h2>SOFA Scores</h2>
             </div>
-            <div class="prediction-values-list">
-                <h3 class="prediction-values-header">SOFA Score</h3>
-                <div class="prediction-value-item">
-                    <span class="prediction-value-label">Total SOFA Score</span>
-                    <span class="prediction-value-data prediction-sofa-score" id="value-sofa_24hours">-</span>
+            <div class="procedures-log">
+                <div class="prediction-values-section">
+                    <div class="prediction-values-list">
+                        <h3 class="prediction-values-header">Discrete Values</h3>
+                        <div class="prediction-value-item">
+                            <span class="prediction-value-label">Mean BP (min)</span>
+                            <span class="prediction-value-data" id="value-meanbp_min">-</span>
+                        </div>
+                        <div class="prediction-value-item">
+                            <span class="prediction-value-label">GCS (min)</span>
+                            <span class="prediction-value-data" id="value-gcs_min">-</span>
+                        </div>
+                        <div class="prediction-value-item">
+                            <span class="prediction-value-label">Bilirubin (max)</span>
+                            <span class="prediction-value-data" id="value-bilirubin_max">-</span>
+                        </div>
+                        <div class="prediction-value-item">
+                            <span class="prediction-value-label">Creatinine (max)</span>
+                            <span class="prediction-value-data" id="value-creatinine_max">-</span>
+                        </div>
+                        <div class="prediction-value-item">
+                            <span class="prediction-value-label">Platelet (min)</span>
+                            <span class="prediction-value-data" id="value-platelet_min">-</span>
+                        </div>
+                    </div>
+                    <div class="prediction-values-list">
+                        <h3 class="prediction-values-header">24-Hour Aggregates</h3>
+                        <div class="prediction-value-item">
+                            <span class="prediction-value-label">Respiration</span>
+                            <span class="prediction-value-data" id="value-respiration_24hours">-</span>
+                        </div>
+                        <div class="prediction-value-item">
+                            <span class="prediction-value-label">Coagulation</span>
+                            <span class="prediction-value-data" id="value-coagulation_24hours">-</span>
+                        </div>
+                        <div class="prediction-value-item">
+                            <span class="prediction-value-label">Liver</span>
+                            <span class="prediction-value-data" id="value-liver_24hours">-</span>
+                        </div>
+                        <div class="prediction-value-item">
+                            <span class="prediction-value-label">Cardiovascular</span>
+                            <span class="prediction-value-data" id="value-cardiovascular_24hours">-</span>
+                        </div>
+                        <div class="prediction-value-item">
+                            <span class="prediction-value-label">CNS</span>
+                            <span class="prediction-value-data" id="value-cns_24hours">-</span>
+                        </div>
+                        <div class="prediction-value-item">
+                            <span class="prediction-value-label">Renal</span>
+                            <span class="prediction-value-data" id="value-renal_24hours">-</span>
+                        </div>
+                    </div>
+                    <div class="prediction-values-list">
+                        <h3 class="prediction-values-header">SOFA Score</h3>
+                        <div class="prediction-value-item">
+                            <span class="prediction-value-label">Total SOFA Score</span>
+                            <span class="prediction-value-data prediction-sofa-score" id="value-sofa_24hours">-</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -279,7 +313,7 @@ document.addEventListener('DOMContentLoaded', syncSimilarCasesScroll);
 <script>
 (function() {
 // =========================================================================
-// Combined Chart: Sepsis Predictions + SOFA Values (single chart + radio selection)
+// Sepsis Predictions Chart
 // =========================================================================
 const predictionsData = JSON.parse(document.getElementById('predictions-data').textContent || '[]');
 const predictionsMeta = JSON.parse(document.getElementById('predictions-meta').textContent || '{}');
@@ -315,287 +349,351 @@ function updateValueLists() {
     }
 }
 
-if (predictionsData.length > 0 || sofaOtherData.length > 0) {
-    const predTimes = predictionsData.map(d => d.hour_label);
-    const sofaTimes = sofaOtherData.map(d => d.hour_label);
+function formatClockTime(hour, minute) {
+    return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+}
 
-    const BASE_TRACE = {
+function buildClockSlots(totalSlots) {
+    const admissionHour = Number(predictionsMeta.admission_hour ?? 0);
+    const admissionMinute = Number(predictionsMeta.admission_minute ?? 0);
+    const slots = [];
+    for (let i = 0; i < totalSlots; i += 1) {
+        const totalMinutes = (admissionHour * 60) + admissionMinute + (i * 60);
+        const hour = ((Math.floor(totalMinutes / 60) % 24) + 24) % 24;
+        const minute = ((totalMinutes % 60) + 60) % 60;
+        const label = formatClockTime(hour, minute);
+        slots.push({ key: `${label}__${i}`, label: label });
+    }
+    return slots;
+}
+
+function buildSepsisCandlestickTraces() {
+    const admissionHour = Number(predictionsMeta.admission_hour ?? 0);
+    const plottedPoints = predictionsData
+        .map(d => {
+            const currentRaw = d.risk_score;
+            const hourVal = Number(d.hour_val);
+            if (currentRaw == null || Number.isNaN(hourVal)) return null;
+            const slotIndex = (hourVal - 1) - admissionHour;
+            if (slotIndex < 0) return null;
+            return {
+                slotIndex: slotIndex,
+                currentValue: Number(currentRaw)
+            };
+        })
+        .filter(p => p && !Number.isNaN(p.currentValue));
+
+    const maxSlotIndex = plottedPoints.reduce((maxVal, p) => Math.max(maxVal, p.slotIndex), -1);
+    const totalSlots = Math.max(24, maxSlotIndex + 1);
+    const clockSlots = buildClockSlots(totalSlots);
+    const xKeys = clockSlots.map(s => s.key);
+    const xData = [];
+
+    const openValues = [];
+    const closeValues = [];
+    const highValues = [];
+    const lowValues = [];
+    const customData = [];
+    const hoverText = [];
+
+    for (let i = 0; i < plottedPoints.length; i += 1) {
+        const currentValue = plottedPoints[i].currentValue;
+        const previousValue = i > 0 ? plottedPoints[i - 1].currentValue : plottedPoints[i].currentValue;
+
+        let direction = 'unchanged';
+        if (currentValue > previousValue) direction = 'increased';
+        else if (currentValue < previousValue) direction = 'decreased';
+        const directionLabel = direction.charAt(0).toUpperCase() + direction.slice(1);
+
+        xData.push(xKeys[plottedPoints[i].slotIndex]);
+        openValues.push(previousValue);
+        closeValues.push(currentValue);
+        highValues.push(previousValue);
+        lowValues.push(currentValue);
+        customData.push([previousValue, direction]);
+        hoverText.push(
+            `Current Risk: ${currentValue.toFixed(2)}%<br>` +
+            `Previous Risk: ${previousValue.toFixed(2)}%<br>` +
+            `Trend: ${directionLabel}`
+        );
+    }
+
+    const allHoursAnchorTrace = {
         type: 'scatter',
-        mode: 'lines+markers'
+        x: xKeys,
+        y: xKeys.map(() => 0),
+        mode: 'markers',
+        marker: { size: 1, opacity: 0 },
+        hoverinfo: 'skip',
+        showlegend: false
     };
 
-    const TRACE_STYLES = {
-        risk_score: { name: 'Sepsis Probability', line: { color: '#e53e3e', width: 2 }, marker: { size: 10 } },
-        pao2fio2ratio_novent: { name: 'PaO2/FiO2 (no vent)', line: { color: '#38a169', width: 2 }, marker: { size: 10 } },
-        pao2fio2ratio_vent: { name: 'PaO2/FiO2 (vent)', line: { color: '#38a169', width: 2 }, marker: { size: 10 } },
-        rate_epinephrine: { name: 'Epinephrine', line: { color: '#38a169', width: 2 }, marker: { size: 10 } },
-        rate_norepinephrine: { name: 'Norepinephrine', line: { color: '#38a169', width: 2 }, marker: { size: 10 } },
-        rate_dopamine: { name: 'Dopamine', line: { color: '#38a169', width: 2 }, marker: { size: 10 } },
-        rate_dobutamine: { name: 'Dobutamine', line: { color: '#38a169', width: 2 }, marker: { size: 10 } }
+    const candlestickTrace = {
+        type: 'candlestick',
+        name: 'Sepsis Risk Trend',
+        x: xData,
+        open: openValues,
+        close: closeValues,
+        high: highValues,
+        low: lowValues,
+        customdata: customData,
+        text: hoverText,
+        hoverinfo: 'text',
+        hovertemplate: '%{text}<extra></extra>',
+        increasing: { line: { color: '#f97316', width: 2 }, fillcolor: '#f97316' },
+        decreasing: { line: { color: '#3b82f6', width: 2 }, fillcolor: '#3b82f6' },
+        whiskerwidth: 0,
+        showlegend: false
     };
 
-    const CHARTS = {
-        sepsis_only: { title: 'Sepsis Probability', yTitle: 'Sepsis Probability (%)', series: ['risk_score'], dataSource: 'predictions' },
-        pao2fio2ratio_novent: { title: 'PaO2/FiO2 (no vent)', yTitle: 'PaO2/FiO2 (no vent)', series: ['pao2fio2ratio_novent'], dataSource: 'sofa' },
-        pao2fio2ratio_vent: { title: 'PaO2/FiO2 (vent)', yTitle: 'PaO2/FiO2 (vent)', series: ['pao2fio2ratio_vent'], dataSource: 'sofa' },
-        rate_epinephrine: { title: 'Epinephrine', yTitle: 'Epinephrine', series: ['rate_epinephrine'], dataSource: 'sofa' },
-        rate_norepinephrine: { title: 'Norepinephrine', yTitle: 'Norepinephrine', series: ['rate_norepinephrine'], dataSource: 'sofa' },
-        rate_dopamine: { title: 'Dopamine', yTitle: 'Dopamine', series: ['rate_dopamine'], dataSource: 'sofa' },
-        rate_dobutamine: { title: 'Dobutamine', yTitle: 'Dobutamine', series: ['rate_dobutamine'], dataSource: 'sofa' }
+    const increasingLegendTrace = {
+        type: 'scatter',
+        mode: 'markers',
+        x: [null],
+        y: [null],
+        name: 'Risk Increasing',
+        marker: { symbol: 'square', size: 10, color: '#f97316' },
+        showlegend: true
     };
 
-    function buildTraces(seriesKeys, dataSource) {
-        return seriesKeys.map(key => {
-            const style = TRACE_STYLES[key] || { name: key };
-            if (dataSource === 'predictions') {
-                return {
-                    ...BASE_TRACE,
-                    x: predTimes,
-                    y: predictionsData.map(d => d[key]),
-                    name: style.name,
-                    line: style.line,
-                    marker: style.marker
-                };
-            } else {
-                return {
-                    ...BASE_TRACE,
-                    x: sofaTimes,
-                    y: sofaOtherData.map(d => d[key]),
-                    name: style.name,
-                    line: style.line,
-                    marker: style.marker
-                };
-            }
-        });
-    }
+    const decreasingLegendTrace = {
+        type: 'scatter',
+        mode: 'markers',
+        x: [null],
+        y: [null],
+        name: 'Risk Decreasing',
+        marker: { symbol: 'square', size: 10, color: '#3b82f6' },
+        showlegend: true
+    };
 
-    function formatClockTime(hour, minute) {
-        return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
-    }
+    return {
+        traces: [allHoursAnchorTrace, candlestickTrace, increasingLegendTrace, decreasingLegendTrace],
+        xKeys: xKeys,
+        xLabels: clockSlots.map(s => s.label)
+    };
+}
 
-    function buildClockSlots(totalSlots) {
-        const admissionHour = Number(predictionsMeta.admission_hour ?? 0);
-        const admissionMinute = Number(predictionsMeta.admission_minute ?? 0);
-        const slots = [];
-        for (let i = 0; i < totalSlots; i += 1) {
-            const totalMinutes = (admissionHour * 60) + admissionMinute + (i * 60);
-            const hour = ((Math.floor(totalMinutes / 60) % 24) + 24) % 24;
-            const minute = ((totalMinutes % 60) + 60) % 60;
-            const label = formatClockTime(hour, minute);
-            slots.push({ key: `${label}__${i}`, label: label });
-        }
-        return slots;
-    }
-
-    function buildSepsisCandlestickTraces() {
-        const admissionHour = Number(predictionsMeta.admission_hour ?? 0);
-        const plottedPoints = predictionsData
-            .map(d => {
-                const currentRaw = d.risk_score;
-                const hourVal = Number(d.hour_val); // 1-based simulation hour
-                if (currentRaw == null || Number.isNaN(hourVal)) return null;
-                const slotIndex = (hourVal - 1) - admissionHour;
-                if (slotIndex < 0) return null;
-                return {
-                    slotIndex: slotIndex,
-                    currentValue: Number(currentRaw)
-                };
-            })
-            .filter(p => p && !Number.isNaN(p.currentValue));
-
-        const maxSlotIndex = plottedPoints.reduce((maxVal, p) => Math.max(maxVal, p.slotIndex), -1);
-        const totalSlots = Math.max(24, maxSlotIndex + 1);
-        const clockSlots = buildClockSlots(totalSlots);
-        const xKeys = clockSlots.map(s => s.key);
-        const xData = [];
-
-        const openValues = [];
-        const closeValues = [];
-        const highValues = [];
-        const lowValues = [];
-        const customData = [];
-        const hoverText = [];
-
-        for (let i = 0; i < plottedPoints.length; i += 1) {
-            const currentValue = plottedPoints[i].currentValue;
-            const previousValue = i > 0 ? plottedPoints[i - 1].currentValue : plottedPoints[i].currentValue;
-
-            let direction = 'unchanged';
-            if (currentValue > previousValue) direction = 'increased';
-            else if (currentValue < previousValue) direction = 'decreased';
-            const directionLabel = direction.charAt(0).toUpperCase() + direction.slice(1);
-
-            xData.push(xKeys[plottedPoints[i].slotIndex]);
-            openValues.push(previousValue);
-            closeValues.push(currentValue);
-            // No wick look by matching candle bounds to body bounds.
-            highValues.push(previousValue);
-            lowValues.push(currentValue);
-            customData.push([previousValue, direction]);
-            hoverText.push(
-                `Current Risk: ${currentValue.toFixed(2)}%<br>` +
-                `Previous Risk: ${previousValue.toFixed(2)}%<br>` +
-                `Trend: ${directionLabel}`
-            );
-        }
-
-        const allHoursAnchorTrace = {
-            type: 'scatter',
-            x: xKeys,
-            y: xKeys.map(() => 0),
-            mode: 'markers',
-            marker: { size: 1, opacity: 0 },
-            hoverinfo: 'skip',
-            showlegend: false
-        };
-
-        const candlestickTrace = {
-            type: 'candlestick',
-            name: 'Sepsis Risk Trend',
-            x: xData,
-            open: openValues,
-            close: closeValues,
-            high: highValues,
-            low: lowValues,
-            customdata: customData,
-            text: hoverText,
-            hoverinfo: 'text',
-            hovertemplate: '%{text}<extra></extra>',
-            increasing: { line: { color: '#f97316', width: 2 }, fillcolor: '#f97316' },
-            decreasing: { line: { color: '#3b82f6', width: 2 }, fillcolor: '#3b82f6' },
-            whiskerwidth: 0,
-            showlegend: false
-        };
-
-        const increasingLegendTrace = {
-            type: 'scatter',
-            mode: 'markers',
-            x: [null],
-            y: [null],
-            name: 'Risk Increasing',
-            marker: { symbol: 'square', size: 10, color: '#f97316' },
-            // hoverinfo: 'skip',
-            // visible: 'legendonly',
-            showlegend: true
-        };
-
-        const decreasingLegendTrace = {
-            type: 'scatter',
-            mode: 'markers',
-            x: [null],
-            y: [null],
-            name: 'Risk Decreasing',
-            marker: { symbol: 'square', size: 10, color: '#3b82f6' },
-            // hoverinfo: 'skip',
-            // visible: 'legendonly',
-            showlegend: true
-        };
-
-        return {
-            traces: [allHoursAnchorTrace, candlestickTrace, increasingLegendTrace, decreasingLegendTrace],
-            xKeys: xKeys,
-            xLabels: clockSlots.map(s => s.label)
-        };
-    }
-
-    const baseLayout = {
+if (predictionsData.length > 0 && document.getElementById('sepsis-chart')) {
+    const sepsisCandles = buildSepsisCandlestickTraces();
+    const thresholdHoverTrace = {
+        type: 'scatter',
+        mode: 'lines',
+        x: sepsisCandles.xKeys,
+        y: sepsisCandles.xKeys.map(() => 30),
+        line: { color: 'rgba(0, 0, 0, 0)', width: 12 },
+        hovertemplate: 'Treatment Threshold (30%)<extra></extra>',
+        hoverlabel: {
+            bgcolor: '#ffffff',
+            bordercolor: '#dc2626',
+            font: { size: 11, color: '#dc2626' }
+        },
+        showlegend: false
+    };
+    const sepsisTraces = sepsisCandles.traces.concat([thresholdHoverTrace]);
+    const sepsisLayout = {
         height: 450,
         showlegend: true,
         legend: { orientation: 'h', y: 1.15, x: 0.45, font: { size: 12 } },
         margin: { l: 60, r: 60, t: 50, b: 45 },
         xaxis: {
-            title: { text: 'Hour', font: { size: 12 } },
+            title: { text: 'Time of Day', font: { size: 12 } },
             tickfont: { size: 10 },
             automargin: true,
+            type: 'category',
+            categoryorder: 'array',
+            categoryarray: sepsisCandles.xKeys,
+            tickmode: 'array',
+            tickvals: sepsisCandles.xKeys,
+            ticktext: sepsisCandles.xLabels,
+            tickangle: -45,
             rangeslider: { visible: false }
         },
+        yaxis: {
+            title: { text: 'Sepsis Probability (%)', font: { size: 11 } },
+            tickfont: { size: 10 },
+            automargin: true,
+            rangemode: 'tozero',
+            autorange: true
+        },
+        shapes: [{
+            type: 'line',
+            xref: 'paper',
+            x0: 0,
+            x1: 1,
+            yref: 'y',
+            y0: 30,
+            y1: 30,
+            line: { color: '#dc2626', width: 1, dash: 'dot' }
+        }],
+        bargap: 0.2
+    };
+
+    Plotly.newPlot('sepsis-chart', sepsisTraces, sepsisLayout, { responsive: true }).then(function(gd) {
+        gd.on('plotly_legendclick', function() { return false; });
+        gd.on('plotly_legenddoubleclick', function() { return false; });
+    });
+}
+
+// =========================================================================
+// Relevant SOFA Values Chart (radio selection, same pattern as vitals/chemistry)
+// =========================================================================
+if (sofaOtherData.length > 0 && document.getElementById('sofa-chart')) {
+    const sofaTimes = sofaOtherData.map(d => d.hour_label);
+
+    const SOFA_BASE_TRACE = {
+        type: 'scatter',
+        mode: 'lines+markers'
+    };
+
+    const SOFA_TRACE_STYLES = {
+        pao2fio2ratio_novent: { name: 'PaO2/FiO2 (no vent)', line: { color: '#38a169', width: 2 }, marker: { size: 10 } },
+        pao2fio2ratio_vent: { name: 'PaO2/FiO2 (vent)', line: { color: '#38a169', width: 2 }, marker: { size: 10 } },
+        rate_epinephrine: { name: 'Epinephrine', line: { color: '#e53e3e', width: 2 }, marker: { size: 10 } },
+        rate_norepinephrine: { name: 'Norepinephrine', line: { color: '#3182ce', width: 2 }, marker: { size: 10 } },
+        rate_dopamine: { name: 'Dopamine', line: { color: '#d69e2e', width: 2 }, marker: { size: 10 } },
+        rate_dobutamine: { name: 'Dobutamine', line: { color: '#805ad5', width: 2 }, marker: { size: 10 } }
+    };
+
+    const SOFA_METADATA = {
+        pao2fio2ratio_novent: { label: 'PaO2/FiO2 (no vent)', key: 'pao2fio2ratio_novent', unit: '' },
+        pao2fio2ratio_vent: { label: 'PaO2/FiO2 (vent)', key: 'pao2fio2ratio_vent', unit: '' },
+        rate_epinephrine: { label: 'Epinephrine', key: 'rate_epinephrine', unit: '' },
+        rate_norepinephrine: { label: 'Norepinephrine', key: 'rate_norepinephrine', unit: '' },
+        rate_dopamine: { label: 'Dopamine', key: 'rate_dopamine', unit: '' },
+        rate_dobutamine: { label: 'Dobutamine', key: 'rate_dobutamine', unit: '' }
+    };
+
+    const SOFA_CHARTS = {
+        pao2fio2ratio_novent: { title: 'PaO2/FiO2 (no vent)', yTitle: 'PaO2/FiO2 Ratio', series: ['pao2fio2ratio_novent'] },
+        pao2fio2ratio_vent: { title: 'PaO2/FiO2 (vent)', yTitle: 'PaO2/FiO2 Ratio', series: ['pao2fio2ratio_vent'] },
+        rate_epinephrine: { title: 'Epinephrine', yTitle: 'Rate', series: ['rate_epinephrine'] },
+        rate_norepinephrine: { title: 'Norepinephrine', yTitle: 'Rate', series: ['rate_norepinephrine'] },
+        rate_dopamine: { title: 'Dopamine', yTitle: 'Rate', series: ['rate_dopamine'] },
+        rate_dobutamine: { title: 'Dobutamine', yTitle: 'Rate', series: ['rate_dobutamine'] }
+    };
+
+    function getSofaRecentValues(dataKey) {
+        const values = [];
+        for (let i = sofaOtherData.length - 1; i >= 0 && values.length < 2; i--) {
+            const val = sofaOtherData[i][dataKey];
+            values.push({
+                value: val,
+                hour: sofaOtherData[i].hour_label,
+                index: i
+            });
+        }
+        return values;
+    }
+
+    function formatSofaLabel(metricKey) {
+        const meta = SOFA_METADATA[metricKey];
+        if (!meta) return metricKey;
+
+        const recent = getSofaRecentValues(meta.key);
+
+        if (recent.length === 0) {
+            return `${meta.label}: (<span style="color: #1a365d;">--</span>)${meta.unit}`;
+        }
+
+        const mostRecent = recent[0];
+        const mostRecentIsNull = (mostRecent.value === null || mostRecent.value === undefined);
+
+        if (recent.length === 1) {
+            if (mostRecentIsNull) {
+                return `${meta.label}: (<span style="color: #1a365d;">--</span>)${meta.unit} <span class="text-muted">(--)</span>`;
+            } else {
+                const formattedValue = Number(mostRecent.value).toFixed(1);
+                return `${meta.label}: ${formattedValue}${meta.unit} <span class="text-muted">(--)</span>`;
+            }
+        }
+
+        const previous = recent[1];
+        const previousIsNull = (previous.value === null || previous.value === undefined);
+
+        if (mostRecentIsNull) {
+            if (previousIsNull) {
+                return `${meta.label}: (<span style="color: #1a365d;">--</span>)${meta.unit} <span class="text-muted">(--)</span>`;
+            } else {
+                const formattedPrevious = Number(previous.value).toFixed(1);
+                return `${meta.label}: (<span style="color: #1a365d;">--</span>)${meta.unit} <span class="text-muted">(${formattedPrevious})</span>`;
+            }
+        }
+
+        const formattedValue = Number(mostRecent.value).toFixed(1);
+
+        if (previousIsNull) {
+            return `${meta.label}: ${formattedValue}${meta.unit} <span class="text-muted">(--)</span>`;
+        }
+
+        const formattedPrevious = Number(previous.value).toFixed(1);
+        let arrow = '';
+        if (mostRecent.value > previous.value) {
+            arrow = ' <span style="color: #1a365d;">↑</span>';
+        } else if (mostRecent.value < previous.value) {
+            arrow = ' <span style="color: #1a365d;">↓</span>';
+        }
+
+        return `${meta.label}: ${formattedValue}${meta.unit}${arrow} <span class="text-muted">(${formattedPrevious})</span>`;
+    }
+
+    function updateSofaLabels() {
+        Object.keys(SOFA_METADATA).forEach(key => {
+            const labelElem = document.getElementById(`sofa-label-${key}`);
+            if (labelElem) {
+                labelElem.innerHTML = formatSofaLabel(key);
+            }
+        });
+    }
+
+    function buildSofaTraces(seriesKeys) {
+        return seriesKeys.map(key => {
+            const style = SOFA_TRACE_STYLES[key] || { name: key };
+            return {
+                ...SOFA_BASE_TRACE,
+                x: sofaTimes,
+                y: sofaOtherData.map(d => d[key]),
+                name: style.name,
+                line: style.line,
+                marker: style.marker
+            };
+        });
+    }
+
+    const sofaBaseLayout = {
+        height: 325,
+        showlegend: true,
+        legend: { orientation: 'h', y: 1.35, x: 0.45, font: { size: 12 } },
+        margin: { l: 60, r: 20, t: 50, b: 45 },
+        xaxis: { title: { text: 'Time of Day', font: { size: 12 } }, tickfont: { size: 10 }, automargin: true },
         yaxis: { tickfont: { size: 10 }, automargin: true, autorange: true }
     };
 
-    function renderChart(chartKey) {
-        const chart = CHARTS[chartKey] || CHARTS.sepsis_only;
-        let traces = buildTraces(chart.series, chart.dataSource);
-        
+    function renderSofaChart(chartKey) {
+        const chart = SOFA_CHARTS[chartKey] || SOFA_CHARTS.pao2fio2ratio_novent;
+        const traces = buildSofaTraces(chart.series);
         const layout = {
-            ...baseLayout,
+            ...sofaBaseLayout,
             title: { text: chart.title, x: 0.025, xanchor: 'left', font: { size: 14 } },
             yaxis: {
-                ...baseLayout.yaxis,
+                ...sofaBaseLayout.yaxis,
                 title: { text: chart.yTitle, font: { size: 11 } },
                 autorange: true
             }
         };
-
-        if (chartKey === 'sepsis_only') {
-            const sepsisCandles = buildSepsisCandlestickTraces();
-            const thresholdHoverTrace = {
-                type: 'scatter',
-                mode: 'lines',
-                x: sepsisCandles.xKeys,
-                y: sepsisCandles.xKeys.map(() => 30),
-                line: { color: 'rgba(0, 0, 0, 0)', width: 12 },
-                hovertemplate: 'Treatment Threshold (30%)<extra></extra>',
-                hoverlabel: {
-                    bgcolor: '#ffffff',
-                    bordercolor: '#dc2626',
-                    font: {
-                        size: 11,
-                        color: '#dc2626'
-                    }
-                },
-                showlegend: false
-            };
-            traces = sepsisCandles.traces.concat([thresholdHoverTrace]);
-            layout.xaxis = {
-                ...baseLayout.xaxis,
-                title: { text: 'Time of Day', font: { size: 12 } },
-                type: 'category',
-                categoryorder: 'array',
-                categoryarray: sepsisCandles.xKeys,
-                tickmode: 'array',
-                tickvals: sepsisCandles.xKeys,
-                ticktext: sepsisCandles.xLabels,
-                tickangle: -45,
-                rangeslider: { visible: false }
-            };
-            layout.yaxis = {
-                ...layout.yaxis,
-                rangemode: 'tozero',
-                autorange: true
-            };
-            layout.shapes = [{
-                type: 'line',
-                xref: 'paper',
-                x0: 0,
-                x1: 1,
-                yref: 'y',
-                y0: 30,
-                y1: 30,
-                line: { color: '#dc2626', width: 1, dash: 'dot' }
-            }];
-            layout.bargap = 0.2;
-        }
-
-        // Plotly.newPlot('combined-chart', traces, layout, { responsive: true })
-        Plotly.newPlot('combined-chart', traces, layout, { responsive: true }).then(function(gd) {
-            gd.on('plotly_legendclick', function() {
-                return false;
-            });
-            gd.on('plotly_legenddoubleclick', function() {
-                return false;
-            });
-        });
-        updateValueLists();
+        Plotly.newPlot('sofa-chart', traces, layout, { responsive: true });
     }
 
-    renderChart('sepsis_only');
+    updateSofaLabels();
+    renderSofaChart('pao2fio2ratio_novent');
 
-    document.querySelectorAll('input[name="combined"]').forEach(radio => {
+    document.querySelectorAll('input[name="sofa"]').forEach(radio => {
         radio.addEventListener('change', (e) => {
-            if (e.target && e.target.checked) renderChart(e.target.value);
+            if (e.target && e.target.checked) renderSofaChart(e.target.value);
         });
     });
 }
+
+updateValueLists();
 })();
 </script>
 {% endblock %}
