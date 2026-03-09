@@ -86,7 +86,7 @@
                     {{ patient.race_display|default:"-"|truncatechars:20 }}
                 </td>
                 <td>{{ patient.first_careunit|default:"-" }}</td>
-                <td class="text-muted">{{ patient.time_since_admission }}</td>
+                <td>{{ patient.time_since_admission }}</td>
                 <td class="probability-cell">
                     {% if patient.risk_score is not None %}
                         <span class="probability-value">
