@@ -17,21 +17,13 @@
 {% block content %}
 <!-- Patient Index -->
 <div class="card">
-    <div class="card-header">
-        <h2>Patient Index</h2>
-        <div>
-            <!-- {% if cohort_active %}
-            <span class="badge badge--cohort">Cohort Active</span>
-            {% endif %} -->
-            <span class="badge" id="patient-count">{{ total_patients }} patient{{ total_patients|pluralize }}</span>
-        </div>
-    </div>
+   
     
     {% if patients %}
     <table class="table" id="patients-table">
         <thead>
             <tr>
-                <th>Patient</th>
+                <th>patient{{ total_patients|pluralize }} ({{ total_patients }})</th>
                 <th>
                     <div class="sortable-header">
                         <span>Age</span>
@@ -89,7 +81,10 @@
                         {{ patient.gender|default:"-" }}
                     {% endif %}
                 </td>
-                <td>{{ patient.race_display|default:"-"|truncatechars:20 }}</td>
+                <!-- <td>{{ patient.race_display|default:"-"|truncatechars:20 }}</td> -->
+                <td {% if patient.race_display %}title="{{ patient.race_display }}"{% endif %}>
+                    {{ patient.race_display|default:"-"|truncatechars:20 }}
+                </td>
                 <td>{{ patient.first_careunit|default:"-" }}</td>
                 <td class="text-muted">{{ patient.time_since_admission }}</td>
                 <td>
