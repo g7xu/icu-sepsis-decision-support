@@ -120,7 +120,7 @@
             {% endif %}
         </div>
 
-<!-- Coagulation Chart -->
+<!-- Coagulation Chart
         <div class="card">
             <div class="card-header">
                 <h2>Coagulation Values</h2>
@@ -145,7 +145,7 @@
                 </div>
             </div>
             {% endif %}
-        </div>
+        </div> -->
 
 <!-- Predictions: risk_score + comorbidity_group -->
         <!-- <div class="card prediction-card">
@@ -221,7 +221,7 @@
 
 <script type="application/json" id="vitalsigns-data">{{ vitalsigns_json|safe }}</script>
 <script type="application/json" id="chemistry-data">{{ chemistry_json|safe }}</script>
-<script type="application/json" id="coagulation-data">{{ coagulation_json|safe }}</script>
+<!-- <script type="application/json" id="coagulation-data">{{ coagulation_json|safe }}</script> -->
 <script type="application/json" id="admission-meta">{"admission_hour": {{ admission_hour }}, "admission_minute": {{ admission_minute }}}</script>
 
 <script>
@@ -272,16 +272,14 @@ if (vitalsData.length > 0) {
 
     function getRecentValues(dataKey) {
         const values = [];
-        for (let i = vitalsData.length - 1; i >= 0; i--) {
+        // Get the last 2 entries from vitalsData, regardless of null/non-null
+        for (let i = vitalsData.length - 1; i >= 0 && values.length < 2; i--) {
             const val = vitalsData[i][dataKey];
-            if (val !== null && val !== undefined) {
-                values.push({
-                    value: val,
-                    hour: vitalsData[i].hour_label,
-                    index: i
-                });
-                if (values.length === 2) break;
-            }
+            values.push({
+                value: val,  // can be null
+                hour: vitalsData[i].hour_label,
+                index: i
+            });
         }
         return values;
     }
@@ -293,18 +291,50 @@ if (vitalsData.length > 0) {
         const primaryKey = meta.keys[0];
         const recent = getRecentValues(primaryKey);
         
+        // No data at all in history
         if (recent.length === 0) {
-            return `${meta.label}: <span style="color: #1a365d;">--</span> (${meta.unit})`;
+            return `${meta.label}: (<span style="color: #1a365d;">--</span>)${meta.unit}`;
         }
         
         const mostRecent = recent[0];
-        const formattedValue = Number(mostRecent.value).toFixed(1);
+        const mostRecentIsNull = (mostRecent.value === null || mostRecent.value === undefined);
         
+        // Only one time slot exists in history
         if (recent.length === 1) {
-            return `${meta.label}: ${formattedValue} (${meta.unit})`;
+            if (mostRecentIsNull) {
+                return `${meta.label}: (<span style="color: #1a365d;">--</span>)${meta.unit} <span class="text-muted">(--)</span>`;
+            } else {
+                const formattedValue = Number(mostRecent.value).toFixed(1);
+                return `${meta.label}: ${formattedValue}${meta.unit} <span class="text-muted">(--)</span>`;
+            }
         }
         
+        // Two time slots exist
         const previous = recent[1];
+        const previousIsNull = (previous.value === null || previous.value === undefined);
+        
+        // Current is null
+        if (mostRecentIsNull) {
+            if (previousIsNull) {
+                // Both null: (--) (--)
+                return `${meta.label}: (<span style="color: #1a365d;">--</span>)${meta.unit} <span class="text-muted">(--)</span>`;
+            } else {
+                // Current null, previous has value: (--) (value)
+                const formattedPrevious = Number(previous.value).toFixed(1);
+                return `${meta.label}: (<span style="color: #1a365d;">--</span>)${meta.unit} <span class="text-muted">(${formattedPrevious})</span>`;
+            }
+        }
+        
+        // Current has value
+        const formattedValue = Number(mostRecent.value).toFixed(1);
+        
+        if (previousIsNull) {
+            // Current has value, previous null: value (--)
+            return `${meta.label}: ${formattedValue}${meta.unit} <span class="text-muted">(--)</span>`;
+        }
+        
+        // Both have values: show arrow
+        const formattedPrevious = Number(previous.value).toFixed(1);
         let arrow = '';
         if (mostRecent.value > previous.value) {
             arrow = ' <span style="color: #1a365d;">↑</span>';
@@ -312,7 +342,7 @@ if (vitalsData.length > 0) {
             arrow = ' <span style="color: #1a365d;">↓</span>';
         }
         
-        return `${meta.label}: ${formattedValue} (${meta.unit})${arrow}`;
+        return `${meta.label}: ${formattedValue}${meta.unit}${arrow} <span class="text-muted">(${formattedPrevious})</span>`;
     }
 
     function updateAllLabels() {
@@ -430,17 +460,18 @@ if (chemistryData.length > 0) {
         const recent = getChemRecentValues(meta.key);
         
         if (recent.length === 0) {
-            return `${meta.label}: <span style="color: #1a365d;">--</span> (${meta.unit})`;
+            return `${meta.label}: (<span style="color: #1a365d;">--</span>)${meta.unit}`;
         }
         
         const mostRecent = recent[0];
         const formattedValue = Number(mostRecent.value).toFixed(1);
         
         if (recent.length === 1) {
-            return `${meta.label}: ${formattedValue} (${meta.unit})`;
+            return `${meta.label}: ${formattedValue}${meta.unit} <span class="text-muted">(--)</span>`;
         }
         
         const previous = recent[1];
+        const formattedPrevious = Number(previous.value).toFixed(1);
         let arrow = '';
         if (mostRecent.value > previous.value) {
             arrow = ' <span style="color: #1a365d;">↑</span>';
@@ -448,7 +479,7 @@ if (chemistryData.length > 0) {
             arrow = ' <span style="color: #1a365d;">↓</span>';
         }
         
-        return `${meta.label}: ${formattedValue} (${meta.unit})${arrow}`;
+        return `${meta.label}: ${formattedValue}${meta.unit}${arrow}<span class="text-muted">(${formattedPrevious})</span>`;
     }
 
     function updateChemLabels() {
@@ -512,144 +543,144 @@ if (chemistryData.length > 0) {
 // =========================================================================
 // Plotly Coagulation Chart (single chart + radio selection)
 // =========================================================================
-const coagulationData = JSON.parse(document.getElementById('coagulation-data').textContent || '[]');
+// const coagulationData = JSON.parse(document.getElementById('coagulation-data').textContent || '[]');
 
-if (coagulationData.length > 0) {
-    const coagTimes = coagulationData.map(c => c.hour_label);
+// if (coagulationData.length > 0) {
+//     const coagTimes = coagulationData.map(c => c.hour_label);
 
-    const COAG_BASE_TRACE = {
-        type: 'scatter',
-        mode: 'lines+markers'
-    };
+//     const COAG_BASE_TRACE = {
+//         type: 'scatter',
+//         mode: 'lines+markers'
+//     };
 
-    const COAG_TRACE_STYLES = {
-        d_dimer: {name: 'D-Dimer', line: {color: '#e53e3e', width: 2}, marker: {size: 10}},
-        fibrinogen: {name: 'Fibrinogen', line: {color: '#3182ce', width: 2}, marker: {size: 10}},
-        thrombin: {name: 'Thrombin', line: {color: '#38a169', width: 2}, marker: {size: 10}},
-        inr: {name: 'INR', line: {color: '#d69e2e', width: 2}, marker: {size: 10}},
-        pt: {name: 'PT', line: {color: '#805ad5', width: 2}, marker: {size: 10}},
-        ptt: {name: 'PTT', line: {color: '#dd6b20', width: 2}, marker: {size: 10}}
-    };
+//     const COAG_TRACE_STYLES = {
+//         d_dimer: {name: 'D-Dimer', line: {color: '#e53e3e', width: 2}, marker: {size: 10}},
+//         fibrinogen: {name: 'Fibrinogen', line: {color: '#3182ce', width: 2}, marker: {size: 10}},
+//         thrombin: {name: 'Thrombin', line: {color: '#38a169', width: 2}, marker: {size: 10}},
+//         inr: {name: 'INR', line: {color: '#d69e2e', width: 2}, marker: {size: 10}},
+//         pt: {name: 'PT', line: {color: '#805ad5', width: 2}, marker: {size: 10}},
+//         ptt: {name: 'PTT', line: {color: '#dd6b20', width: 2}, marker: {size: 10}}
+//     };
 
-    const COAG_METADATA = {
-        d_dimer: {label: 'D-Dimer', key: 'd_dimer', unit: 'µg/mL'},
-        fibrinogen: {label: 'Fibrinogen', key: 'fibrinogen', unit: 'mg/dL'},
-        thrombin: {label: 'Thrombin', key: 'thrombin', unit: 'sec'},
-        inr: {label: 'INR', key: 'inr', unit: ''},
-        pt: {label: 'PT', key: 'pt', unit: 'sec'},
-        ptt: {label: 'PTT', key: 'ptt', unit: 'sec'}
-    };
+//     const COAG_METADATA = {
+//         d_dimer: {label: 'D-Dimer', key: 'd_dimer', unit: 'µg/mL'},
+//         fibrinogen: {label: 'Fibrinogen', key: 'fibrinogen', unit: 'mg/dL'},
+//         thrombin: {label: 'Thrombin', key: 'thrombin', unit: 'sec'},
+//         inr: {label: 'INR', key: 'inr', unit: ''},
+//         pt: {label: 'PT', key: 'pt', unit: 'sec'},
+//         ptt: {label: 'PTT', key: 'ptt', unit: 'sec'}
+//     };
 
-    const COAG_CHARTS = {
-        d_dimer: {title: 'D-Dimer', yTitle: 'D-Dimer (\u00b5g/mL)', series: ['d_dimer']},
-        fibrinogen: {title: 'Fibrinogen', yTitle: 'Fibrinogen (mg/dL)', series: ['fibrinogen']},
-        thrombin: {title: 'Thrombin', yTitle: 'Thrombin (sec)', series: ['thrombin']},
-        inr: {title: 'INR', yTitle: 'INR', series: ['inr']},
-        pt: {title: 'PT', yTitle: 'PT (sec)', series: ['pt']},
-        ptt: {title: 'PTT', yTitle: 'PTT (sec)', series: ['ptt']}
-    };
+//     const COAG_CHARTS = {
+//         d_dimer: {title: 'D-Dimer', yTitle: 'D-Dimer (\u00b5g/mL)', series: ['d_dimer']},
+//         fibrinogen: {title: 'Fibrinogen', yTitle: 'Fibrinogen (mg/dL)', series: ['fibrinogen']},
+//         thrombin: {title: 'Thrombin', yTitle: 'Thrombin (sec)', series: ['thrombin']},
+//         inr: {title: 'INR', yTitle: 'INR', series: ['inr']},
+//         pt: {title: 'PT', yTitle: 'PT (sec)', series: ['pt']},
+//         ptt: {title: 'PTT', yTitle: 'PTT (sec)', series: ['ptt']}
+//     };
 
-    function getCoagRecentValues(dataKey) {
-        const values = [];
-        for (let i = coagulationData.length - 1; i >= 0; i--) {
-            const val = coagulationData[i][dataKey];
-            if (val !== null && val !== undefined) {
-                values.push({
-                    value: val,
-                    hour: coagulationData[i].hour_label,
-                    index: i
-                });
-                if (values.length === 2) break;
-            }
-        }
-        return values;
-    }
+//     function getCoagRecentValues(dataKey) {
+//         const values = [];
+//         for (let i = coagulationData.length - 1; i >= 0; i--) {
+//             const val = coagulationData[i][dataKey];
+//             if (val !== null && val !== undefined) {
+//                 values.push({
+//                     value: val,
+//                     hour: coagulationData[i].hour_label,
+//                     index: i
+//                 });
+//                 if (values.length === 2) break;
+//             }
+//         }
+//         return values;
+//     }
 
-    function formatCoagLabel(metricKey) {
-        const meta = COAG_METADATA[metricKey];
-        if (!meta) return metricKey;
+//     function formatCoagLabel(metricKey) {
+//         const meta = COAG_METADATA[metricKey];
+//         if (!meta) return metricKey;
         
-        const recent = getCoagRecentValues(meta.key);
+//         const recent = getCoagRecentValues(meta.key);
         
-        if (recent.length === 0) {
-            return `${meta.label}: <span style="color: #1a365d;">--</span>${meta.unit ? ` (${meta.unit})` : ''}`;
-        }
+//         if (recent.length === 0) {
+//             return `${meta.label}: <span style="color: #1a365d;">--</span>${meta.unit ? ` (${meta.unit})` : ''}`;
+//         }
         
-        const mostRecent = recent[0];
-        const formattedValue = Number(mostRecent.value).toFixed(1);
+//         const mostRecent = recent[0];
+//         const formattedValue = Number(mostRecent.value).toFixed(1);
         
-        if (recent.length === 1) {
-            return `${meta.label}: ${formattedValue}${meta.unit ? ` (${meta.unit})` : ''}`;
-        }
+//         if (recent.length === 1) {
+//             return `${meta.label}: ${formattedValue}${meta.unit ? ` (${meta.unit})` : ''}`;
+//         }
         
-        const previous = recent[1];
-        let arrow = '';
-        if (mostRecent.value > previous.value) {
-            arrow = ' <span style="color: #1a365d;">↑</span>';
-        } else if (mostRecent.value < previous.value) {
-            arrow = ' <span style="color: #1a365d;">↓</span>';
-        }
+//         const previous = recent[1];
+//         let arrow = '';
+//         if (mostRecent.value > previous.value) {
+//             arrow = ' <span style="color: #1a365d;">↑</span>';
+//         } else if (mostRecent.value < previous.value) {
+//             arrow = ' <span style="color: #1a365d;">↓</span>';
+//         }
         
-        return `${meta.label}: ${formattedValue}${meta.unit ? ` (${meta.unit})` : ''}${arrow}`;
-    }
+//         return `${meta.label}: ${formattedValue}${meta.unit ? ` (${meta.unit})` : ''}${arrow}`;
+//     }
 
-    function updateCoagLabels() {
-        Object.keys(COAG_METADATA).forEach(key => {
-            const labelElem = document.getElementById(`coag-label-${key}`);
-            if (labelElem) {
-                labelElem.innerHTML = formatCoagLabel(key);
-            }
-        });
-    }
+//     function updateCoagLabels() {
+//         Object.keys(COAG_METADATA).forEach(key => {
+//             const labelElem = document.getElementById(`coag-label-${key}`);
+//             if (labelElem) {
+//                 labelElem.innerHTML = formatCoagLabel(key);
+//             }
+//         });
+//     }
 
-    function buildCoagTraces(seriesKeys) {
-        return seriesKeys.map(key => {
-            const style = COAG_TRACE_STYLES[key] || { name: key };
-            return {
-                ...COAG_BASE_TRACE,
-                x: coagTimes,
-                y: coagulationData.map(c => c[key]),
-                name: style.name,
-                line: style.line,
-                marker: style.marker
-            };
-        });
-    }
+//     function buildCoagTraces(seriesKeys) {
+//         return seriesKeys.map(key => {
+//             const style = COAG_TRACE_STYLES[key] || { name: key };
+//             return {
+//                 ...COAG_BASE_TRACE,
+//                 x: coagTimes,
+//                 y: coagulationData.map(c => c[key]),
+//                 name: style.name,
+//                 line: style.line,
+//                 marker: style.marker
+//             };
+//         });
+//     }
 
-    const coagBaseLayout = {
-        height: 325,
-        showlegend: true,
-        legend: { orientation: 'h', y: 1.35, x: 0.45, font: { size: 12 } },
-        margin: { l: 60, r: 20, t: 50, b: 45 },
-        xaxis: { title: { text: 'Time of Day', font: { size: 12 } }, tickfont: { size: 10 }, automargin: true },
-        yaxis: { tickfont: { size: 10 }, automargin: true, autorange: true }
-    };
+//     const coagBaseLayout = {
+//         height: 325,
+//         showlegend: true,
+//         legend: { orientation: 'h', y: 1.35, x: 0.45, font: { size: 12 } },
+//         margin: { l: 60, r: 20, t: 50, b: 45 },
+//         xaxis: { title: { text: 'Time of Day', font: { size: 12 } }, tickfont: { size: 10 }, automargin: true },
+//         yaxis: { tickfont: { size: 10 }, automargin: true, autorange: true }
+//     };
 
-    function renderCoagChart(chartKey) {
-        const chart = COAG_CHARTS[chartKey] || COAG_CHARTS.d_dimer;
+//     function renderCoagChart(chartKey) {
+//         const chart = COAG_CHARTS[chartKey] || COAG_CHARTS.d_dimer;
 
-        const traces = buildCoagTraces(chart.series);
-        const layout = {
-            ...coagBaseLayout,
-            title: { text: chart.title, x: 0.025, xanchor: 'left', font: { size: 14 } },
-            yaxis: {
-                ...coagBaseLayout.yaxis,
-                title: { text: chart.yTitle, font: { size: 11 } },
-                autorange: true
-            }
-        };
+//         const traces = buildCoagTraces(chart.series);
+//         const layout = {
+//             ...coagBaseLayout,
+//             title: { text: chart.title, x: 0.025, xanchor: 'left', font: { size: 14 } },
+//             yaxis: {
+//                 ...coagBaseLayout.yaxis,
+//                 title: { text: chart.yTitle, font: { size: 11 } },
+//                 autorange: true
+//             }
+//         };
 
-        Plotly.newPlot('coagulation-chart', traces, layout, { responsive: true });
-    }
+//         Plotly.newPlot('coagulation-chart', traces, layout, { responsive: true });
+//     }
 
-    updateCoagLabels();
+//     updateCoagLabels();
 
-    document.querySelectorAll('input[name="coagulation"]').forEach(radio => {
-        radio.addEventListener('change', (e) => {
-            if (e.target && e.target.checked) renderCoagChart(e.target.value);
-        });
-    });
-}
+//     document.querySelectorAll('input[name="coagulation"]').forEach(radio => {
+//         radio.addEventListener('change', (e) => {
+//             if (e.target && e.target.checked) renderCoagChart(e.target.value);
+//         });
+//     });
+// }
 
 })();
 </script>

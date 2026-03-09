@@ -87,7 +87,7 @@
 }
 
 .chart-controls-left {
-    flex: 0 0 35%;
+    flex: 0 0 40%;
     padding: 1rem;
     display: flex;
     align-items: flex-start;
@@ -100,7 +100,7 @@
 }
 
 .chart-display-right {
-    flex: 0 0 calc(65% - 3px);
+    flex: 0 0 calc(60% - 3px);
     padding: 0.5rem;
     display: flex;
     align-items: center;

@@ -110,7 +110,7 @@ class VitalsignHourly(models.Model):
     
     # === Respiratory & other vitals ===
     resp_rate = models.FloatField(null=True, blank=True) # double precision
-    temperature = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True) # numeric
+    temperature = models.FloatField(null=True, blank=True) # numeric
     temperature_site = models.TextField(null=True, blank=True) # text
     spo2 = models.FloatField(null=True, blank=True) # double precision
     glucose = models.FloatField(null=True, blank=True) # double precision
