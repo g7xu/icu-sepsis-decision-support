@@ -758,12 +758,20 @@ def patient_prediction(request, subject_id, stay_id, hadm_id):
             sofa_24_list = []
             sofa_other_list = []
             for row in sofa_qs.values('charttime_hour', *sofa_24_cols, *sofa_other_cols):
-                r24 = {'hour_label': f"{row['charttime_hour'].hour:02d}:00"}
+                charttime = row['charttime_hour']
+                hours_since = (charttime - start_hour).total_seconds() / 3600
+                adm_minutes = patient.intime.hour * 60 + patient.intime.minute
+                total_minutes = adm_minutes + int(hours_since * 60)
+                display_h = (total_minutes // 60) % 24
+                display_m = total_minutes % 60
+                label = f"{display_h:02d}:{display_m:02d}"
+
+                r24 = {'hour_label': label}
                 for c in sofa_24_cols:
                     r24[c] = row[c]
                 sofa_24_list.append(r24)
 
-                ro = {'hour_label': f"{row['charttime_hour'].hour:02d}:00"}
+                ro = {'hour_label': label}
                 for c in sofa_other_cols:
                     ro[c] = row[c]
                 sofa_other_list.append(ro)
