@@ -87,10 +87,15 @@
                 </td>
                 <td>{{ patient.first_careunit|default:"-" }}</td>
                 <td class="text-muted">{{ patient.time_since_admission }}</td>
-                <td>
+                <td class="probability-cell">
                     {% if patient.risk_score is not None %}
-                        <a href="{% url 'patients:prediction_view' patient.subject_id patient.stay_id patient.hadm_id %}" 
-                           class="patient-name-link">{{ patient.risk_score|floatformat:2 }}%</a>
+                        <span class="probability-value">
+                            <a href="{% url 'patients:prediction_view' patient.subject_id patient.stay_id patient.hadm_id %}" 
+                               class="patient-name-link probability-link">{{ patient.risk_score|floatformat:2 }}%</a>
+                            {% if patient.risk_score >= 30 %}
+                                <span class="sepsis-alert-dot" aria-label="Sepsis threshold reached" title="At or above 30% threshold"></span>
+                            {% endif %}
+                        </span>
                     {% else %}
                         -
                     {% endif %}
