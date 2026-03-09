@@ -91,10 +91,10 @@
             <div class="chart-split-container">
                 <div class="chart-controls-left">
                     <div class="chemistry-controls">
-                        <label><input type="radio" name="sofa" value="pao2fio2ratio_novent" checked><span class="radio-label-text" id="sofa-label-pao2fio2ratio_novent">PaO2/FiO2 (no vent)</span></label>
+                        <label><input type="radio" name="sofa" value="rate_norepinephrine" checked><span class="radio-label-text" id="sofa-label-rate_norepinephrine">Norepinephrine</span></label>
+                        <label><input type="radio" name="sofa" value="pao2fio2ratio_novent"><span class="radio-label-text" id="sofa-label-pao2fio2ratio_novent">PaO2/FiO2 (no vent)</span></label>
                         <label><input type="radio" name="sofa" value="pao2fio2ratio_vent"><span class="radio-label-text" id="sofa-label-pao2fio2ratio_vent">PaO2/FiO2 (vent)</span></label>
                         <label><input type="radio" name="sofa" value="rate_epinephrine"><span class="radio-label-text" id="sofa-label-rate_epinephrine">Epinephrine</span></label>
-                        <label><input type="radio" name="sofa" value="rate_norepinephrine"><span class="radio-label-text" id="sofa-label-rate_norepinephrine">Norepinephrine</span></label>
                         <label><input type="radio" name="sofa" value="rate_dopamine"><span class="radio-label-text" id="sofa-label-rate_dopamine">Dopamine</span></label>
                         <label><input type="radio" name="sofa" value="rate_dobutamine"><span class="radio-label-text" id="sofa-label-rate_dobutamine">Dobutamine</span></label>
                     </div>
@@ -728,7 +728,7 @@ if (sofaOtherData.length > 0 && document.getElementById('sofa-chart')) {
     }
 
     updateSofaLabels();
-    renderSofaChart('pao2fio2ratio_novent');
+    renderSofaChart('rate_norepinephrine');
 
     document.querySelectorAll('input[name="sofa"]').forEach(radio => {
         radio.addEventListener('change', (e) => {

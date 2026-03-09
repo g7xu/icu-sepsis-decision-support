@@ -79,11 +79,11 @@
             <div class="chart-split-container">
                 <div class="chart-controls-left">
                     <div class="vitals-controls">
+                        <label><input type="radio" name="vital" value="resp" checked><span class="radio-label-text" id="vital-label-resp">Resp Rate</span></label>
+                        <label><input type="radio" name="vital" value="temp"><span class="radio-label-text" id="vital-label-temp">Temperature</span></label>
                         <label><input type="radio" name="vital" value="hr"><span class="radio-label-text" id="vital-label-hr">Heart Rate</span></label>
                         <label><input type="radio" name="vital" value="bp"><span class="radio-label-text" id="vital-label-bp">Blood Pressure</span></label>
                         <label><input type="radio" name="vital" value="spo2"><span class="radio-label-text" id="vital-label-spo2">SpO2</span></label>
-                        <label><input type="radio" name="vital" value="resp"><span class="radio-label-text" id="vital-label-resp">Resp Rate</span></label>
-                        <label><input type="radio" name="vital" value="temp"><span class="radio-label-text" id="vital-label-temp">Temperature</span></label>
                         <label><input type="radio" name="vital" value="glucose"><span class="radio-label-text" id="vital-label-glucose">Glucose</span></label>
                     </div>
                 </div>
@@ -106,10 +106,10 @@
             <div class="chart-split-container">
                 <div class="chart-controls-left">
                     <div class="chemistry-controls">
-                        <label><input type="radio" name="chemistry" value="bicarbonate"><span class="radio-label-text" id="chem-label-bicarbonate">Bicarbonate</span></label>
-                        <label><input type="radio" name="chemistry" value="calcium"><span class="radio-label-text" id="chem-label-calcium">Calcium</span></label>
+                        <label><input type="radio" name="chemistry" value="bicarbonate" checked><span class="radio-label-text" id="chem-label-bicarbonate">Bicarbonate</span></label>
                         <label><input type="radio" name="chemistry" value="sodium"><span class="radio-label-text" id="chem-label-sodium">Sodium</span></label>
                         <label><input type="radio" name="chemistry" value="potassium"><span class="radio-label-text" id="chem-label-potassium">Potassium</span></label>
+                        <label><input type="radio" name="chemistry" value="calcium"><span class="radio-label-text" id="chem-label-calcium">Calcium</span></label>
                     </div>
                 </div>
                 <div class="chart-divider"></div>
@@ -395,6 +395,7 @@ if (vitalsData.length > 0) {
     }
 
     updateAllLabels();
+    renderChart('resp');
 
     document.querySelectorAll('input[name="vital"]').forEach(radio => {
         radio.addEventListener('change', (e) => {
@@ -532,6 +533,7 @@ if (chemistryData.length > 0) {
     }
 
     updateChemLabels();
+    renderChemChart('bicarbonate');
 
     document.querySelectorAll('input[name="chemistry"]').forEach(radio => {
         radio.addEventListener('change', (e) => {
