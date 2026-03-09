@@ -202,13 +202,13 @@
             <p class="text-sm font-medium mb-2">{{ sp.display_name|default:sp.subject_id }}</p>
             <p class="text-sm text-gray-700 mb-2">
                 Age {{ sp.anchor_age|default:"—" }} · {{ sp.gender|default:"—" }} · {{ sp.race|default:"—" }} · {{ sp.hours_since_admission|default:"—" }}h ·
-                Sepsis: {% if sp.had_sepsis %}<span class="text-red-600">Yes</span>{% else %}<span class="text-green-600">No</span>{% endif %} ·
+                Sepsis: {% if sp.had_sepsis %}<span class="sepsis-pill sepsis-pill--yes">Yes</span>{% else %}<span class="sepsis-pill sepsis-pill--no">No</span>{% endif %} ·
                 Sim: {{ sp.similarity_score|floatformat:3 }}
             </p>
 
             {% if sp.features %}
             <div class="pt-2 border-t border-gray-200">
-                <p class="text-sm font-medium text-gray-600 mb-1">Feature matrix (hour)</p>
+                <p class="text-sm font-medium text-gray-600 mb-1">Patient Features</p>
                 <div class="similar-cases-feature-scroll text-sm space-y-0.5 max-h-48 overflow-y-auto font-mono">
                     {% for key, val in sp.features.items %}
                     <div class="flex justify-between gap-2 text-sm">
@@ -274,7 +274,7 @@ document.addEventListener('DOMContentLoaded', syncSimilarCasesScroll);
                 var gender = sp.gender || '—';
                 var race = sp.race || '—';
                 var hours = sp.hours_since_admission != null ? sp.hours_since_admission : '—';
-                var sepsis = sp.had_sepsis ? '<span class="text-red-600">Yes</span>' : '<span class="text-green-600">No</span>';
+                var sepsis = sp.had_sepsis ? '<span class="sepsis-pill sepsis-pill--yes">Yes</span>' : '<span class="sepsis-pill sepsis-pill--no">No</span>';
                 var sim = sp.similarity_score != null ? sp.similarity_score.toFixed(3) : '—';
                 
                 var featuresHtml = '';
@@ -440,8 +440,17 @@ function buildSepsisCandlestickTraces() {
         text: hoverText,
         hoverinfo: 'text',
         hovertemplate: '%{text}<extra></extra>',
+        hoverlabel: {
+            bgcolor: '#ffffff',
+            font: { 
+                color: '#000000',
+                size: 12
+            },
+            bordercolor: customData.map(d => d[1] === 'increased' || d[1] === 'unchanged' ? '#f97316' : '#3b82f6'),
+        },
         increasing: { line: { color: '#f97316', width: 2 }, fillcolor: '#f97316' },
         decreasing: { line: { color: '#3b82f6', width: 2 }, fillcolor: '#3b82f6' },
+        unchanged: { line: { color: '#f97316', width: 2 }, fillcolor: '#f97316' },
         whiskerwidth: 0,
         showlegend: false
     };
@@ -469,7 +478,41 @@ function buildSepsisCandlestickTraces() {
     return {
         traces: [allHoursAnchorTrace, candlestickTrace, increasingLegendTrace, decreasingLegendTrace],
         xKeys: xKeys,
-        xLabels: clockSlots.map(s => s.label)
+        xLabels: clockSlots.map(s => s.label),
+        trendData: { xData, openValues, closeValues, customData }
+    };
+}
+
+function buildTrendlineTrace(trendData) {
+    const { xData, openValues, closeValues, customData } = trendData;
+    const trendlineX = [];
+    const trendlineY = [];
+    
+    for (let i = 0; i < xData.length; i++) {
+        trendlineX.push(xData[i]);
+        
+        // If increased (orange), use peak (max of open and close)
+        // If decreased (blue), use trough (min of open and close)
+        if (customData[i][1] === 'increased') {
+            trendlineY.push(Math.max(openValues[i], closeValues[i]));
+        } else {
+            trendlineY.push(Math.min(openValues[i], closeValues[i]));
+        }
+    }
+    
+    return {
+        type: 'scatter',
+        mode: 'lines',
+        x: trendlineX,
+        y: trendlineY,
+        line: { 
+            color: '#6b7280',
+            width: 1,
+            dash: 'solid'
+        },
+        name: 'Trend',
+        showlegend: true,
+        hoverinfo: 'skip'
     };
 }
 
@@ -489,7 +532,8 @@ if (predictionsData.length > 0 && document.getElementById('sepsis-chart')) {
         },
         showlegend: false
     };
-    const sepsisTraces = sepsisCandles.traces.concat([thresholdHoverTrace]);
+    const trendlineTrace = buildTrendlineTrace(sepsisCandles.trendData);
+    const sepsisTraces = sepsisCandles.traces.concat([thresholdHoverTrace, trendlineTrace]);
     const sepsisLayout = {
         height: 450,
         showlegend: true,
