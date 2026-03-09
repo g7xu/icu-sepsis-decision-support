@@ -27,7 +27,17 @@
     <table class="table" id="patients-table">
         <thead>
             <tr>
-                <th>patient{{ total_patients|pluralize }} ({{ total_patients }})</th>
+                <th>
+                    <div class="sortable-header">
+                        <span>Patient{{ total_patients|pluralize }} ({{ total_patients }})</span>
+                        <button class="sort-btn" data-column="name" aria-label="Sort by name">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M8 3L12 7H4L8 3Z" fill="currentColor"/>
+                                <path d="M8 13L4 9H12L8 13Z" fill="currentColor"/>
+                            </svg>
+                        </button>
+                    </div>
+                </th>
                 <th>
                     <div class="sortable-header">
                         <span>Age</span>
@@ -39,9 +49,39 @@
                         </button>
                     </div>
                 </th>
-                <th>Gender</th>
-                <th>Race</th>
-                <th>Care Unit</th>
+                <th>
+                    <div class="sortable-header">
+                        <span>Gender</span>
+                        <button class="sort-btn" data-column="gender" aria-label="Sort by gender">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M8 3L12 7H4L8 3Z" fill="currentColor"/>
+                                <path d="M8 13L4 9H12L8 13Z" fill="currentColor"/>
+                            </svg>
+                        </button>
+                    </div>
+                </th>
+                <th>
+                    <div class="sortable-header">
+                        <span>Race</span>
+                        <button class="sort-btn" data-column="race" aria-label="Sort by race">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M8 3L12 7H4L8 3Z" fill="currentColor"/>
+                                <path d="M8 13L4 9H12L8 13Z" fill="currentColor"/>
+                            </svg>
+                        </button>
+                    </div>
+                </th>
+                <th>
+                    <div class="sortable-header">
+                        <span>Care Unit</span>
+                        <button class="sort-btn" data-column="careunit" aria-label="Sort by care unit">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M8 3L12 7H4L8 3Z" fill="currentColor"/>
+                                <path d="M8 13L4 9H12L8 13Z" fill="currentColor"/>
+                            </svg>
+                        </button>
+                    </div>
+                </th>
                 <th>
                     <div class="sortable-header">
                         <span>Time Since Admission (HH:MM)</span>
@@ -68,7 +108,11 @@
         </thead>
         <tbody>
             {% for patient in patients %}
-            <tr data-age="{{ patient.anchor_age|default:'-1' }}" 
+            <tr data-name="{{ patient.display_name|lower }}"
+                data-age="{{ patient.anchor_age|default:'-1' }}"
+                data-gender="{% if patient.gender == 'M' %}Male{% elif patient.gender == 'F' %}Female{% else %}{{ patient.gender|default:'' }}{% endif %}"
+                data-race="{{ patient.race_display|default:''|lower }}"
+                data-careunit="{{ patient.first_careunit|default:''|lower }}"
                 data-time-since-minutes="{{ patient.time_since_minutes|default:'-1' }}" 
                 data-risk-score="{{ patient.risk_score|default:'-1' }}">
                 <td>
@@ -121,18 +165,29 @@
 
 <!-- Sort Menu Popup -->
 <div id="sort-menu" class="sort-menu hidden">
-    <button class="sort-option" data-order="desc">Highest First</button>
-    <button class="sort-option" data-order="asc">Lowest First</button>
+    <button class="sort-option" id="sort-desc" data-order="desc"></button>
+    <button class="sort-option" id="sort-asc" data-order="asc"></button>
 </div>
 
 <script>
 (function() {
-    // =========================================================================
-    // Sorting functionality
-    // =========================================================================
     const sortMenu = document.getElementById('sort-menu');
+    const sortDesc = document.getElementById('sort-desc');
+    const sortAsc  = document.getElementById('sort-asc');
     const sortBtns = document.querySelectorAll('.sort-btn');
     let currentColumn = null;
+
+    const TEXT_COLUMNS = new Set(['name', 'gender', 'race', 'careunit']);
+
+    const SORT_LABELS = {
+        name:               { desc: 'Z \u2192 A', asc: 'A \u2192 Z' },
+        age:                { desc: 'Highest First', asc: 'Lowest First' },
+        gender:             { desc: 'Z \u2192 A', asc: 'A \u2192 Z' },
+        race:               { desc: 'Z \u2192 A', asc: 'A \u2192 Z' },
+        careunit:           { desc: 'Z \u2192 A', asc: 'A \u2192 Z' },
+        time_since_minutes: { desc: 'Longest First', asc: 'Shortest First' },
+        risk_score:         { desc: 'Highest First', asc: 'Lowest First' },
+    };
 
     sortBtns.forEach(btn => {
         btn.addEventListener('click', function(e) {
@@ -140,33 +195,27 @@
             const column = this.getAttribute('data-column');
             currentColumn = column;
 
-            // Position the menu relative to the header (th)
+            const labels = SORT_LABELS[column] || { desc: 'Descending', asc: 'Ascending' };
+            sortDesc.textContent = labels.desc;
+            sortAsc.textContent  = labels.asc;
+
             const th = this.closest('th');
-            const rect = th.getBoundingClientRect();
-            
-            // Remove the menu from its current position and append to the th
             if (sortMenu.parentElement !== th) {
                 th.style.position = 'relative';
                 th.appendChild(sortMenu);
             }
-            
-            // Toggle menu visibility
             sortMenu.classList.toggle('show');
         });
     });
 
-    // Handle sort option selection
-    const sortOptions = document.querySelectorAll('.sort-option');
-    sortOptions.forEach(option => {
+    document.querySelectorAll('.sort-option').forEach(option => {
         option.addEventListener('click', function(e) {
             e.stopPropagation();
-            const order = this.getAttribute('data-order');
-            sortTable(currentColumn, order);
+            sortTable(currentColumn, this.getAttribute('data-order'));
             sortMenu.classList.remove('show');
         });
     });
 
-    // Close menu when clicking outside
     document.addEventListener('click', function(e) {
         if (!e.target.closest('.sort-btn') && !e.target.closest('.sort-menu')) {
             sortMenu.classList.remove('show');
@@ -178,28 +227,21 @@
         const tbody = table.querySelector('tbody');
         const rows = Array.from(tbody.querySelectorAll('tr'));
 
+        const attr = 'data-' + column.replace(/_/g, '-');
+        const isText = TEXT_COLUMNS.has(column);
+
         rows.sort((a, b) => {
-            let aVal, bVal;
-
-            if (column === 'age') {
-                aVal = parseFloat(a.getAttribute('data-age'));
-                bVal = parseFloat(b.getAttribute('data-age'));
-            } else if (column === 'time_since_minutes') {
-                aVal = parseFloat(a.getAttribute('data-time-since-minutes'));
-                bVal = parseFloat(b.getAttribute('data-time-since-minutes'));
-            } else if (column === 'risk_score') {
-                aVal = parseFloat(a.getAttribute('data-risk-score'));
-                bVal = parseFloat(b.getAttribute('data-risk-score'));
-            }
-
-            if (order === 'desc') {
-                return bVal - aVal;
+            const aVal = a.getAttribute(attr) || '';
+            const bVal = b.getAttribute(attr) || '';
+            let cmp;
+            if (isText) {
+                cmp = aVal.localeCompare(bVal);
             } else {
-                return aVal - bVal;
+                cmp = parseFloat(aVal) - parseFloat(bVal);
             }
+            return order === 'desc' ? -cmp : cmp;
         });
 
-        // Clear and re-append sorted rows
         tbody.innerHTML = '';
         rows.forEach(row => tbody.appendChild(row));
     }
