@@ -17,8 +17,12 @@
 {% block content %}
 <!-- Patient Index -->
 <div class="card">
-   
-    
+   <!-- you can uncomment this if you want to show the patient count badge -->
+    <!-- <div class="card-header">
+        <div>
+            <span class="badge" id="patient-count">{{ total_patients }} patient{{ total_patients|pluralize }}</span>
+        </div>
+    </div> -->
     {% if patients %}
     <table class="table" id="patients-table">
         <thead>
