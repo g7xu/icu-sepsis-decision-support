@@ -474,8 +474,8 @@ if (predictionsData.length > 0 || sofaOtherData.length > 0) {
             y: [null],
             name: 'Risk Increasing',
             marker: { symbol: 'square', size: 10, color: '#f97316' },
-            hoverinfo: 'skip',
-            visible: 'legendonly',
+            // hoverinfo: 'skip',
+            // visible: 'legendonly',
             showlegend: true
         };
 
@@ -486,8 +486,8 @@ if (predictionsData.length > 0 || sofaOtherData.length > 0) {
             y: [null],
             name: 'Risk Decreasing',
             marker: { symbol: 'square', size: 10, color: '#3b82f6' },
-            hoverinfo: 'skip',
-            visible: 'legendonly',
+            // hoverinfo: 'skip',
+            // visible: 'legendonly',
             showlegend: true
         };
 
@@ -528,7 +528,24 @@ if (predictionsData.length > 0 || sofaOtherData.length > 0) {
 
         if (chartKey === 'sepsis_only') {
             const sepsisCandles = buildSepsisCandlestickTraces();
-            traces = sepsisCandles.traces;
+            const thresholdHoverTrace = {
+                type: 'scatter',
+                mode: 'lines',
+                x: sepsisCandles.xKeys,
+                y: sepsisCandles.xKeys.map(() => 30),
+                line: { color: 'rgba(0, 0, 0, 0)', width: 12 },
+                hovertemplate: 'Treatment Threshold (30%)<extra></extra>',
+                hoverlabel: {
+                    bgcolor: '#ffffff',
+                    bordercolor: '#dc2626',
+                    font: {
+                        size: 11,
+                        color: '#dc2626'
+                    }
+                },
+                showlegend: false
+            };
+            traces = sepsisCandles.traces.concat([thresholdHoverTrace]);
             layout.xaxis = {
                 ...baseLayout.xaxis,
                 title: { text: 'Time of Day', font: { size: 12 } },
@@ -554,27 +571,20 @@ if (predictionsData.length > 0 || sofaOtherData.length > 0) {
                 yref: 'y',
                 y0: 30,
                 y1: 30,
-                line: { color: '#dc2626', width: 2 }
-            }];
-            layout.annotations = [{
-                xref: 'paper',
-                x: 0.98,
-                xanchor: 'right',
-                yref: 'y',
-                y: 30,
-                text: 'Treatment Threshold (30%)',
-                showarrow: false,
-                yshift: 10,
-                font: { size: 11, color: '#dc2626' },
-                bgcolor: '#ffffff',
-                bordercolor: '#dc2626',
-                borderwidth: 1,
-                borderpad: 3
+                line: { color: '#dc2626', width: 1, dash: 'dot' }
             }];
             layout.bargap = 0.2;
         }
 
-        Plotly.newPlot('combined-chart', traces, layout, { responsive: true });
+        // Plotly.newPlot('combined-chart', traces, layout, { responsive: true })
+        Plotly.newPlot('combined-chart', traces, layout, { responsive: true }).then(function(gd) {
+            gd.on('plotly_legendclick', function() {
+                return false;
+            });
+            gd.on('plotly_legenddoubleclick', function() {
+                return false;
+            });
+        });
         updateValueLists();
     }
 
