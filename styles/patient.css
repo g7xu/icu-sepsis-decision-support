@@ -92,7 +92,7 @@
     min-width: 10rem;
     padding-right: 0.75rem;
     display: flex;
-    align-items: center;
+    align-items: flex;
 }
 
 .chart-divider {

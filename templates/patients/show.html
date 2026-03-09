@@ -337,9 +337,9 @@ if (vitalsData.length > 0) {
         const formattedPrevious = Number(previous.value).toFixed(1);
         let arrow = '';
         if (mostRecent.value > previous.value) {
-            arrow = ' <span style="color: #1a365d;">↑</span>';
+            arrow = '<span style="color: #1a365d; font-weight:800;">↑</span>';
         } else if (mostRecent.value < previous.value) {
-            arrow = ' <span style="color: #1a365d;">↓</span>';
+            arrow = '<span style="color: #1a365d; font-weight:800;">↓</span>';
         }
         
         return `${meta.label}: ${formattedValue}${meta.unit}${arrow} <span class="text-muted">(${formattedPrevious})</span>`;
