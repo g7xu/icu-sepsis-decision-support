@@ -15,6 +15,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy project
 COPY . /code/
 
+# Collect static files
+RUN SECRET_KEY=build-placeholder python manage.py collectstatic --noinput
+
 # Expose port 8000
 EXPOSE 8000
 

@@ -11,3 +11,9 @@ dist/
 build/
 .git/
 .DS_Store
+import_data/
+terraform/
+*.dump
+icu_sepsis_full_schema.sql
+static/similarity_matrix_full.csv
+reduce_similarity_csv.py
