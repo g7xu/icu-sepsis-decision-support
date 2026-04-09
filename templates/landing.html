@@ -241,6 +241,7 @@
             </div>
             <div class="pipeline__vline pipeline__vline--right">
               <div class="pipeline__dot pipeline__dot--v" style="animation-delay: 1.2s;"></div>
+              <div class="pipeline__dot pipeline__dot--up" style="animation-delay: 2s;"></div>
             </div>
           </div>
           <div class="pipeline__node pipeline__node--storage">
@@ -253,15 +254,66 @@
 
     <section class="section section-alt" id="architecture">
       <div class="container container--wide">
-        <article class="content-row content-row--image-left">
-          <div class="content-box content-box--text scroll-reveal">
-            <h3 class="content-box__title">System Architecture</h3>
-            <p>Modular architecture separating data retrieval, feature processing, model inference, and web presentation. Each layer can evolve independently.</p>
+        <h3 class="section__title scroll-reveal">System Architecture</h3>
+        <p class="section__subtitle scroll-reveal">Built on Django's Model-View-Template pattern — loosely coupled layers that evolve independently</p>
+
+        <div class="arch scroll-reveal">
+          <!-- AWS EC2 wrapper -->
+          <div class="arch__ec2">
+            <span class="arch__env-label">AWS EC2</span>
+            <div class="arch__ec2-inner">
+              <!-- User -->
+              <div class="arch__user">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <span class="arch__user-label">User</span>
+              </div>
+
+              <!-- Double arrow: User ↔ View -->
+              <div class="arch__darrow">
+                <span class="arch__darrow-cap">request</span>
+                <div class="arch__darrow-line"></div>
+                <span class="arch__darrow-cap">response</span>
+              </div>
+
+              <!-- View -->
+              <div class="arch__layer arch__layer--view">
+                <h4 class="arch__layer-title">View</h4>
+                <p class="arch__layer-subtitle">Service Logic</p>
+                <p class="arch__layer-desc">Parse upstream data, manipulate features, make predictions, fetch results, update template</p>
+              </div>
+
+              <!-- Double arrow: View ↔ Template -->
+              <div class="arch__darrow">
+                <span class="arch__darrow-cap">context</span>
+                <div class="arch__darrow-line"></div>
+                <span class="arch__darrow-cap">HTML</span>
+              </div>
+
+              <!-- Template -->
+              <div class="arch__layer arch__layer--template">
+                <h4 class="arch__layer-title">Template</h4>
+                <p class="arch__layer-subtitle">Presentation</p>
+                <p class="arch__layer-desc">3 clinician interfaces: management, detail, prediction</p>
+              </div>
+            </div>
           </div>
-          <div class="content-box content-box--image scroll-reveal">
-            <img src="{% static 'images/landing/system_architecture.png' %}" alt="System architecture for the ICU sepsis decision support workflow" class="content-box__img content-box__img--large img-expandable">
+
+          <!-- Vertical double arrow: View ↔ Model -->
+          <div class="arch__varrow">
+            <div class="arch__varrow-line"></div>
+            <span class="arch__varrow-cap">query / data</span>
           </div>
-        </article>
+
+          <!-- AWS RDS wrapper -->
+          <div class="arch__rds">
+            <span class="arch__env-label">AWS RDS</span>
+            <div class="arch__layer arch__layer--model">
+              <h4 class="arch__layer-title">Model (ORM)</h4>
+              <p class="arch__layer-subtitle">PostgreSQL</p>
+              <p class="arch__layer-desc">MIMIC-IV — vitals, labs, procedures, SOFA scores</p>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
