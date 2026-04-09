@@ -27,7 +27,7 @@ docker --version
 APP_DIR="/opt/icu-sepsis"
 mkdir -p "$APP_DIR"
 
-PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4 || echo localhost)
+PUBLIC_IP=$(curl -s -f --retry 3 --retry-delay 2 http://169.254.169.254/latest/meta-data/public-ipv4 || echo localhost)
 
 cat > "$APP_DIR/.env" <<ENVEOF
 DB_NAME=${db_name}
@@ -85,7 +85,21 @@ else
   echo "Skipping container start — image not available."
 fi
 
-# ── 5. Configure nginx ────────────────────────────────────────
+# ── 5. Install Cloudflare Origin Certificate (if provided) ────
+
+%{ if cf_origin_cert != "" ~}
+mkdir -p /etc/nginx/ssl
+cat > /etc/nginx/ssl/cloudflare-origin.pem <<'CERTEOF'
+${cf_origin_cert}
+CERTEOF
+cat > /etc/nginx/ssl/cloudflare-origin-key.pem <<'KEYEOF'
+${cf_origin_key}
+KEYEOF
+chmod 600 /etc/nginx/ssl/cloudflare-origin-key.pem
+echo "Cloudflare Origin Certificate installed"
+%{ endif ~}
+
+# ── 6. Configure nginx ────────────────────────────────────────
 
 %{ if domain_name != "" ~}
 SERVER_NAME="${domain_name}"
@@ -93,6 +107,34 @@ SERVER_NAME="${domain_name}"
 SERVER_NAME="_"
 %{ endif ~}
 
+%{ if cf_origin_cert != "" ~}
+cat > /etc/nginx/conf.d/icu-sepsis.conf <<NGINXEOF
+server {
+    listen 80;
+    server_name $SERVER_NAME;
+    return 301 https://\$host\$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name $SERVER_NAME;
+
+    ssl_certificate     /etc/nginx/ssl/cloudflare-origin.pem;
+    ssl_certificate_key /etc/nginx/ssl/cloudflare-origin-key.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 75s;
+    }
+}
+NGINXEOF
+%{ else ~}
 cat > /etc/nginx/conf.d/icu-sepsis.conf <<NGINXEOF
 server {
     listen 80;
@@ -109,6 +151,7 @@ server {
     }
 }
 NGINXEOF
+%{ endif ~}
 
 rm -f /etc/nginx/conf.d/default.conf
 

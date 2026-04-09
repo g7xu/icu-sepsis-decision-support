@@ -64,14 +64,17 @@ if [[ ! -f "$KEY_FILE" ]]; then
   exit 1
 fi
 
-SSH_CMD=(ssh -i "$KEY_FILE" -o StrictHostKeyChecking=no -o ConnectTimeout=10 "ec2-user@$EC2_IP")
+SSH_CMD=(ssh -i "$KEY_FILE" -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile="$SCRIPT_DIR/.deploy_known_hosts" -o ConnectTimeout=10 "ec2-user@$EC2_IP")
+
+echo "==> Waiting for EC2 to finish booting..."
+for i in $(seq 1 30); do
+  "${SSH_CMD[@]}" "docker --version" 2>/dev/null && break
+  echo "    Not ready yet... ($i/30)"
+  sleep 10
+done
 
 "${SSH_CMD[@]}" << REMOTE
 set -euo pipefail
-echo "--- Updating ALLOWED_HOSTS in .env ---"
-sudo sed -i "s/^ALLOWED_HOSTS=.*/ALLOWED_HOSTS=$EC2_IP,localhost/" /opt/icu-sepsis/.env
-sudo grep ALLOWED_HOSTS /opt/icu-sepsis/.env
-
 echo "--- Authenticating to ECR ---"
 aws ecr get-login-password --region "$AWS_REGION" \
   | sudo docker login --username AWS --password-stdin "$ECR_URL"
