@@ -203,15 +203,51 @@
 
     <section class="section" id="dataflow">
       <div class="container container--wide">
-        <article class="content-row content-row--image-right">
-          <div class="content-box content-box--text scroll-reveal">
-            <h3 class="content-box__title">Prediction Dataflow</h3>
-            <p>Each simulation hour is processed end-to-end: patient context is read, features are assembled, model inference runs, and updated risk scores are returned to the clinician-facing views.</p>
+        <div class="pipeline scroll-reveal">
+          <div class="pipeline__node">
+            <h4 class="pipeline__label">Patient Data</h4>
+            <p class="pipeline__desc">Hourly vitals, labs, and procedures from the ICU</p>
           </div>
-          <div class="content-box content-box--image scroll-reveal">
-            <img src="{% static 'images/landing/prediction_dataflow.png' %}" alt="Prediction dataflow from MIMIC-IV patient features to model outputs" class="content-box__img content-box__img--large img-expandable">
+          <div class="pipeline__arrow">
+            <div class="pipeline__line"></div>
+            <div class="pipeline__dot pipeline__dot--h" style="animation-delay: 0s;"></div>
           </div>
-        </article>
+          <div class="pipeline__node">
+            <h4 class="pipeline__label">Feature Assembly</h4>
+            <p class="pipeline__desc">6-hour sliding window of clinical data</p>
+          </div>
+          <div class="pipeline__arrow">
+            <div class="pipeline__line"></div>
+            <div class="pipeline__dot pipeline__dot--h" style="animation-delay: 0.8s;"></div>
+          </div>
+          <div class="pipeline__node">
+            <h4 class="pipeline__label">Model Inference</h4>
+            <p class="pipeline__desc">Random Forest scores features into hourly sepsis risk</p>
+          </div>
+          <div class="pipeline__arrow">
+            <div class="pipeline__line"></div>
+            <div class="pipeline__dot pipeline__dot--h" style="animation-delay: 1.6s;"></div>
+          </div>
+          <div class="pipeline__node">
+            <h4 class="pipeline__label">Clinician Views</h4>
+            <p class="pipeline__desc">Risk, trends, and context across three views</p>
+          </div>
+        </div>
+
+        <div class="pipeline__storage scroll-reveal">
+          <div class="pipeline__vlines">
+            <div class="pipeline__vline pipeline__vline--left">
+              <div class="pipeline__dot pipeline__dot--v" style="animation-delay: 0.4s;"></div>
+            </div>
+            <div class="pipeline__vline pipeline__vline--right">
+              <div class="pipeline__dot pipeline__dot--v" style="animation-delay: 1.2s;"></div>
+            </div>
+          </div>
+          <div class="pipeline__node pipeline__node--storage">
+            <h4 class="pipeline__label">Database</h4>
+            <p class="pipeline__desc">Features and predictions saved per patient per hour</p>
+          </div>
+        </div>
       </div>
     </section>
 
