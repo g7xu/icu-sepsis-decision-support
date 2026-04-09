@@ -20,9 +20,9 @@
       <ul class="nav-links">
         <li><a href="#overview">Overview</a></li>
         <li><a href="#approach">Approach</a></li>
+        <li><a href="#product">Product</a></li>
         <li><a href="#dataflow">Dataflow</a></li>
         <li><a href="#architecture">Architecture</a></li>
-        <li><a href="#product">Product</a></li>
         <li><a href="#summary">Summary</a></li>
       </ul>
       <button class="nav-toggle" id="nav-toggle" aria-label="Toggle menu">
@@ -84,68 +84,71 @@
 
     <section class="section" id="approach">
       <div class="container container--wide">
-        <article class="content-row">
-          <div class="content-box content-box--text scroll-reveal">
-            <h3 class="content-box__title">Data &amp; Cohort</h3>
-            <p>We use MIMIC-IV, a research database of de-identified real ICU patients from Beth Israel
-              Deaconess Medical Center in Boston, MA. This allowed us to demonstrate our product using
-               a cohort of patients representative of a real clinical setting.
-              </p>
+        <div class="approach-cards">
+          <div class="approach-card scroll-reveal">
+            <h3 class="approach-card__title">Data</h3>
+            <p>Built on <strong>MIMIC-IV</strong>, a de-identified ICU electronic health record database with <strong>90,000+ patients</strong> from Beth Israel Deaconess Medical Center, which includes:</p>
+            <ul class="approach-card__list">
+              <li>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                Vitals (HR, BP, SpO2, RR, Temp)
+              </li>
+              <li>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                Procedures &amp; interventions
+              </li>
+              <li>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+                SOFA scores &amp; lab results
+              </li>
+            </ul>
           </div>
-        </article>
 
-        <article class="content-row">
-          <div class="content-box content-box--text scroll-reveal">
-            <h3 class="content-box__title">Model Approach</h3>
-            <p>We use an interpretable model with 6-hour prediction windows and a focus on trend analysis—so clinicians can see how a patient's trajectory drives the risk score, not just a single snapshot.</p>
+          <div class="approach-card scroll-reveal">
+            <h3 class="approach-card__title">Prediction</h3>
+            <p>Predicting sepsis onset in ICU patients using <strong>6-hour sliding windows</strong> of clinical data, analyzing trends rather than isolated snapshots.</p>
           </div>
-        </article>
 
-        <article class="content-row">
-          <div class="content-box content-box--text scroll-reveal">
-            <h3 class="content-box__title">Product Design</h3>
-            <p>The app is built with Django and PostgreSQL, styled with Tailwind CSS, and uses Plotly for charts. The ML model will run on AWS; for development we use a stub so we can iterate on the UI and workflow.</p>
+          <div class="approach-card approach-card--wide scroll-reveal">
+            <h3 class="approach-card__title">Product</h3>
+            <p>Three clinician-facing interfaces designed to surface the right information at the right level of detail.</p>
+            <div class="approach-card__features">
+              <div class="approach-card__screen">
+                <div class="screen__titlebar">
+                  <span class="screen__dot"></span>
+                  <span class="screen__dot"></span>
+                  <span class="screen__dot"></span>
+                  <span class="screen__title">Management View</span>
+                </div>
+                <div class="screen__body">
+                  <p class="screen__desc">Shows all ICU patients ranked by sepsis risk. Charge nurses use it to prioritize which patients need attention first.</p>
+                </div>
+              </div>
+              <div class="approach-card__screen">
+                <div class="screen__titlebar">
+                  <span class="screen__dot"></span>
+                  <span class="screen__dot"></span>
+                  <span class="screen__dot"></span>
+                  <span class="screen__title">Patient Detail</span>
+                </div>
+                <div class="screen__body">
+                  <p class="screen__desc">Shows vitals, procedures, and risk trends for one patient. Bedside nurses use it to understand what changed and why.</p>
+                </div>
+              </div>
+              <div class="approach-card__screen">
+                <div class="screen__titlebar">
+                  <span class="screen__dot"></span>
+                  <span class="screen__dot"></span>
+                  <span class="screen__dot"></span>
+                  <span class="screen__title">Prediction View</span>
+                </div>
+                <div class="screen__body">
+                  <p class="screen__desc">Shows the risk score alongside the features driving it. Clinicians use it to decide whether to trust and act on an alert.</p>
+                </div>
+              </div>
+            </div>
           </div>
-        </article>
-
-        <article class="content-row">
-          <div class="content-box content-box--text scroll-reveal">
-            <h3 class="content-box__title">Privacy &amp; Ethics</h3>
-            <p>We use pseudonymized names and hide internal database IDs (e.g. subject_id, stay_id, hadm_id) so the demo stays appropriate for a public-facing tool.</p>
-          </div>
-        </article>
-      </div>
-    </section>
-
-    <section class="section section-alt" id="dataflow">
-      <div class="container container--wide">
-        <article class="content-row content-row--image-right">
-          <div class="content-box content-box--text scroll-reveal">
-            <h3 class="content-box__title">Prediction Dataflow</h3>
-            <p>The prediction dataflow shows how each simulation hour is processed end-to-end: new patient context is read, current-hour features are assembled, model inference runs, and updated risk scores are returned to the management and patient views.</p>
-            <p><strong>Summary:</strong> A repeatable hourly pipeline that transforms ICU patient data into near-real-time, interpretable sepsis risk updates.</p>
-          </div>
-          <div class="content-box content-box--image scroll-reveal">
-            <img src="{% static 'images/landing/prediction_dataflow.png' %}" alt="Prediction dataflow from MIMIC-IV patient features to model outputs" class="content-box__img content-box__img--large img-expandable">
-            <p class="image-caption">Prediction dataflow from MIMIC-IV feature extraction to hourly risk scoring and clinician-facing outputs.</p>
-          </div>
-        </article>
-      </div>
-    </section>
-
-    <section class="section" id="architecture">
-      <div class="container container--wide">
-        <article class="content-row content-row--image-left">
-          <div class="content-box content-box--text scroll-reveal">
-            <h3 class="content-box__title">System Architecture</h3>
-            <p>The system architecture separates patient data retrieval, feature processing, model execution, and web presentation. This modular structure improves reliability and makes it easier to evolve the model service without rewriting the clinician-facing app.</p>
-            <p><strong>Summary:</strong> A modular architecture with clear boundaries between data, inference, and interface layers.</p>
-          </div>
-          <div class="content-box content-box--image scroll-reveal">
-            <img src="{% static 'images/landing/system_architecture.png' %}" alt="System architecture for the ICU sepsis decision support workflow" class="content-box__img content-box__img--large img-expandable">
-            <p class="image-caption">System architecture connecting data services, model inference, and clinician-facing dashboards.</p>
-          </div>
-        </article>
+        </div>
       </div>
     </section>
 
@@ -154,40 +157,58 @@
         <article class="content-row content-row--image-right">
           <div class="content-box content-box--text scroll-reveal">
             <h3 class="content-box__title">Management View</h3>
-            <p>A patient list for a simulated ICU day. Each row shows pseudonymized name, age, gender, race, care unit, and admission time. A simulation clock advances hour by hour so you can see how the census and risk evolve. The goal is a quick overview so clinicians can see who needs a closer look.</p>
+            <p>A unit-wide patient list ranked by sepsis risk. The simulation clock advances hour by hour so clinicians can see how the census and risk scores evolve throughout the day.</p>
           </div>
           <div class="content-box content-box--image scroll-reveal">
             <img src="{% static 'images/landing/management_view.png' %}" alt="Management view showing unit-wide sepsis risk list" class="content-box__img content-box__img--large img-expandable">
-            <p class="image-caption">Unit-level dashboard ranking patients by current sepsis risk so teams can prioritize who needs immediate review.</p>
           </div>
         </article>
 
         <article class="content-row content-row--image-left">
           <div class="content-box content-box--text scroll-reveal">
             <h3 class="content-box__title">Patient Detail View</h3>
-            <p>Vital signs over time—heart rate, blood pressure, SpO2, respiratory rate, temperature, glucose—plus procedure events and the sepsis risk score and comorbidity group. As the simulation advances, you see how predictions update as new data arrives. Everything the model "sees" is visible so clinicians can validate the alerts.</p>
+            <p>Vitals over time, procedure events, and the sepsis risk trajectory. Everything the model sees is visible so clinicians can validate the alerts against the underlying data.</p>
           </div>
           <div class="content-box content-box--image scroll-reveal">
             <img src="{% static 'images/landing/patient_view.png' %}" alt="Patient detail view with vitals trend and procedure events" class="content-box__img content-box__img--large img-expandable">
-            <p class="image-caption">Patient-specific trend view combining vitals, SOFA-related context, and recent events to explain how risk changes over time.</p>
           </div>
         </article>
 
         <article class="content-row content-row--image-right">
           <div class="content-box content-box--text scroll-reveal">
             <h3 class="content-box__title">Prediction View</h3>
-            <p>The prediction panel highlights trajectory-based risk changes and links each score to the clinical variables that matter most in that hour. This helps clinicians interpret changes in risk instead of reacting to isolated alerts.</p>
+            <p>Hourly sepsis probability linked to the clinical variables that matter most. Helps clinicians interpret risk changes instead of reacting to isolated alerts.</p>
           </div>
           <div class="content-box content-box--image scroll-reveal">
             <img src="{% static 'images/landing/prediction_view.png' %}" alt="Prediction view with sepsis probability and feature context" class="content-box__img content-box__img--large img-expandable">
-            <p class="image-caption">Prediction-focused panel showing hourly sepsis probability with supporting feature context to improve trust in alerts.</p>
           </div>
         </article>
+      </div>
+    </section>
 
-        <article class="content-row">
+    <section class="section" id="dataflow">
+      <div class="container container--wide">
+        <article class="content-row content-row--image-right">
           <div class="content-box content-box--text scroll-reveal">
-            <h3 class="content-box__title">Design Choices</h3>
-            <p>We show predictions right next to the underlying data so clinicians can connect the dots. No black box—just the same view the model uses, with the risk and reasoning in plain sight to support trust.</p>
+            <h3 class="content-box__title">Prediction Dataflow</h3>
+            <p>Each simulation hour is processed end-to-end: patient context is read, features are assembled, model inference runs, and updated risk scores are returned to the clinician-facing views.</p>
+          </div>
+          <div class="content-box content-box--image scroll-reveal">
+            <img src="{% static 'images/landing/prediction_dataflow.png' %}" alt="Prediction dataflow from MIMIC-IV patient features to model outputs" class="content-box__img content-box__img--large img-expandable">
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section section-alt" id="architecture">
+      <div class="container container--wide">
+        <article class="content-row content-row--image-left">
+          <div class="content-box content-box--text scroll-reveal">
+            <h3 class="content-box__title">System Architecture</h3>
+            <p>Modular architecture separating data retrieval, feature processing, model inference, and web presentation. Each layer can evolve independently.</p>
+          </div>
+          <div class="content-box content-box--image scroll-reveal">
+            <img src="{% static 'images/landing/system_architecture.png' %}" alt="System architecture for the ICU sepsis decision support workflow" class="content-box__img content-box__img--large img-expandable">
           </div>
         </article>
       </div>

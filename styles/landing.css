@@ -322,6 +322,9 @@ body {
 .section {
   padding: var(--section-padding) 1.5rem;
   padding-bottom: 5rem;
+  min-height: 70vh;
+  display: flex;
+  align-items: center;
   transition: background 0.3s ease;
 }
 
@@ -547,6 +550,163 @@ body {
   font-size: 0.875rem;
   text-align: center;
   transition: background 0.3s, border-color 0.3s, color 0.3s;
+}
+
+/* Approach section header */
+.approach-header {
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.approach-header__title {
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0 0 1rem;
+}
+
+.approach-header p {
+  color: var(--color-text);
+  font-size: 1.0625rem;
+  max-width: 40rem;
+  margin: 0 auto;
+}
+
+/* Approach cards – three-column grid */
+.approach-cards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 2rem;
+  margin: 2rem 0;
+  align-items: stretch;
+}
+
+.approach-card--wide {
+  grid-column: 1 / -1;
+}
+
+.approach-card {
+  background: var(--color-card-bg);
+  border: 1px solid var(--color-card-border);
+  border-radius: 16px;
+  padding: 2.5rem 2rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  transition: box-shadow 0.2s, transform 0.2s;
+  display: flex;
+  flex-direction: column;
+}
+
+.approach-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+.approach-card__title {
+  font-family: var(--font-sans);
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-accent);
+  margin: 0 0 1rem;
+}
+
+.approach-card p {
+  color: var(--color-text);
+  font-size: 1.0625rem;
+  line-height: 1.7;
+  margin: 0 0 1.5rem;
+}
+
+.approach-card__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.approach-card__list li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--color-text);
+  font-size: 1rem;
+  padding: 0.5rem 0;
+}
+
+.approach-card__list li svg {
+  flex-shrink: 0;
+  color: var(--color-accent);
+}
+
+.approach-card__features {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.approach-card--wide .approach-card__features {
+  flex-direction: row;
+  gap: 1.25rem;
+}
+
+.approach-card__screen {
+  flex: 1;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.screen__titlebar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.5rem 0.75rem;
+  background: var(--color-bg-alt);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.screen__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-border);
+}
+
+.screen__dot:nth-child(1) { background: #ef4444; }
+.screen__dot:nth-child(2) { background: #f59e0b; }
+.screen__dot:nth-child(3) { background: #22c55e; }
+
+.screen__title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  margin-left: 0.5rem;
+}
+
+.screen__body {
+  padding: 1rem;
+}
+
+.screen__desc {
+  font-size: 0.9rem;
+  color: var(--color-text);
+  margin: 0;
+  line-height: 1.5;
+}
+
+@media (max-width: 768px) {
+  .approach-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .approach-card--wide .approach-card__features {
+    flex-direction: column;
+  }
+
+  .approach-card__screen {
+    flex: none;
+  }
 }
 
 /* Summary CTA */
