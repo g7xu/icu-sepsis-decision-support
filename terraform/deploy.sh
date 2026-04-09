@@ -23,7 +23,8 @@ ECR_URL=$(terraform output -raw ecr_repository_url)
 EC2_IP=$(terraform output -raw ec2_public_ip)
 AWS_REGION=$(terraform output -raw aws_region)
 PROJECT_NAME=$(terraform output -raw project_name)
-KEY_FILE="${SCRIPT_DIR}/${PROJECT_NAME}-key.pem"
+DOMAIN_NAME=$(terraform output -raw app_url | sed 's|https://||;s|http://||')
+KEY_FILE="${SCRIPT_DIR}/${PROJECT_NAME}-key"
 
 echo "    ECR:  $ECR_URL"
 echo "    EC2:  $EC2_IP"
@@ -69,7 +70,7 @@ SSH_CMD=(ssh -i "$KEY_FILE" -o StrictHostKeyChecking=no -o ConnectTimeout=10 "ec
 "${SSH_CMD[@]}" << REMOTE
 set -euo pipefail
 echo "--- Updating ALLOWED_HOSTS in .env ---"
-sudo sed -i "s/^ALLOWED_HOSTS=.*/ALLOWED_HOSTS=$EC2_IP,localhost/" /opt/icu-sepsis/.env
+sudo sed -i "s|^ALLOWED_HOSTS=.*|ALLOWED_HOSTS=$DOMAIN_NAME,$EC2_IP,localhost|" /opt/icu-sepsis/.env
 sudo grep ALLOWED_HOSTS /opt/icu-sepsis/.env
 
 echo "--- Authenticating to ECR ---"
