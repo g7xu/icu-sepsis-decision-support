@@ -14,7 +14,8 @@ terraform {
 }
 
 provider "aws" {
-  region = var.aws_region
+  region  = var.aws_region
+  profile = var.aws_profile
 }
 
 # Get current AWS account ID (used for ECR URL)
@@ -101,12 +102,14 @@ resource "aws_security_group" "rds" {
 }
 
 resource "aws_security_group_rule" "rds_from_cidr" {
+  for_each = toset(var.allowed_cidr_blocks)
+
   type              = "ingress"
   description       = "PostgreSQL from allowed CIDR blocks (local dev)"
   from_port         = 5432
   to_port           = 5432
   protocol          = "tcp"
-  cidr_blocks       = var.allowed_cidr_blocks
+  cidr_blocks       = [each.value]
   security_group_id = aws_security_group.rds.id
 }
 
@@ -240,12 +243,14 @@ resource "aws_security_group" "ec2" {
 }
 
 resource "aws_security_group_rule" "ec2_ssh" {
+  for_each = toset(var.ssh_allowed_cidr_blocks)
+
   type              = "ingress"
   description       = "SSH access"
   from_port         = 22
   to_port           = 22
   protocol          = "tcp"
-  cidr_blocks       = var.ssh_allowed_cidr_blocks
+  cidr_blocks       = [each.value]
   security_group_id = aws_security_group.ec2.id
 }
 
@@ -281,26 +286,15 @@ resource "aws_security_group_rule" "ec2_egress" {
 
 # ── SSH Key Pair (auto-generated) ─────────────────────────────
 
-resource "tls_private_key" "ec2" {
-  algorithm = "RSA"
-  rsa_bits  = 4096
-}
-
 resource "aws_key_pair" "ec2" {
   key_name   = "${var.project_name}-key"
-  public_key = tls_private_key.ec2.public_key_openssh
+  public_key = var.ec2_public_key
 
   tags = {
     Name        = "${var.project_name}-key"
     Environment = var.environment
     Project     = var.project_name
   }
-}
-
-resource "local_file" "private_key" {
-  content         = tls_private_key.ec2.private_key_pem
-  filename        = "${path.module}/${var.project_name}-key.pem"
-  file_permission = "0400"
 }
 
 # ── IAM Role + Instance Profile ───────────────────────────────
@@ -418,6 +412,8 @@ resource "aws_instance" "web" {
     domain_name       = var.domain_name
     model_service_url = var.model_service_url
     model_s3_bucket   = var.model_s3_bucket
+    cf_origin_cert    = var.cf_origin_cert
+    cf_origin_key     = var.cf_origin_key
   })
 
   tags = {
@@ -425,6 +421,7 @@ resource "aws_instance" "web" {
     Environment = var.environment
     Project     = var.project_name
   }
+
 }
 
 # ── Elastic IP ────────────────────────────────────────────────

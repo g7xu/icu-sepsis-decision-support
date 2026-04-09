@@ -88,7 +88,3 @@ output "ssh_command" {
   value       = "ssh -i terraform/${var.project_name}-key.pem ec2-user@${aws_eip.web.public_ip}"
 }
 
-output "private_key_file" {
-  description = "Path to the auto-generated SSH private key"
-  value       = local_file.private_key.filename
-}
