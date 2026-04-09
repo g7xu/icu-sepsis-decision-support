@@ -320,12 +320,31 @@ body {
 
 /* Sections */
 .section {
-  padding: var(--section-padding) 1.5rem;
-  padding-bottom: 5rem;
+  padding: calc(var(--nav-height) + 4rem) 1.5rem 5rem;
   min-height: 100vh;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  justify-content: center;
   transition: background 0.3s ease;
+}
+
+.section__title {
+  font-family: var(--font-sans);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-text);
+  text-align: center;
+  margin: 0 0 0.5rem;
+}
+
+.section__subtitle {
+  font-size: 1rem;
+  color: var(--color-text-muted);
+  text-align: center;
+  margin: 0 0 2rem;
+  max-width: 40rem;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .section:not(.section-alt) {
@@ -342,7 +361,7 @@ body {
 }
 
 .container--wide {
-  max-width: min(90vw, 52rem);
+  max-width: min(90vw, 68rem);
 }
 
 /* Content rows and boxes – aligned grid for consistent column widths */
@@ -1081,6 +1100,7 @@ body {
   align-items: center;
   width: 7rem;
   flex-shrink: 0;
+  padding: 0 0.75rem;
 }
 
 .arch__darrow-cap {
@@ -1101,7 +1121,7 @@ body {
 .arch__darrow-line {
   width: 100%;
   height: 3px;
-  background: var(--color-text-muted);
+  background: #94a3b8;
   position: relative;
 }
 
@@ -1109,22 +1129,24 @@ body {
 .arch__darrow-line::before {
   content: '';
   position: absolute;
-  left: 0;
-  top: -5px;
-  border-top: 6px solid transparent;
-  border-bottom: 6px solid transparent;
-  border-right: 9px solid var(--color-text-muted);
+  left: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-top: 7px solid transparent;
+  border-bottom: 7px solid transparent;
+  border-right: 10px solid #94a3b8;
 }
 
 /* Right arrowhead */
 .arch__darrow-line::after {
   content: '';
   position: absolute;
-  right: 0;
-  top: -5px;
-  border-top: 6px solid transparent;
-  border-bottom: 6px solid transparent;
-  border-left: 9px solid var(--color-text-muted);
+  right: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-top: 7px solid transparent;
+  border-bottom: 7px solid transparent;
+  border-left: 10px solid #94a3b8;
 }
 
 /* Vertical double arrow */
@@ -1132,13 +1154,13 @@ body {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.5rem 0;
+  padding: 1rem 0;
 }
 
 .arch__varrow-line {
   width: 3px;
   height: 3rem;
-  background: var(--color-text-muted);
+  background: #94a3b8;
   position: relative;
 }
 
@@ -1146,22 +1168,24 @@ body {
 .arch__varrow-line::before {
   content: '';
   position: absolute;
-  top: 0;
-  left: -5px;
-  border-left: 6px solid transparent;
-  border-right: 6px solid transparent;
-  border-bottom: 9px solid var(--color-text-muted);
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-bottom: 10px solid #94a3b8;
 }
 
 /* Bottom arrowhead */
 .arch__varrow-line::after {
   content: '';
   position: absolute;
-  bottom: 0;
-  left: -5px;
-  border-left: 6px solid transparent;
-  border-right: 6px solid transparent;
-  border-top: 9px solid var(--color-text-muted);
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-top: 10px solid #94a3b8;
 }
 
 .arch__varrow-cap {
@@ -1187,8 +1211,10 @@ body {
 
 .arch__layer--model {
   border-color: #facc15;
-  min-width: 16rem;
-  flex: 0 0 auto;
+}
+
+.arch__layer--db {
+  border-color: #3b82f6;
 }
 
 .arch__layer--template {
@@ -1217,6 +1243,56 @@ body {
   color: var(--color-text-muted);
   margin: 0;
   line-height: 1.5;
+}
+
+/* Model row inside EC2 */
+.arch__model-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 1rem;
+}
+
+.arch__darrow--vertical {
+  width: auto;
+  flex-direction: row;
+  gap: 0.5rem;
+  padding: 1rem 0;
+}
+
+.arch__darrow-line--v {
+  width: 3px;
+  height: 3.5rem;
+  background: #94a3b8;
+  position: relative;
+}
+
+/* Reset horizontal arrowheads and apply vertical ones */
+.arch__darrow-line--v::before {
+  content: '';
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  border: none;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-bottom: 10px solid #94a3b8;
+}
+
+.arch__darrow-line--v::after {
+  content: '';
+  position: absolute;
+  bottom: -10px;
+  top: auto;
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  border: none;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-top: 10px solid #94a3b8;
 }
 
 @media (max-width: 768px) {

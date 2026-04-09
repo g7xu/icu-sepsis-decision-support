@@ -203,6 +203,8 @@
 
     <section class="section" id="dataflow">
       <div class="container container--wide">
+        <h3 class="section__title scroll-reveal">Dataflow</h3>
+        <p class="section__subtitle scroll-reveal">How patient data moves through the system every hour</p>
         <div class="pipeline scroll-reveal">
           <div class="pipeline__node">
             <h4 class="pipeline__label">Patient Data</h4>
@@ -293,24 +295,38 @@
               <div class="arch__layer arch__layer--template">
                 <h4 class="arch__layer-title">Template</h4>
                 <p class="arch__layer-subtitle">Presentation</p>
-                <p class="arch__layer-desc">3 clinician interfaces: management, detail, prediction</p>
+                <p class="arch__layer-desc">Interface</p>
+              </div>
+            </div>
+
+            <!-- Model/ORM row inside EC2 -->
+            <div class="arch__model-row">
+              <div class="arch__darrow arch__darrow--vertical">
+                <span class="arch__darrow-cap">query</span>
+                <div class="arch__darrow-line arch__darrow-line--v"></div>
+                <span class="arch__darrow-cap">data</span>
+              </div>
+              <div class="arch__layer arch__layer--model">
+                <h4 class="arch__layer-title">Model</h4>
+                <p class="arch__layer-subtitle">ORM / Data Layer</p>
+                <p class="arch__layer-desc">Data object management</p>
               </div>
             </div>
           </div>
 
-          <!-- Vertical double arrow: View ↔ Model -->
+          <!-- Vertical double arrow: ORM ↔ Database -->
           <div class="arch__varrow">
             <div class="arch__varrow-line"></div>
-            <span class="arch__varrow-cap">query / data</span>
+            <span class="arch__varrow-cap">SQL queries</span>
           </div>
 
           <!-- AWS RDS wrapper -->
           <div class="arch__rds">
             <span class="arch__env-label">AWS RDS</span>
-            <div class="arch__layer arch__layer--model">
-              <h4 class="arch__layer-title">Model (ORM)</h4>
-              <p class="arch__layer-subtitle">PostgreSQL</p>
-              <p class="arch__layer-desc">MIMIC-IV — vitals, labs, procedures, SOFA scores</p>
+            <div class="arch__layer arch__layer--db">
+              <h4 class="arch__layer-title">PostgreSQL</h4>
+              <p class="arch__layer-subtitle">MIMIC-IV Database</p>
+              <p class="arch__layer-desc">Vitals, labs, procedures, SOFA scores</p>
             </div>
           </div>
         </div>
