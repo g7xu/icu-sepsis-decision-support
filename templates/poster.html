@@ -1,0 +1,103 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <title>Poster | ICU Sepsis Decision Support System</title>
+  <link rel="stylesheet" href="{% static 'landing.css' %}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Syne:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+    .poster-page {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: calc(var(--nav-height) + 2rem) 1.5rem 2rem;
+    }
+    .poster-back {
+      align-self: flex-start;
+      max-width: var(--max-width);
+      width: 100%;
+      margin: 0 auto 1.5rem;
+      color: var(--color-accent);
+      text-decoration: none;
+      font-weight: 500;
+      font-size: 1rem;
+    }
+    .poster-back:hover {
+      color: var(--color-accent-hover);
+    }
+    .nav-inner {
+      justify-content: center;
+    }
+    .poster-container {
+      max-width: 100%;
+      width: 100%;
+    }
+    .poster-container img {
+      width: 100%;
+      height: auto;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      cursor: zoom-in;
+    }
+    [data-theme="dark"] .poster-container img {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    }
+  </style>
+</head>
+<body>
+  <script>
+    (function() {
+      const saved = localStorage.getItem('theme');
+      const pref = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', saved || pref);
+    })();
+  </script>
+
+  <nav class="nav" id="nav">
+    <div class="nav-inner">
+      <ul class="nav-links">
+        <li><a href="/">Home</a></li>
+        <li><a href="/patients/">Try the Demo</a></li>
+        <li>
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle light/dark mode">
+            <span class="theme-icon theme-sun" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+            </span>
+            <span class="theme-icon theme-moon" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            </span>
+          </button>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="poster-page">
+    <div class="poster-container">
+      <img src="{% static 'images/landing/poster.png' %}" alt="ICU Sepsis Decision Support System project poster" class="img-expandable">
+    </div>
+  </div>
+
+  <!-- Image lightbox overlay -->
+  <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Expand image" hidden>
+    <div class="lightbox__backdrop"></div>
+    <button type="button" class="lightbox__close" aria-label="Close">&times;</button>
+    <div class="lightbox__content">
+      <img src="" alt="" class="lightbox__img" id="lightbox-img">
+    </div>
+  </div>
+
+  <script src="{% static 'js/landing.js' %}"></script>
+</body>
+</html>
