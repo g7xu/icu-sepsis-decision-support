@@ -22,8 +22,8 @@
   --hero-gradient-start: #eff6ff;
   --hero-gradient-mid: #dbeafe;
   --hero-gradient-end: #f0f9ff;
-  --section-alt-gradient: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 50%, #f8fafc 100%);
-  --section-gradient: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  --section-alt-gradient: linear-gradient(180deg, #f0f9ff 0%, #e8f4fe 50%, #f8fafc 100%);
+  --section-gradient: linear-gradient(180deg, #f8fafc 0%, #f4f8fb 50%, #f0f9ff 100%);
 }
 
 /* Dark theme */
@@ -44,8 +44,8 @@
   --hero-gradient-start: #0f172a;
   --hero-gradient-mid: #1e293b;
   --hero-gradient-end: #0c4a6e;
-  --section-alt-gradient: linear-gradient(135deg, #1e293b 0%, #0f172a 50%, #0c4a6e 100%);
-  --section-gradient: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
+  --section-alt-gradient: linear-gradient(180deg, #162032 0%, #1a2740 50%, #0f172a 100%);
+  --section-gradient: linear-gradient(180deg, #0f172a 0%, #131d2e 50%, #162032 100%);
 }
 
 :root {
