@@ -143,20 +143,11 @@ MODEL_SERVICE_URL = os.getenv('MODEL_SERVICE_URL', '').rstrip('/')
 MODEL_SERVICE_TIMEOUT = int(os.getenv('MODEL_SERVICE_TIMEOUT', '30'))
 MODEL_SERVICE_API_KEY = os.getenv('MODEL_SERVICE_API_KEY', '')
 
-# S3 storage for model IO (feature vectors/history/predictions)
-MODEL_S3_BUCKET = os.getenv('MODEL_S3_BUCKET', '')
-MODEL_S3_REGION = os.getenv('MODEL_S3_REGION', '')
-MODEL_S3_PREFIX = os.getenv('MODEL_S3_PREFIX', 'model-io')
+# History window used when building the model payload from feature_matrix_hourly.
 MODEL_HISTORY_HOURS = int(os.getenv('MODEL_HISTORY_HOURS', '6'))
 
 # Local fallback model: loaded when MODEL_SERVICE_URL is unset or the external API fails.
 LOCAL_MODEL_PATH = os.getenv('LOCAL_MODEL_PATH', str(BASE_DIR / 'models' / 'sepsis_model.joblib'))
-
-# Optional explicit AWS credentials (for temporary/shared accounts)
-# If empty, boto3 default credential chain is used.
-AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID', '')
-AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY', '')
-AWS_SESSION_TOKEN = os.getenv('AWS_SESSION_TOKEN', '')
 
 # Similarity search (prediction view) - CSV of non-cohort feature vectors
 # Set SIMILARITY_CSV_PATH in .env to override (path relative to project root)
