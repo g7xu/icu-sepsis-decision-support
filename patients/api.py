@@ -13,7 +13,7 @@ from .services import (
     get_prediction,
     get_similar_patients,
 )
-from .views import _store_similar_patients
+from .session_utils import simulation_hour_from_as_of, store_similar_patients
 
 logger = logging.getLogger(__name__)
 
@@ -245,12 +245,11 @@ def get_similar_patients_view(request, subject_id, stay_id, hadm_id):
 
     enriched = _enrich_similar_patients(similar)
 
-    # Store in session for cache (current_hour from as_of: 2025-03-13T09:00 -> hour 8)
-    current_hour = (as_of.hour - 1) % 24 if as_of.month == 3 and as_of.day == 13 else as_of.hour
-    if as_of.day == 14 and as_of.hour == 0:
-        current_hour = 23
-    _store_similar_patients(
-        request.session, subject_id, stay_id, hadm_id, current_hour, enriched
+    store_similar_patients(
+        request.session,
+        subject_id, stay_id, hadm_id,
+        simulation_hour_from_as_of(as_of),
+        enriched,
     )
 
     return JsonResponse({
