@@ -20,6 +20,10 @@ DEBUG = os.getenv('DEBUG', 'True').lower() in ('true', '1', 'yes')
 
 ALLOWED_HOSTS = [h.strip() for h in os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',') if h.strip()]
 
+CSRF_TRUSTED_ORIGINS = [o.strip() for o in os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',') if o.strip()]
+
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
 
 # Application definition
 
@@ -144,6 +148,9 @@ MODEL_S3_BUCKET = os.getenv('MODEL_S3_BUCKET', '')
 MODEL_S3_REGION = os.getenv('MODEL_S3_REGION', '')
 MODEL_S3_PREFIX = os.getenv('MODEL_S3_PREFIX', 'model-io')
 MODEL_HISTORY_HOURS = int(os.getenv('MODEL_HISTORY_HOURS', '6'))
+
+# Local fallback model: loaded when MODEL_SERVICE_URL is unset or the external API fails.
+LOCAL_MODEL_PATH = os.getenv('LOCAL_MODEL_PATH', str(BASE_DIR / 'models' / 'sepsis_model.joblib'))
 
 # Optional explicit AWS credentials (for temporary/shared accounts)
 # If empty, boto3 default credential chain is used.
