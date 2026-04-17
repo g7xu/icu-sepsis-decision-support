@@ -42,11 +42,7 @@ ALLOWED_HOSTS=${domain_name},$PUBLIC_IP,localhost
 DEMO_MODE=true
 ENVEOF
 
-# Append optional S3/model env vars (only if non-empty)
-%{ if model_s3_bucket != "" ~}
-echo "MODEL_S3_BUCKET=${model_s3_bucket}" >> "$APP_DIR/.env"
-echo "MODEL_S3_REGION=${aws_region}" >> "$APP_DIR/.env"
-%{ endif ~}
+# Append optional model env vars (only if non-empty)
 %{ if model_service_url != "" ~}
 echo "MODEL_SERVICE_URL=${model_service_url}" >> "$APP_DIR/.env"
 %{ endif ~}

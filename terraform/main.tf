@@ -333,30 +333,6 @@ resource "aws_iam_role_policy" "ec2_ecr" {
   })
 }
 
-resource "aws_iam_role_policy" "ec2_s3" {
-  count = var.model_s3_bucket != "" ? 1 : 0
-  name  = "${var.project_name}-ec2-s3-policy"
-  role  = aws_iam_role.ec2.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "s3:GetObject",
-          "s3:PutObject",
-          "s3:ListBucket"
-        ]
-        Resource = [
-          "arn:aws:s3:::${var.model_s3_bucket}",
-          "arn:aws:s3:::${var.model_s3_bucket}/*"
-        ]
-      }
-    ]
-  })
-}
-
 resource "aws_iam_instance_profile" "ec2" {
   name = "${var.project_name}-ec2-profile"
   role = aws_iam_role.ec2.name
@@ -395,7 +371,6 @@ resource "aws_instance" "web" {
     django_secret_key = var.django_secret_key
     domain_name       = var.domain_name
     model_service_url = var.model_service_url
-    model_s3_bucket   = var.model_s3_bucket
     cf_origin_cert    = var.cf_origin_cert
     cf_origin_key     = var.cf_origin_key
   })
