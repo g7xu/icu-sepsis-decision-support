@@ -154,3 +154,14 @@ AWS_SESSION_TOKEN = os.getenv('AWS_SESSION_TOKEN', '')
 # Similarity search (prediction view) - CSV of non-cohort feature vectors
 # Set SIMILARITY_CSV_PATH in .env to override (path relative to project root)
 SIMILARITY_CSV_PATH = os.getenv('SIMILARITY_CSV_PATH', 'static/similarity_matrix.csv')
+
+# ── Production HTTPS settings ─────────────────────────────────
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_SSL_REDIRECT = False  # nginx handles the 80→443 redirect
+    _domain = os.getenv('ALLOWED_HOSTS', '')
+    _trusted = [f'https://{h.strip()}' for h in _domain.split(',') if h.strip() and not h.strip().replace('.', '').isdigit()]
+    if _trusted:
+        CSRF_TRUSTED_ORIGINS = _trusted

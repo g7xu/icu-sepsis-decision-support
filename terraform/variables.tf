@@ -1,3 +1,9 @@
+variable "aws_profile" {
+  description = "AWS CLI profile to use for authentication (e.g. SSO profile name from ~/.aws/config)"
+  type        = string
+  default     = "default"
+}
+
 variable "aws_region" {
   description = "AWS region for resources"
   type        = string
@@ -148,6 +154,12 @@ variable "ec2_ami_id" {
   default     = ""
 }
 
+variable "ec2_public_key" {
+  description = "SSH public key for EC2 key pair. Generate with: ssh-keygen -t rsa -b 4096 -f terraform/icu-sepsis-team-key"
+  type        = string
+  default     = ""
+}
+
 variable "ssh_allowed_cidr_blocks" {
   description = "CIDR blocks allowed to SSH into EC2. Override in terraform.tfvars with your IP."
   type        = list(string)
@@ -175,6 +187,11 @@ variable "django_secret_key" {
     condition     = !contains(["CHANGE_ME_TO_RANDOM_SECRET_KEY", "secret", "django-insecure"], var.django_secret_key)
     error_message = "django_secret_key must not be a placeholder value."
   }
+
+  validation {
+    condition     = !can(regex("[$]", var.django_secret_key))
+    error_message = "django_secret_key must not contain '$' — it breaks shell expansion in EC2 user_data."
+  }
 }
 
 variable "domain_name" {
@@ -192,5 +209,21 @@ variable "model_service_url" {
 variable "model_s3_bucket" {
   description = "S3 bucket for feature/prediction persistence (empty = disabled)"
   type        = string
+  default     = ""
+}
+
+# ── Cloudflare Origin Certificate ─────────────────────────────
+
+variable "cf_origin_cert" {
+  description = "Cloudflare Origin Certificate PEM (from Cloudflare dashboard). Set in secrets.auto.tfvars."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "cf_origin_key" {
+  description = "Cloudflare Origin Certificate private key PEM. Set in secrets.auto.tfvars."
+  type        = string
+  sensitive   = true
   default     = ""
 }
