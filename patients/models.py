@@ -274,3 +274,49 @@ class SofaHourly(models.Model):
 
     def __str__(self):
         return f"SOFA for {self.subject_id} at {self.charttime_hour}"
+
+
+class PredictionResult(models.Model):
+    """Cached scored prediction per (patient, as_of). Replaces the S3 audit trail."""
+    subject_id = models.IntegerField()
+    stay_id = models.IntegerField()
+    hadm_id = models.IntegerField()
+    as_of = models.DateTimeField()
+    risk_score = models.FloatField()
+    comorbidity_group = models.CharField(max_length=64)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["subject_id", "stay_id", "hadm_id", "as_of"],
+                name="uniq_prediction_per_as_of",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["subject_id", "stay_id", "hadm_id", "created_at"]),
+        ]
+
+    def __str__(self):
+        return f"Prediction {self.subject_id}/{self.stay_id}@{self.as_of}"
+
+
+class SimilarPatientsResult(models.Model):
+    """Cached similarity-search output per (patient, as_of)."""
+    subject_id = models.IntegerField()
+    stay_id = models.IntegerField()
+    hadm_id = models.IntegerField()
+    as_of = models.DateTimeField()
+    matches = models.JSONField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["subject_id", "stay_id", "hadm_id", "as_of"],
+                name="uniq_similar_per_as_of",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Similar {self.subject_id}/{self.stay_id}@{self.as_of}"

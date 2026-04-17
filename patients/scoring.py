@@ -8,9 +8,8 @@ from django.conf import settings
 from django.db import connection
 from django.utils import timezone as django_tz
 
-from . import s3_cache
 from .db_utils import DERIVED_TABLE_CANDIDATES, fetch_rows, pick_first_existing
-from .models import UniquePatientProfile
+from .models import PredictionResult, SimilarPatientsResult, UniquePatientProfile
 
 logger = logging.getLogger(__name__)
 
@@ -318,12 +317,20 @@ def get_prediction(subject_id, stay_id, hadm_id, as_of, window_hours=24):
     timeout, HTTP error) falls back to the bundled local joblib model.
     """
     model_url = getattr(settings, "MODEL_SERVICE_URL", "") or ""
-    s3_bucket = getattr(settings, "MODEL_S3_BUCKET", "") or ""
-    s3_prefix = getattr(settings, "MODEL_S3_PREFIX", "model-io") or "model-io"
     history_hours = int(getattr(settings, "MODEL_HISTORY_HOURS", 6) or 6)
 
     patient = _lookup_patient(subject_id, stay_id, hadm_id)
     as_of = _map_display_to_patient_time(as_of, patient)
+
+    patient_keys = {"subject_id": subject_id, "stay_id": stay_id, "hadm_id": hadm_id}
+
+    cached = PredictionResult.objects.filter(**patient_keys, as_of=as_of).first()
+    if cached:
+        return {
+            "ok": True,
+            "risk_score": float(cached.risk_score),
+            "comorbidity_group": str(cached.comorbidity_group),
+        }
 
     start = as_of - timedelta(hours=window_hours)
     end = as_of
@@ -350,37 +357,15 @@ def get_prediction(subject_id, stay_id, hadm_id, as_of, window_hours=24):
         if current_err:
             return {"ok": False, "error": current_err}
 
-    # Optional S3 audit trail for history + prior comorbidity group.
-    s3 = None
-    patient_prefix = s3_cache.build_patient_prefix(s3_prefix, subject_id, stay_id, hadm_id)
-    current_feature_key = None
-    history_rows = []
-    first_group = None
+    history_rows = local_history_rows[-history_hours:] if using_feature_matrix else []
 
-    if s3_bucket:
-        s3, err = s3_cache.get_s3_client(settings)
-        if err:
-            logger.warning("S3 unavailable, skipping audit trail: %s", err)
-            s3 = None
-        else:
-            current_feature_key = f"{patient_prefix}/features/{s3_cache.as_of_key(as_of)}.json"
-            feature_payload = {
-                "patient": {"subject_id": subject_id, "stay_id": stay_id, "hadm_id": hadm_id},
-                "as_of": as_of.isoformat(),
-                "feature_vector": _serialize_row(current_row),
-            }
-            try:
-                s3_cache.write_json(s3, s3_bucket, current_feature_key, feature_payload, skip_if_exists=True)
-                history_rows = s3_cache.load_history_vectors(
-                    s3, s3_bucket, patient_prefix, history_hours, current_feature_key
-                )
-                first_group = s3_cache.load_first_comorbidity_group(s3, s3_bucket, patient_prefix)
-            except Exception as e:
-                logger.warning("S3 IO failed, skipping audit trail: %s", e)
-                s3 = None
-
-    if not s3:
-        history_rows = local_history_rows[-history_hours:] if using_feature_matrix else []
+    # Sticky comorbidity group: first prediction ever written for this patient wins.
+    first_prediction = (
+        PredictionResult.objects.filter(**patient_keys)
+        .order_by("created_at")
+        .first()
+    )
+    sticky_group = first_prediction.comorbidity_group if first_prediction else None
 
     payload_builder = (
         _prediction_payload_feature_matrix if using_feature_matrix else _prediction_payload
@@ -406,34 +391,19 @@ def get_prediction(subject_id, stay_id, hadm_id, as_of, window_hours=24):
     if risk_score is None:
         return {"ok": False, "error": "Model response missing risk_score"}
 
-    if first_group:
-        comorbidity_group = first_group
+    if sticky_group:
+        comorbidity_group = sticky_group
     elif comorbidity_group is None:
         comorbidity_group = "unknown"
 
-    # Persist prediction output for audit/replay (best-effort).
-    if s3 and s3_bucket:
-        try:
-            as_of_suffix = s3_cache.as_of_key(as_of)
-            s3_cache.write_json(
-                s3, s3_bucket,
-                f"{patient_prefix}/predictions/{as_of_suffix}.json",
-                {
-                    "patient": {"subject_id": subject_id, "stay_id": stay_id, "hadm_id": hadm_id},
-                    "as_of": as_of.isoformat(),
-                    "risk_score": float(risk_score),
-                    "comorbidity_group": str(comorbidity_group),
-                },
-                skip_if_exists=True,
-            )
-            s3_cache.write_json(
-                s3, s3_bucket,
-                f"{patient_prefix}/io/{as_of_suffix}.json",
-                {"request": payload, "response": data},
-                skip_if_exists=True,
-            )
-        except Exception:
-            pass
+    PredictionResult.objects.update_or_create(
+        **patient_keys,
+        as_of=as_of,
+        defaults={
+            "risk_score": float(risk_score),
+            "comorbidity_group": str(comorbidity_group),
+        },
+    )
 
     return {
         "ok": True,
@@ -530,6 +500,15 @@ def _fetch_sepsis_by_stay_ids(stay_ids):
 
 def get_similar_patients(subject_id, stay_id, hadm_id, as_of, top_k=3):
     """Top-k most similar patients by z-scored cosine similarity."""
+    patient = _lookup_patient(subject_id, stay_id, hadm_id)
+    as_of = _map_display_to_patient_time(as_of, patient)
+
+    patient_keys = {"subject_id": subject_id, "stay_id": stay_id, "hadm_id": hadm_id}
+
+    cached = SimilarPatientsResult.objects.filter(**patient_keys, as_of=as_of).first()
+    if cached:
+        return cached.matches[:top_k] if isinstance(cached.matches, list) else cached.matches
+
     vec_row = get_current_feature_vector(subject_id, stay_id, hadm_id, as_of)
     if vec_row is None:
         logger.warning(
@@ -596,4 +575,10 @@ def get_similar_patients(subject_id, stay_id, hadm_id, as_of, top_k=3):
     sepsis_by_stay = _fetch_sepsis_by_stay_ids([r["stay_id"] for r in results])
     for r in results:
         r["had_sepsis"] = sepsis_by_stay.get(r["stay_id"], False)
+
+    SimilarPatientsResult.objects.update_or_create(
+        **patient_keys,
+        as_of=as_of,
+        defaults={"matches": results},
+    )
     return results
