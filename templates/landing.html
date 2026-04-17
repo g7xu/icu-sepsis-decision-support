@@ -1,0 +1,377 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <title>ICU Sepsis Decision Support System | Capstone Project</title>
+  <meta name="description" content="An interpretable early warning system for adult ICU sepsis risk—helping clinicians trust and act on predictions.">
+  <link rel="stylesheet" href="{% static 'landing.css' %}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Syne:wght@500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <script>document.documentElement.setAttribute('data-theme', 'light');</script>
+  <!-- Navigation -->
+  <nav class="nav" id="nav">
+    <div class="nav-inner">
+      <ul class="nav-links">
+        <li><a href="#overview">Overview</a></li>
+        <li><a href="#approach">Approach</a></li>
+        <li><a href="#product">Product</a></li>
+        <li><a href="#dataflow">Dataflow</a></li>
+        <li><a href="#architecture">Architecture</a></li>
+      </ul>
+      <button class="nav-toggle" id="nav-toggle" aria-label="Toggle menu">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+    </div>
+  </nav>
+
+  <main>
+    <!-- Hero Section -->
+    <section class="hero" id="hero">
+      <div class="hero-content">
+        <h1 class="hero-title scroll-reveal">ICU Sepsis Decision Support System</h1>
+        <p class="hero-tagline scroll-reveal">Making sepsis detection transparent, so clinicians can trust the alerts</p>
+        <div class="scroll-reveal" style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+          <a href="/patients/" class="btn btn-primary">Try the Demo</a>
+          <a href="/poster/" class="btn btn-primary">View Poster</a>
+          <a href="https://github.com/kshannon-ucsd/icu-sepsis-decision-support" target="_blank" rel="noopener" class="btn btn-primary">GitHub</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-alt" id="overview">
+      <div class="container container--wide">
+        <article class="content-row">
+          <div class="content-box content-box--text scroll-reveal">
+            <h3 class="content-box__title">Why Sepsis Matters</h3>
+            <p>Sepsis is the third leading cause of death in U.S. hospitals, contributing to at least 350,000 deaths annually. Globally, sepsis accounts for nearly 1 in 5 deaths. One in three patients who die in a hospital had sepsis during their stay.</p>
+            <p>Early detection saves lives, but existing tools fail to give clinicians the confidence they need to act on alerts.</p>
+            <p class="image-caption">Sources: <a href="https://www.who.int/news-room/fact-sheets/detail/sepsis" target="_blank" rel="noopener">WHO</a>, <a href="https://www.aamc.org/news/sepsis-third-leading-cause-death-us-hospitals-quick-action-can-save-lives" target="_blank" rel="noopener">AAMC</a></p>
+          </div>
+        </article>
+
+        <article class="content-row content-row--image-right">
+          <div class="content-box content-box--text scroll-reveal">
+            <h3 class="content-box__title">The Problem with Current Tools</h3>
+            <p><strong>Trust. </strong>Clinicians can't see the underlying data that the model uses to make predictions.
+              Since they are unable to see the full picture, they do not have full confidence in the alerts. </p>
+            <p><strong>False negatives vs. false positives.</strong> Sepsis prediction models are excessively tuned to
+              reduce false negatives as missing a patient with sepsis has much more severe consequences. However, ignoring
+              false positives causes an increased number of alerts and, subsequently, clinicians are overwhelmed
+              leading to less trust in the alerts.</p>
+          </div>
+          <div class="content-box content-box--image scroll-reveal">
+            <img src="{% static 'images/landing/frustrated_clinician_480.jpg' %}" alt="Frustrated clinician - illustrates alarm fatigue" class="content-box__img img-expandable">
+          </div>
+        </article>
+
+        <article class="content-row">
+          <div class="content-box content-box--text scroll-reveal" style="text-align: center;">
+            <h3 class="content-box__title">What We Built</h3>
+            <p>A clinician-facing sepsis prediction and decision support system. It shows the data behind every alert—vitals, procedures, and risk trends—so clinicians can see exactly what the model sees and decide whether to act.</p>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="approach">
+      <div class="container container--wide">
+        <div class="approach-cards">
+          <div class="approach-card scroll-reveal">
+            <h3 class="approach-card__title">Data</h3>
+            <p>Built on <strong>MIMIC-IV</strong>, a de-identified ICU electronic health record database with <strong>90,000+ patients</strong> from Beth Israel Deaconess Medical Center, which includes:</p>
+            <ul class="approach-card__list">
+              <li>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                Vitals (HR, BP, SpO2, RR, Temp)
+              </li>
+              <li>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                Procedures &amp; interventions
+              </li>
+              <li>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+                SOFA scores &amp; lab results
+              </li>
+            </ul>
+          </div>
+
+          <div class="approach-card scroll-reveal">
+            <h3 class="approach-card__title">Prediction</h3>
+            <p>Predicting sepsis onset in ICU patients using <strong>6-hour sliding windows</strong> of clinical data, analyzing trends rather than isolated snapshots.</p>
+          </div>
+
+          <div class="approach-card approach-card--wide scroll-reveal">
+            <h3 class="approach-card__title">Product</h3>
+            <p>Three clinician-facing interfaces designed to surface the right information at the right level of detail.</p>
+            <div class="approach-card__features">
+              <div class="approach-card__screen">
+                <div class="screen__titlebar">
+                  <span class="screen__dot"></span>
+                  <span class="screen__dot"></span>
+                  <span class="screen__dot"></span>
+                  <span class="screen__title">Management View</span>
+                </div>
+                <div class="screen__body">
+                  <p class="screen__desc">Shows all ICU patients ranked by sepsis risk. Charge nurses use it to prioritize which patients need attention first.</p>
+                </div>
+              </div>
+              <div class="approach-card__screen">
+                <div class="screen__titlebar">
+                  <span class="screen__dot"></span>
+                  <span class="screen__dot"></span>
+                  <span class="screen__dot"></span>
+                  <span class="screen__title">Patient Detail</span>
+                </div>
+                <div class="screen__body">
+                  <p class="screen__desc">Shows vitals, procedures, and risk trends for one patient. Bedside nurses use it to understand what changed and why.</p>
+                </div>
+              </div>
+              <div class="approach-card__screen">
+                <div class="screen__titlebar">
+                  <span class="screen__dot"></span>
+                  <span class="screen__dot"></span>
+                  <span class="screen__dot"></span>
+                  <span class="screen__title">Prediction View</span>
+                </div>
+                <div class="screen__body">
+                  <p class="screen__desc">Shows the risk score alongside the features driving it. Clinicians use it to decide whether to trust and act on an alert.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-alt" id="product">
+      <div class="container container--wide">
+        <div class="product-row scroll-reveal">
+          <div class="product-row__image">
+            <img src="{% static 'images/landing/management_view.png' %}" alt="Management view showing unit-wide sepsis risk list" class="product-row__img img-expandable">
+          </div>
+          <div class="product-row__text">
+            <h3 class="product-row__title">Management View</h3>
+            <p>For charge nurses and unit leads. Displays all ICU patients in a single ranked list by sepsis risk, with a simulation clock that advances hour by hour.</p>
+            <ul class="product-row__features">
+              <li>Risk-ranked patient list</li>
+              <li>Patient demographics at a glance</li>
+              <li>Hourly simulation clock</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="product-row scroll-reveal">
+          <div class="product-row__image">
+            <img src="{% static 'images/landing/patient_view.png' %}" alt="Patient detail view with vitals trend and procedure events" class="product-row__img img-expandable">
+          </div>
+          <div class="product-row__text">
+            <h3 class="product-row__title">Patient Detail View</h3>
+            <p>For bedside nurses and attending physicians. Shows vitals trends, procedure events, and how the sepsis risk score changes over time — everything the model sees.</p>
+            <ul class="product-row__features">
+              <li>Multi-vital trend charts</li>
+              <li>Procedure event timeline</li>
+              <li>Risk score trajectory</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="product-row scroll-reveal">
+          <div class="product-row__image">
+            <img src="{% static 'images/landing/prediction_view.png' %}" alt="Prediction view with sepsis probability and feature context" class="product-row__img img-expandable">
+          </div>
+          <div class="product-row__text">
+            <h3 class="product-row__title">Prediction View</h3>
+            <p>For clinicians evaluating an alert. Shows the hourly risk score alongside the specific features driving it, plus similar patients for clinical context.</p>
+            <ul class="product-row__features">
+              <li>Feature importance breakdown</li>
+              <li>Similar patient comparison</li>
+              <li>Hourly risk trend</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="dataflow">
+      <div class="container container--wide">
+        <h3 class="section__title scroll-reveal">Dataflow</h3>
+        <p class="section__subtitle scroll-reveal">How patient data moves through the system every hour</p>
+        <div class="pipeline scroll-reveal">
+          <div class="pipeline__node">
+            <h4 class="pipeline__label">Patient Data</h4>
+            <p class="pipeline__desc">Hourly vitals, labs, and procedures from the ICU</p>
+          </div>
+          <div class="pipeline__arrow">
+            <div class="pipeline__line"></div>
+            <div class="pipeline__dot pipeline__dot--h" style="animation-delay: 0s;"></div>
+          </div>
+          <div class="pipeline__node">
+            <h4 class="pipeline__label">Feature Assembly</h4>
+            <p class="pipeline__desc">6-hour sliding window of clinical data</p>
+          </div>
+          <div class="pipeline__arrow">
+            <div class="pipeline__line"></div>
+            <div class="pipeline__dot pipeline__dot--h" style="animation-delay: 0.8s;"></div>
+          </div>
+          <div class="pipeline__node">
+            <h4 class="pipeline__label">Model Inference</h4>
+            <p class="pipeline__desc">Random Forest scores features into hourly sepsis risk</p>
+          </div>
+          <div class="pipeline__arrow">
+            <div class="pipeline__line"></div>
+            <div class="pipeline__dot pipeline__dot--h" style="animation-delay: 1.6s;"></div>
+          </div>
+          <div class="pipeline__node">
+            <h4 class="pipeline__label">Clinician Views</h4>
+            <p class="pipeline__desc">Risk, trends, and context across three views</p>
+          </div>
+        </div>
+
+        <div class="pipeline__storage scroll-reveal">
+          <div class="pipeline__vlines">
+            <div class="pipeline__vline pipeline__vline--left">
+              <div class="pipeline__dot pipeline__dot--v" style="animation-delay: 0.4s;"></div>
+            </div>
+            <div class="pipeline__vline pipeline__vline--right">
+              <div class="pipeline__dot pipeline__dot--v" style="animation-delay: 1.2s;"></div>
+              <div class="pipeline__dot pipeline__dot--up" style="animation-delay: 2s;"></div>
+            </div>
+          </div>
+          <div class="pipeline__node pipeline__node--storage">
+            <h4 class="pipeline__label">Database</h4>
+            <p class="pipeline__desc">Features and predictions saved per patient per hour</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-alt" id="architecture">
+      <div class="container container--wide">
+        <h3 class="section__title scroll-reveal">System Architecture</h3>
+        <p class="section__subtitle scroll-reveal">Built on Django's Model-View-Template pattern — loosely coupled layers that evolve independently</p>
+
+        <div class="arch scroll-reveal">
+          <!-- AWS EC2 wrapper -->
+          <div class="arch__ec2">
+            <span class="arch__env-label">AWS EC2</span>
+            <div class="arch__ec2-inner">
+              <!-- User -->
+              <div class="arch__user">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <span class="arch__user-label">User</span>
+              </div>
+
+              <!-- Double arrow: User ↔ View -->
+              <div class="arch__darrow">
+                <span class="arch__darrow-cap">request</span>
+                <div class="arch__darrow-line"></div>
+                <span class="arch__darrow-cap">response</span>
+              </div>
+
+              <!-- View -->
+              <div class="arch__layer arch__layer--view">
+                <h4 class="arch__layer-title">View</h4>
+                <p class="arch__layer-subtitle">Service Logic</p>
+                <p class="arch__layer-desc">Parse upstream data, manipulate features, make predictions, fetch results, update template</p>
+              </div>
+
+              <!-- Double arrow: View ↔ Template -->
+              <div class="arch__darrow">
+                <span class="arch__darrow-cap">context</span>
+                <div class="arch__darrow-line"></div>
+                <span class="arch__darrow-cap">HTML</span>
+              </div>
+
+              <!-- Template -->
+              <div class="arch__layer arch__layer--template">
+                <h4 class="arch__layer-title">Template</h4>
+                <p class="arch__layer-subtitle">Presentation</p>
+                <p class="arch__layer-desc">Interface</p>
+              </div>
+            </div>
+
+            <!-- Model/ORM row inside EC2 -->
+            <div class="arch__model-row">
+              <div class="arch__darrow arch__darrow--vertical">
+                <span class="arch__darrow-cap">query</span>
+                <div class="arch__darrow-line arch__darrow-line--v"></div>
+                <span class="arch__darrow-cap">data</span>
+              </div>
+              <div class="arch__layer arch__layer--model">
+                <h4 class="arch__layer-title">Model</h4>
+                <p class="arch__layer-subtitle">ORM / Data Layer</p>
+                <p class="arch__layer-desc">Data object management</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Vertical double arrow: ORM ↔ Database -->
+          <div class="arch__varrow">
+            <div class="arch__varrow-line"></div>
+            <span class="arch__varrow-cap">SQL queries</span>
+          </div>
+
+          <!-- AWS RDS wrapper -->
+          <div class="arch__rds">
+            <span class="arch__env-label">AWS RDS</span>
+            <div class="arch__layer arch__layer--db">
+              <h4 class="arch__layer-title">PostgreSQL</h4>
+              <p class="arch__layer-subtitle">MIMIC-IV Database</p>
+              <p class="arch__layer-desc">Actual Data</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Team & Acknowledgements -->
+    <section class="acknowledgements" id="acknowledgements">
+      <div class="container container--wide">
+        <h2 class="acknowledgements__heading scroll-reveal">Team</h2>
+        <ul class="team-list scroll-reveal">
+          <li><a href="https://www.linkedin.com/in/varun-pabreja/" target="_blank" rel="noopener">Varun Pabreja</a></li>
+          <li><a href="https://www.linkedin.com/in/ypat353/" target="_blank" rel="noopener">Yash Patel</a></li>
+          <li><a href="https://www.linkedin.com/in/vo-ethan/" target="_blank" rel="noopener">Ethan Vo</a></li>
+          <li><a href="https://www.linkedin.com/in/guoxuan-xu-30a572269/" target="_blank" rel="noopener">Guoxuan Xu</a></li>
+        </ul>
+
+        <h2 class="acknowledgements__heading scroll-reveal">Advisors</h2>
+        <ul class="team-list scroll-reveal">
+          <li>Dr. John Bell</li>
+          <li>Professor Aaron Boussina</li>
+          <li>Professor Kyle Shannon</li>
+          <li>Dr. Gabriel Wardi</li>
+        </ul>
+
+        <h2 class="acknowledgements__heading scroll-reveal">Acknowledgements &amp; References</h2>
+        <ol class="references scroll-reveal">
+          <li>Evans, L., Rhodes, A., Alhazzani, W., et al. (2021). Surviving Sepsis Campaign: International Guidelines for Management of Sepsis and Septic Shock 2021. <em>Critical Care Medicine</em>, 49(11), e1063–e1143.</li>
+          <li>Hollenbeak, C. S., Engberg, R., Engberg, J., &amp; Quartararo, C. (2023). Costs and consequences of the IntelliSep Index: A predictive tool for sepsis in the emergency department. <em>Journal of Medical Economics</em>, 26(1), 1–10.</li>
+          <li>Johnson, A. E. W., Pollard, T. J., &amp; MIT Laboratory for Computational Physiology. (2025). MIMIC Code Repository. <em>GitHub</em>. https://github.com/MIT-LCP/mimic-code</li>
+          <li>Zador, Z., Landry, A., Bhimani, R., Bhatt, M., &amp; Bhatt, A. (2019). Multimorbidity states associated with higher mortality rates in organ dysfunction and sepsis: A data-driven analysis in critical care. <em>Critical Care</em>, 23, 247.</li>
+        </ol>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Image lightbox overlay -->
+  <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Expand image" hidden>
+    <div class="lightbox__backdrop"></div>
+    <button type="button" class="lightbox__close" aria-label="Close">&times;</button>
+    <div class="lightbox__content">
+      <img src="" alt="" class="lightbox__img" id="lightbox-img">
+    </div>
+  </div>
+
+  <script src="{% static 'js/landing.js' %}"></script>
+</body>
+</html>

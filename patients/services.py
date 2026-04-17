@@ -681,12 +681,76 @@ def _load_first_comorbidity_group_from_s3(s3, bucket, patient_prefix):
     return None
 
 
+def _parse_model_response(data):
+    """Extract (risk_score, comorbidity_group) from a model response dict.
+
+    Accepts both the external API's ``{"predictions": [...]}`` shape and the
+    legacy ``{"risk_score": ...}`` shape used by older versions and the local
+    fallback path.
+    """
+    predictions = data.get("predictions")
+    if predictions is None:
+        risk_score = data.get("risk_score")
+    else:
+        risk_score = float(predictions[-1]) if predictions else None
+    comorbidity_group = data.get("comorbidity_group")
+    return risk_score, comorbidity_group
+
+
+def _call_external_model(model_url, payload):
+    """POST the payload to the external model service.
+
+    Returns ``(data, None)`` on success and ``(None, error_message)`` when the
+    service is unconfigured or the call fails for any reason. Either outcome
+    lets the caller decide whether to fall back to the local model.
+    """
+    if not model_url:
+        logger.warning("Prediction fallback fired: no MODEL_SERVICE_URL configured")
+        return None, "Model service not configured"
+
+    try:
+        import httpx
+    except ImportError:
+        msg = "httpx not installed"
+        logger.warning("Prediction fallback fired: %s", msg)
+        return None, msg
+
+    headers = {"Content-Type": "application/json"}
+    api_key = getattr(settings, "MODEL_SERVICE_API_KEY", "") or ""
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    timeout = getattr(settings, "MODEL_SERVICE_TIMEOUT", 30) or 30
+
+    try:
+        with httpx.Client(timeout=timeout) as client:
+            resp = client.post(
+                f"{model_url.rstrip('/')}/predict",
+                json=payload,
+                headers=headers,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            logger.info("Model service raw response: %s", data)
+            return data, None
+    except httpx.TimeoutException as e:
+        err = f"Model service timeout: {e}"
+    except httpx.HTTPStatusError as e:
+        err = f"Model service error {e.response.status_code}: {e.response.text[:200]}"
+    except Exception as e:
+        err = f"Model service call failed: {e}"
+
+    logger.warning("Prediction fallback fired: API failure: %s", err)
+    return None, err
+
+
 def get_prediction(subject_id, stay_id, hadm_id, as_of, window_hours=24):
     """
     Get model prediction: risk_score and comorbidity_group for a patient at a given time.
 
     When MODEL_SERVICE_URL is set: fetches features, POSTs to model service, returns result.
-    When not set: returns error indicating model service is not configured.
+    When unset, or when the external call fails (timeout/HTTP error/network), falls back
+    to the local joblib model loaded from settings.LOCAL_MODEL_PATH. If both paths fail,
+    returns ``{"ok": False, "error": ...}`` with the original failure preserved.
 
     The as_of param uses normalized 2025-03-13 for display. For DB queries we look up
     the patient's actual admission year (MIMIC-IV uses shifted dates) and use that
@@ -696,11 +760,6 @@ def get_prediction(subject_id, stay_id, hadm_id, as_of, window_hours=24):
     from .models import UniquePatientProfile
 
     model_url = getattr(settings, "MODEL_SERVICE_URL", "") or ""
-    if not model_url:
-        return {
-            "ok": False,
-            "error": "Model service not configured. Set MODEL_SERVICE_URL in .env to enable predictions."
-        }
 
     s3_bucket = getattr(settings, "MODEL_S3_BUCKET", "") or ""
     s3_prefix = getattr(settings, "MODEL_S3_PREFIX", "model-io") or "model-io"
@@ -758,28 +817,31 @@ def get_prediction(subject_id, stay_id, hadm_id, as_of, window_hours=24):
     if s3_bucket:
         s3, err = _get_s3_client(settings)
         if err:
-            return {"ok": False, "error": err}
+            logger.warning("S3 unavailable, skipping audit trail: %s", err)
+            s3 = None
+        else:
+            as_of_key = _as_of_key(as_of)
+            current_feature_key = f"{patient_prefix}/features/{as_of_key}.json"
+            feature_payload = {
+                "patient": {
+                    "subject_id": subject_id,
+                    "stay_id": stay_id,
+                    "hadm_id": hadm_id,
+                },
+                "as_of": as_of.isoformat(),
+                "feature_vector": _serialize_row(current_row),
+            }
+            try:
+                _write_json_to_s3(s3, s3_bucket, current_feature_key, feature_payload, skip_if_exists=True)
+                history_rows = _load_history_vectors_from_s3(
+                    s3, s3_bucket, patient_prefix, history_hours, current_feature_key
+                )
+                first_group = _load_first_comorbidity_group_from_s3(s3, s3_bucket, patient_prefix)
+            except Exception as e:
+                logger.warning("S3 IO failed, skipping audit trail: %s", e)
+                s3 = None
 
-        as_of_key = _as_of_key(as_of)
-        current_feature_key = f"{patient_prefix}/features/{as_of_key}.json"
-        feature_payload = {
-            "patient": {
-                "subject_id": subject_id,
-                "stay_id": stay_id,
-                "hadm_id": hadm_id,
-            },
-            "as_of": as_of.isoformat(),
-            "feature_vector": _serialize_row(current_row),
-        }
-        try:
-            _write_json_to_s3(s3, s3_bucket, current_feature_key, feature_payload, skip_if_exists=True)
-            history_rows = _load_history_vectors_from_s3(
-                s3, s3_bucket, patient_prefix, history_hours, current_feature_key
-            )
-            first_group = _load_first_comorbidity_group_from_s3(s3, s3_bucket, patient_prefix)
-        except Exception as e:
-            return {"ok": False, "error": f"S3 IO failed: {e}"}
-    else:
+    if not s3:
         # No S3: use DB-derived history from feature matrix when available
         history_rows = local_history_rows[-history_hours:] if using_feature_matrix else []
 
@@ -792,47 +854,30 @@ def get_prediction(subject_id, stay_id, hadm_id, as_of, window_hours=24):
             subject_id, stay_id, hadm_id, as_of, current_row, history_rows
         )
 
-    headers = {"Content-Type": "application/json"}
-    api_key = getattr(settings, 'MODEL_SERVICE_API_KEY', '') or ''
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
+    payload["demographics"] = {
+        "anchor_age": getattr(patient, "anchor_age", None) if patient else None,
+        "gender": getattr(patient, "gender", None) if patient else None,
+        "race": getattr(patient, "race", None) if patient else None,
+        "first_careunit": getattr(patient, "first_careunit", None) if patient else None,
+    }
 
-    timeout = getattr(settings, 'MODEL_SERVICE_TIMEOUT', 30) or 30
+    data, external_error = _call_external_model(model_url, payload)
+    if external_error is not None:
+        # Fall back to the local joblib model.
+        from .local_model import predict_locally
+        local_result = predict_locally(payload)
+        if not local_result.get("ok"):
+            local_error = local_result.get("error", "unknown local model error")
+            return {
+                "ok": False,
+                "error": external_error if model_url else local_error,
+            }
+        data = local_result["raw"]
 
-    try:
-        import httpx
-    except ImportError:
-        return {"ok": False, "error": "httpx not installed. Run: pip install httpx"}
-
-    try:
-        with httpx.Client(timeout=timeout) as client:
-            resp = client.post(
-                f"{model_url.rstrip('/')}/predict",
-                json=payload,
-                headers=headers,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            logger.warning("Model service raw response: %s", data)
-    except httpx.TimeoutException as e:
-        return {"ok": False, "error": f"Model service timeout: {e}"}
-    except httpx.HTTPStatusError as e:
-        return {"ok": False, "error": f"Model service error {e.response.status_code}: {e.response.text[:200]}"}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
-
-    # Model returns {"predictions": [float, ...]} - one per record; use last as current risk
-    predictions = data.get("predictions")
-    if predictions is None:
-        risk_score = data.get("risk_score")  # fallback to legacy format
-    else:
-        risk_score = float(predictions[-1]) if predictions else None
-
+    risk_score, comorbidity_group = _parse_model_response(data)
     if risk_score is None:
         return {"ok": False, "error": "Model response missing risk_score"}
 
-    # Comorbidity group: use S3 cached value, model response, or placeholder until model team adds it
-    comorbidity_group = data.get("comorbidity_group")
     if first_group:
         comorbidity_group = first_group
     elif comorbidity_group is None:
