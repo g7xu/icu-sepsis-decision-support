@@ -2,7 +2,6 @@
 .env
 venv/
 .venv/
-.pixi/
 
 # Python
 __pycache__/
@@ -36,6 +35,9 @@ mimiciv/
 # OS
 .DS_Store
 Thumbs.db
+
+# Playwright MCP
+.playwright-mcp/
 
 # Terraform
 terraform/*.tfvars

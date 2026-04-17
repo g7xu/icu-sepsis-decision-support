@@ -44,7 +44,6 @@ domain_name = "your-domain.example.com"
 
 # ML model service (leave empty for stub mode)
 model_service_url = ""
-model_s3_bucket   = ""
 
 # ── Deployment ────────────────────────────────────────────────
 # After `terraform apply`, push your Docker image to ECR then deploy:

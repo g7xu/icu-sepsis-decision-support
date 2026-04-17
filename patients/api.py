@@ -13,7 +13,7 @@ from .services import (
     get_prediction,
     get_similar_patients,
 )
-from .views import _store_similar_patients
+from .session_utils import simulation_hour_from_as_of, store_similar_patients
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +88,6 @@ def get_hourly_wide_features(request, subject_id, stay_id, hadm_id):
         return JsonResponse({"error": str(e)}, status=400)
 
     include_sofa = request.GET.get('include_sofa', 'true').lower() == 'true'
-    include_labs = request.GET.get('include_labs', 'true').lower() == 'true'
 
     wide_table = assemble_hourly_wide_table(
         subject_id=subject_id,
@@ -97,7 +96,6 @@ def get_hourly_wide_features(request, subject_id, stay_id, hadm_id):
         start=start_dt,
         end=end_dt,
         include_sofa=include_sofa,
-        include_labs=include_labs
     )
 
     return JsonResponse({
@@ -247,12 +245,11 @@ def get_similar_patients_view(request, subject_id, stay_id, hadm_id):
 
     enriched = _enrich_similar_patients(similar)
 
-    # Store in session for cache (current_hour from as_of: 2025-03-13T09:00 -> hour 8)
-    current_hour = (as_of.hour - 1) % 24 if as_of.month == 3 and as_of.day == 13 else as_of.hour
-    if as_of.day == 14 and as_of.hour == 0:
-        current_hour = 23
-    _store_similar_patients(
-        request.session, subject_id, stay_id, hadm_id, current_hour, enriched
+    store_similar_patients(
+        request.session,
+        subject_id, stay_id, hadm_id,
+        simulation_hour_from_as_of(as_of),
+        enriched,
     )
 
     return JsonResponse({

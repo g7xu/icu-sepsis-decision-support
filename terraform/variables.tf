@@ -206,12 +206,6 @@ variable "model_service_url" {
   default     = ""
 }
 
-variable "model_s3_bucket" {
-  description = "S3 bucket for feature/prediction persistence (empty = disabled)"
-  type        = string
-  default     = ""
-}
-
 # ── Cloudflare Origin Certificate ─────────────────────────────
 
 variable "cf_origin_cert" {

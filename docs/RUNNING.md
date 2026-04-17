@@ -66,17 +66,16 @@ MODEL_SERVICE_URL=https://your-ec2-model-endpoint.example.com
 MODEL_SERVICE_TIMEOUT=30
 MODEL_SERVICE_API_KEY=optional_bearer_token
 
-MODEL_S3_BUCKET=your-bucket-name
-MODEL_S3_REGION=us-east-1
-MODEL_S3_PREFIX=model-io
 MODEL_HISTORY_HOURS=6
 ```
 
-**S3 behavior:**
-- Feature vectors and predictions are written to S3. If an object already exists (e.g. from a re-run), it is **not overwritten** to avoid duplicates.
-- To start fresh and clear stale data: `python manage.py clear_model_s3`
-- To wipe one patient only: `python manage.py clear_model_s3 --prefix model-io/patients/13129329_32482524_23992308`
-- Dry run: `python manage.py clear_model_s3 --dry-run`
+**Prediction cache:**
+- Scored results are cached in Postgres (`PredictionResult`, `SimilarPatientsResult`). Same `(patient, as_of)` always returns the same score.
+- The first `comorbidity_group` written for a patient is reused on subsequent hours so the UI doesn't flicker.
+- To clear the cache:
+  ```python
+  python manage.py shell -c "from patients.models import PredictionResult, SimilarPatientsResult; PredictionResult.objects.all().delete(); SimilarPatientsResult.objects.all().delete()"
+  ```
 
 ### EC2 model contract
 
@@ -119,16 +118,9 @@ Response:
 
 ### Required AWS setup
 
-1. **Credentials**
-   - Local: export `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and optionally `AWS_SESSION_TOKEN`.
-   - EC2/ECS: attach IAM role.
-2. **IAM permissions**
-   - `s3:PutObject`, `s3:GetObject`, `s3:ListBucket` on your bucket/prefix.
-3. **Bucket policy/CORS**
-   - Ensure backend host can read/write required prefix.
-4. **Network**
+1. **Network**
    - Backend must be able to reach EC2 HTTPS endpoint.
-5. **TLS**
+2. **TLS**
    - Use valid certificate on EC2 endpoint URL.
 
 ## Test the prediction endpoint
