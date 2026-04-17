@@ -15,6 +15,14 @@ docker compose up --build
 
 Then open `http://localhost:8000/patients/`. See [RUNNING.md](RUNNING.md) for detailed run instructions and model service setup.
 
+For local (non-Docker) development:
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+python manage.py runserver
+```
+
 ## Repository structure
 
 ```
