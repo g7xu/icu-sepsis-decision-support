@@ -88,7 +88,6 @@ def get_hourly_wide_features(request, subject_id, stay_id, hadm_id):
         return JsonResponse({"error": str(e)}, status=400)
 
     include_sofa = request.GET.get('include_sofa', 'true').lower() == 'true'
-    include_labs = request.GET.get('include_labs', 'true').lower() == 'true'
 
     wide_table = assemble_hourly_wide_table(
         subject_id=subject_id,
@@ -97,7 +96,6 @@ def get_hourly_wide_features(request, subject_id, stay_id, hadm_id):
         start=start_dt,
         end=end_dt,
         include_sofa=include_sofa,
-        include_labs=include_labs
     )
 
     return JsonResponse({

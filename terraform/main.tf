@@ -182,22 +182,6 @@ resource "aws_db_instance" "mimiciv" {
   }
 }
 
-# Optional: Custom parameter group for PostgreSQL settings
-# Uncomment if you need custom PostgreSQL parameters
-# resource "aws_db_parameter_group" "mimiciv" {
-#   name   = "${var.project_name}-postgres-params"
-#   family = "postgres15"
-#
-#   parameter {
-#     name  = "shared_preload_libraries"
-#     value = "pg_stat_statements"
-#   }
-#
-#   tags = {
-#     Name = "${var.project_name}-postgres-params"
-#   }
-# }
-
 # ═══════════════════════════════════════════════════════════════
 # EC2 Web Server
 # ═══════════════════════════════════════════════════════════════

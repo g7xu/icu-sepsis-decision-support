@@ -8,17 +8,13 @@ simulation hour -> charttime_hour (hours since admission).
 
 import json
 import uuid
-from datetime import datetime, timedelta, timezone as dt_tz
+from datetime import datetime, timedelta
 
 from django.shortcuts import render, get_object_or_404
-from django.core.paginator import Paginator
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db.models import Q
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
-
-from django.utils import timezone as django_tz
-from django.utils.dateparse import parse_datetime
 
 from .models import UniquePatientProfile, VitalsignHourly, ProcedureeventsHourly, ChemistryHourly, CoagulationHourly, SofaHourly
 from .cohort import get_cohort_filter
@@ -223,6 +219,18 @@ def _patient_charttime_range(patient_intime, current_hour):
     return start_hour, end_hour
 
 
+def _annotate_hour_label(row, start_hour, intime):
+    """Add hours_since_admission and hour_label to a charttime row for display."""
+    charttime = row['charttime_hour']
+    hours_since_admission = (charttime - start_hour).total_seconds() / 3600
+    row['hours_since_admission'] = int(hours_since_admission)
+    admission_minutes = intime.hour * 60 + intime.minute
+    total_minutes = admission_minutes + int(hours_since_admission * 60)
+    display_hour = (total_minutes // 60) % 24
+    display_minute = total_minutes % 60
+    row['hour_label'] = f"{display_hour:02d}:{display_minute:02d}"
+
+
 def _patient_as_of_dt(patient_intime, current_hour):
     """
     Map simulation hour to patient's actual as_of timestamp for predictions.
@@ -330,18 +338,7 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
             'heart_rate', 'sbp', 'dbp', 'mbp',
             'resp_rate', 'temperature', 'spo2', 'glucose',
         ):
-            charttime = row['charttime_hour']
-            hours_since_admission = (charttime - start_hour).total_seconds() / 3600
-            row['hours_since_admission'] = int(hours_since_admission)
-            hours_since_admission = (charttime - start_hour).total_seconds() / 3600
-            # Calculate what "sim clock time" this represents
-            # admission time + hours elapsed = sim clock time
-            admission_minutes = patient.intime.hour * 60 + patient.intime.minute
-            total_minutes = admission_minutes + int(hours_since_admission * 60)
-            display_hour = (total_minutes // 60) % 24
-            display_minute = total_minutes % 60
-            row['hour_label'] = f"{display_hour:02d}:{display_minute:02d}"
-            #row['hour_label'] = f"{charttime.hour:02d}:{charttime.minute:02d}"
+            _annotate_hour_label(row, start_hour, patient.intime)
             vitalsigns_list.append(row)
 
         vitalsigns_json = json.dumps(vitalsigns_list, cls=DjangoJSONEncoder)
@@ -362,18 +359,7 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
             'charttime_hour',
             'bicarbonate', 'calcium', 'sodium', 'potassium',
         ):
-            charttime = row['charttime_hour']
-            hours_since_admission = (charttime - start_hour).total_seconds() / 3600
-            row['hours_since_admission'] = int(hours_since_admission)
-            hours_since_admission = (charttime - start_hour).total_seconds() / 3600
-            # Calculate what "sim clock time" this represents
-            # admission time + hours elapsed = sim clock time
-            admission_minutes = patient.intime.hour * 60 + patient.intime.minute
-            total_minutes = admission_minutes + int(hours_since_admission * 60)
-            display_hour = (total_minutes // 60) % 24
-            display_minute = total_minutes % 60
-            row['hour_label'] = f"{display_hour:02d}:{display_minute:02d}"
-            #row['hour_label'] = f"{charttime.hour:02d}:{charttime.minute:02d}"
+            _annotate_hour_label(row, start_hour, patient.intime)
             chemistry_list.append(row)
 
         chemistry_json = json.dumps(chemistry_list, cls=DjangoJSONEncoder)
@@ -394,18 +380,7 @@ def patient_detail(request, subject_id, stay_id, hadm_id):
             'charttime_hour',
             'd_dimer', 'fibrinogen', 'thrombin', 'inr', 'pt', 'ptt',
         ):
-            charttime = row['charttime_hour']
-            hours_since_admission = (charttime - start_hour).total_seconds() / 3600
-            row['hours_since_admission'] = int(hours_since_admission)
-            hours_since_admission = (charttime - start_hour).total_seconds() / 3600
-            # Calculate what "sim clock time" this represents
-            # admission time + hours elapsed = sim clock time
-            admission_minutes = patient.intime.hour * 60 + patient.intime.minute
-            total_minutes = admission_minutes + int(hours_since_admission * 60)
-            display_hour = (total_minutes // 60) % 24
-            display_minute = total_minutes % 60
-            row['hour_label'] = f"{display_hour:02d}:{display_minute:02d}"
-            #row['hour_label'] = f"{charttime.hour:02d}:{charttime.minute:02d}"
+            _annotate_hour_label(row, start_hour, patient.intime)
             coagulation_list.append(row)
 
         coagulation_json = json.dumps(coagulation_list, cls=DjangoJSONEncoder)

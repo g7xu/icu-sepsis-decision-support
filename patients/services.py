@@ -1,8 +1,6 @@
-import csv
 import logging
 import os
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 
 import json
 import numpy as np
@@ -29,8 +27,6 @@ SIMILARITY_FEATURE_COLUMNS = [
 # Columns to exclude from z-score standardization (e.g. time-based features)
 STANDARDIZATION_EXCLUDE = frozenset({"hours_since_admission", "charttime_hour"})
 
-# Cache for loaded similarity matrix (lazy load, cleared on server restart)
-_similarity_cache = None
 
 # Use the same candidate list, but mapped to string names
 DERIVED_TABLE_CANDIDATES = {
@@ -138,26 +134,6 @@ def get_static_feature_sources(subject_id, stay_id, hadm_id, limit=10):
     )
     return sources
 
-
-def get_sepsis3_suspected_infection_time(subject_id, stay_id):
-    """
-    Return suspected_infection_time from mimiciv_derived.sepsis3 for the given
-    (subject_id, stay_id), or None if not found. Uses time (hour, minute) for
-    logic; date is ignored.
-    """
-    table = _pick_first_existing(DERIVED_TABLE_CANDIDATES["sepsis3"])
-    if not table:
-        return None
-    result = _fetch_rows(
-        table=table,
-        where_sql="subject_id = %(subject_id)s AND stay_id = %(stay_id)s",
-        params={"subject_id": subject_id, "stay_id": stay_id},
-        limit=1,
-    )
-    if not result.get("ok") or not result.get("rows"):
-        return None
-    row = result["rows"][0]
-    return row.get("suspected_infection_time")
 
 
 def get_hourly_feature_sources(subject_id, stay_id, start, end, include_sofa=True, limit=20000):
@@ -421,26 +397,6 @@ def _list_s3_keys(s3, bucket, prefix):
             keys.append(item["Key"])
     return sorted(keys)
 
-
-def _extract_current_hour_vector(wide_rows, as_of):
-    rows = [r for r in wide_rows if r.get("charttime_hour") is not None]
-    if not rows:
-        return None
-
-    def _hour_value(row):
-        value = row.get("charttime_hour")
-        if isinstance(value, str):
-            try:
-                return datetime.fromisoformat(value)
-            except Exception:
-                return None
-        return value
-
-    parsed = [(r, _hour_value(r)) for r in rows]
-    parsed = [(r, dt) for r, dt in parsed if dt is not None and dt <= as_of]
-    if not parsed:
-        return None
-    return sorted(parsed, key=lambda x: x[1])[-1][0]
 
 
 def _prediction_payload(subject_id, stay_id, hadm_id, as_of, current_row, history_rows):
@@ -968,143 +924,119 @@ def _row_to_feature_array(row):
     return np.array(arr, dtype=np.float64)
 
 
-def _parse_float(val):
-    """Parse CSV value to float or None. Treats null/nan/empty as None."""
-    if val is None:
-        return None
-    s = str(val).strip().lower()
-    if s in ("", "null", "nan", "n/a", "na", "none", "."):
-        return None
+
+def _fetch_candidate_rows(exclude_subject_stay_pairs):
+    """Fetch one row per non-cohort patient (latest hour) from RDS for similarity."""
+    from .cohort import get_cohort_filter
+
+    cohort = get_cohort_filter()
+    cohort_tuples = []
+    if cohort and cohort.get("type") == "tuples":
+        cohort_tuples = [(s, st) for s, st, _ in cohort["values"]]
+
+    exclude_all = list(set(cohort_tuples + list(exclude_subject_stay_pairs)))
+
+    feature_cols = ", ".join(SIMILARITY_FEATURE_COLUMNS)
+    if exclude_all:
+        placeholders = ", ".join(["(%s, %s)"] * len(exclude_all))
+        flat_params = [x for t in exclude_all for x in t]
+        where_clause = f"WHERE (subject_id, stay_id) NOT IN (VALUES {placeholders})"
+    else:
+        where_clause = ""
+        flat_params = []
+
+    sql = f"""
+    SELECT DISTINCT ON (subject_id, stay_id)
+           subject_id, stay_id, hadm_id, charttime_hour, {feature_cols}
+    FROM mimiciv_derived.fisi9t_feature_matrix_hourly
+    {where_clause}
+    ORDER BY subject_id, stay_id, charttime_hour DESC
+    """
+
     try:
-        parsed = float(val)
-        return None if (parsed != parsed or abs(parsed) == np.inf) else parsed
-    except (TypeError, ValueError):
-        return None
-
-
-def _row_to_feature_dict(row, exclude_keys=None):
-    """Extract all feature matrix columns from a CSV row for display. Returns dict of col -> display value."""
-    exclude = exclude_keys or {"subject_id", "stay_id", "hadm_id", "charttime_hour"}
-    out = {}
-    for k, v in row.items():
-        if k in exclude:
-            continue
-        parsed = _parse_float(v)
-        if parsed is not None:
-            out[k] = round(parsed, 2)
-        elif v and str(v).strip() and str(v).strip().lower() not in ("null", "nan", "n/a"):
-            out[k] = str(v).strip()
-        else:
-            out[k] = None
-    return out
-
-
-def _load_similarity_matrix(csv_path):
-    """Load CSV into (rows_meta, rows_matrix, feature_rows) for similarity. Cached."""
-    global _similarity_cache
-    if _similarity_cache is not None:
-        return _similarity_cache
-
-    path = Path(csv_path)
-    if not path.exists():
-        logger.warning("Similarity CSV not found: %s", csv_path)
-        return None
-
-    meta = []  # (subject_id, stay_id, hadm_id, charttime_hour)
-    rows = []
-    feature_rows = []  # full feature dict per row for template
-    with open(path, newline="", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for r in reader:
-            meta.append((
-                int(r.get("subject_id", 0)),
-                int(r.get("stay_id", 0)),
-                int(r.get("hadm_id", 0)),
-                r.get("charttime_hour"),
-            ))
-            rows.append(_row_to_feature_array(r))
-            feature_rows.append(_row_to_feature_dict(r))
-
-    if not rows:
-        return None
-    matrix = np.vstack(rows)
-    # Z-score standardize per feature (exclude time-based columns)
-    mean = np.mean(matrix, axis=0)
-    std = np.std(matrix, axis=0)
-    std = np.where(std < 1e-10, 1.0, std)
-    matrix_std = (matrix - mean) / std
-    for j, col in enumerate(SIMILARITY_FEATURE_COLUMNS):
-        if col in STANDARDIZATION_EXCLUDE:
-            matrix_std[:, j] = matrix[:, j]
-    _similarity_cache = (meta, matrix_std, feature_rows, mean, std)
-    return _similarity_cache
+        with connection.cursor() as cursor:
+            cursor.execute(sql, flat_params)
+            columns = [col[0] for col in cursor.description]
+            return [dict(zip(columns, row)) for row in cursor.fetchall()]
+    except Exception as e:
+        logger.warning("Failed to fetch candidate rows for similarity: %s", e)
+        return []
 
 
 def get_similar_patients(subject_id, stay_id, hadm_id, as_of, top_k=3):
     """
-    Find top_k most similar patients (by cosine similarity of z-score standardized
-    feature vectors) from the non-cohort CSV. Returns list of dicts with
+    Find top_k most similar patients by cosine similarity of z-score standardized
+    feature vectors, queried directly from RDS. Returns list of dicts with
     subject_id, stay_id, hadm_id, similarity_score, had_sepsis.
     """
-    csv_path = getattr(settings, "SIMILARITY_CSV_PATH", None) or "static/similarity_matrix.csv"
-    base = Path(settings.BASE_DIR) if hasattr(settings, "BASE_DIR") else Path.cwd()
-    resolved_path = base / csv_path if not os.path.isabs(csv_path) else Path(csv_path)
-    resolved_path = resolved_path.resolve()
-
     vec_row = get_current_feature_vector(subject_id, stay_id, hadm_id, as_of)
     if vec_row is None:
         logger.warning(
-            "Similarity: no feature vector for patient %s/%s/%s at as_of=%s (check feature matrix)",
+            "Similarity: no feature vector for patient %s/%s/%s at as_of=%s",
             subject_id, stay_id, hadm_id, as_of,
         )
         return []
 
-    if not resolved_path.exists():
-        logger.warning(
-            "Similarity: CSV not found at %s (set SIMILARITY_CSV_PATH in .env)",
-            resolved_path,
-        )
+    candidates = _fetch_candidate_rows(
+        exclude_subject_stay_pairs=[(subject_id, stay_id)],
+    )
+    if not candidates:
+        logger.warning("Similarity: no candidate rows from DB")
         return []
 
-    cached = _load_similarity_matrix(str(resolved_path))
-    if cached is None:
-        logger.warning("Similarity: failed to load CSV at %s", resolved_path)
-        return []
+    # Build numpy matrix from candidate rows
+    meta = []
+    feature_rows = []
+    raw_vectors = []
+    for row in candidates:
+        meta.append((
+            row["subject_id"], row["stay_id"], row["hadm_id"],
+            row.get("charttime_hour"),
+        ))
+        raw_vectors.append(_row_to_feature_array(row))
+        feature_rows.append({
+            col: round(float(row[col]), 2) if row.get(col) is not None else None
+            for col in SIMILARITY_FEATURE_COLUMNS
+        })
 
-    meta, matrix_std, feature_rows, mean, std = cached
+    matrix = np.vstack(raw_vectors)
     current_arr = _row_to_feature_array(vec_row)
+
+    # Z-score standardize using candidate pool statistics
+    all_vectors = np.vstack([matrix, current_arr.reshape(1, -1)])
+    mean = np.mean(all_vectors, axis=0)
+    std = np.std(all_vectors, axis=0)
+    std = np.where(std < 1e-10, 1.0, std)
+
+    matrix_std = (matrix - mean) / std
     current_std = (current_arr - mean) / std
     for j, col in enumerate(SIMILARITY_FEATURE_COLUMNS):
         if col in STANDARDIZATION_EXCLUDE:
+            matrix_std[:, j] = matrix[:, j]
             current_std[j] = current_arr[j]
+
     current_norm = np.linalg.norm(current_std)
     if current_norm < 1e-10:
         logger.warning("Similarity: zero feature vector for patient %s/%s", subject_id, stay_id)
         return []
 
-    # Cosine similarity on standardized vectors (scale-invariant, correlation-like)
+    # Cosine similarity
     dots = matrix_std @ current_std
     row_norms = np.linalg.norm(matrix_std, axis=1)
     row_norms = np.where(row_norms < 1e-10, 1e-10, row_norms)
     sims = dots / (row_norms * current_norm)
 
-    # Top k indices (excluding exact matches on same stay)
-    top_indices = np.argsort(sims)[::-1]
+    top_indices = np.argsort(sims)[::-1][:top_k]
     results = []
     for i in top_indices:
-        if len(results) >= top_k:
-            break
-        s, st, h, charttime_hour_str = meta[i]
-        if s == subject_id and st == stay_id:
-            continue
-        features = feature_rows[i] if i < len(feature_rows) else {}
+        s, st, h, charttime_hour = meta[i]
         results.append({
             "subject_id": s,
             "stay_id": st,
             "hadm_id": h,
             "similarity_score": float(sims[i]),
-            "charttime_hour_str": charttime_hour_str,
-            "features": features,
+            "charttime_hour_str": str(charttime_hour) if charttime_hour else None,
+            "features": feature_rows[i],
         })
 
     # Fetch sepsis outcome for each
@@ -1135,17 +1067,3 @@ def _fetch_sepsis_by_stay_ids(stay_ids):
         logger.warning("Could not fetch sepsis outcomes: %s", e)
         return {}
 
-
-def _get_prediction_stub(subject_id, stay_id, hadm_id, as_of):
-    """Stub prediction for local dev when MODEL_SERVICE_URL is not set."""
-    import hashlib
-    key = f"{subject_id}_{stay_id}_{hadm_id}_{as_of}"
-    h = int(hashlib.md5(key.encode()).hexdigest()[:8], 16)
-    risk_score = round((h % 100) / 100.0, 2)
-    groups = ["cardiovascular", "renal", "respiratory", "hepatic", "hematologic", "other"]
-    comorbidity_group = groups[h % len(groups)]
-    return {
-        "ok": True,
-        "risk_score": risk_score,
-        "comorbidity_group": comorbidity_group,
-    }
