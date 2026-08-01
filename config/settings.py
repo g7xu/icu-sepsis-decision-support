@@ -87,7 +87,9 @@ DATABASES = {
         'HOST': os.getenv('DB_HOST', 'localhost'),
         'PORT': os.getenv('DB_PORT', '5432'),
         'OPTIONS': {
-            'options': f"-c search_path={os.getenv('DB_SCHEMA', 'mimiciv_derived')},public"
+            'options': f"-c search_path={os.getenv('DB_SCHEMA', 'mimiciv_derived')},public",
+            # Neon requires SSL; local/docker Postgres does not. Default 'prefer' works for both.
+            'sslmode': os.getenv('DB_SSLMODE', 'prefer'),
         },
     }
 }
@@ -131,6 +133,11 @@ STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [BASE_DIR / 'static', BASE_DIR / 'styles']
 
+# On Vercel there is no collectstatic step; WhiteNoise serves straight from
+# STATICFILES_DIRS via Django's finders. (Vercel sets VERCEL=1 automatically.)
+if os.getenv('VERCEL'):
+    WHITENOISE_USE_FINDERS = True
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
@@ -159,7 +166,14 @@ if not DEBUG:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_SSL_REDIRECT = False  # nginx handles the 80→443 redirect
-    _domain = os.getenv('ALLOWED_HOSTS', '')
-    _trusted = [f'https://{h.strip()}' for h in _domain.split(',') if h.strip() and not h.strip().replace('.', '').isdigit()]
-    if _trusted:
-        CSRF_TRUSTED_ORIGINS = _trusted
+    # Explicit CSRF_TRUSTED_ORIGINS env wins; otherwise derive from ALLOWED_HOSTS.
+    # Leading-dot hosts (e.g. ".vercel.app") become wildcard origins.
+    if not CSRF_TRUSTED_ORIGINS:
+        _domain = os.getenv('ALLOWED_HOSTS', '')
+        _trusted = [
+            f"https://*{h.strip()}" if h.strip().startswith('.') else f"https://{h.strip()}"
+            for h in _domain.split(',')
+            if h.strip() and not h.strip().replace('.', '').isdigit()
+        ]
+        if _trusted:
+            CSRF_TRUSTED_ORIGINS = _trusted
