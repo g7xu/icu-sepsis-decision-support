@@ -1,0 +1,11 @@
+# Keep the serverless bundle small — only the app itself is needed at runtime.
+terraform/
+scripts/
+docs/
+staticfiles/
+.env
+.env.example
+*.pem
+Dockerfile
+docker-compose.yml
+.github/

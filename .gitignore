@@ -55,3 +55,4 @@ terraform/*_override.tf.json
 terraform/*.pem
 terraform/icu-sepsis-team-key
 terraform/icu-sepsis-team-key.pub
+.vercel
