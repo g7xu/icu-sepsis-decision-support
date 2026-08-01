@@ -88,8 +88,9 @@ DATABASES = {
         'PORT': os.getenv('DB_PORT', '5432'),
         'OPTIONS': {
             'options': f"-c search_path={os.getenv('DB_SCHEMA', 'mimiciv_derived')},public",
-            # Neon requires SSL; local/docker Postgres does not. Default 'prefer' works for both.
-            'sslmode': os.getenv('DB_SSLMODE', 'prefer'),
+            # Default to encrypted connections (Neon requires SSL). For a bare
+            # local Postgres without SSL, set DB_SSLMODE=prefer explicitly.
+            'sslmode': os.getenv('DB_SSLMODE', 'require'),
         },
     }
 }
@@ -167,13 +168,17 @@ if not DEBUG:
     CSRF_COOKIE_SECURE = True
     SECURE_SSL_REDIRECT = False  # nginx handles the 80→443 redirect
     # Explicit CSRF_TRUSTED_ORIGINS env wins; otherwise derive from ALLOWED_HOSTS.
-    # Leading-dot hosts (e.g. ".vercel.app") become wildcard origins.
+    # Leading-dot hosts (e.g. ".vercel.app") are skipped: a wildcard origin on a
+    # shared PaaS domain would trust every site on that platform. On such hosts,
+    # set CSRF_TRUSTED_ORIGINS explicitly (POSTs fail closed otherwise).
     if not CSRF_TRUSTED_ORIGINS:
         _domain = os.getenv('ALLOWED_HOSTS', '')
         _trusted = [
-            f"https://*{h.strip()}" if h.strip().startswith('.') else f"https://{h.strip()}"
+            f"https://{h.strip()}"
             for h in _domain.split(',')
-            if h.strip() and not h.strip().replace('.', '').isdigit()
+            if h.strip()
+            and not h.strip().startswith('.')
+            and not h.strip().replace('.', '').isdigit()
         ]
         if _trusted:
             CSRF_TRUSTED_ORIGINS = _trusted
