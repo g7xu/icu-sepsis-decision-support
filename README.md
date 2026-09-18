@@ -1,74 +1,63 @@
 # ICU Sepsis Decision Support
 
-An interpretable early warning system for adult ICU sepsis risk. The application reads from a MIMIC-IV PostgreSQL database, runs a time-stepped ICU simulation, and serves real-time sepsis predictions using an in-process scikit-learn model.
+An interpretable early-warning system for adult ICU sepsis risk, demonstrated on a 51-patient MIMIC-IV cohort with an hour-by-hour simulation clock.
 
-## Getting Started
+**Live:** https://icu-sepsis-detect.g7xu.dev
 
-To run the app locally against a MIMIC-IV PostgreSQL instance:
+## How it works
 
-1. Install the [prerequisites](#prerequisites).
-2. Provision PostgreSQL and load MIMIC-IV — see [Database Setup](#database-setup).
-3. Configure your `.env` — see [Environment Setup](#environment-setup).
-4. Start the stack with Docker Compose — see [Run Locally](#run-locally).
+- A Django app reads pre-computed hourly feature tables (materialized views derived from MIMIC-IV 3.1) from PostgreSQL.
+- A bundled scikit-learn pipeline in `models/` scores each patient in-process. No external model service is needed.
+- Similar-patient search compares the current feature vector against roughly 26,000 non-cohort ICU stays by cosine similarity.
+- Hosting is Vercel (Python serverless) plus a Neon PostgreSQL database holding a pruned copy of the derived tables.
 
-### Prerequisites
+## Run locally
 
-- [Docker & Docker Compose](https://docs.docker.com/get-docker/)
-- [MIMIC-IV access](https://physionet.org/content/mimiciv/3.1/) — requires a PhysioNet credentialed account
-- PostgreSQL client (`psql`)
-
-### Database Setup
-
-All modes (including demo) require MIMIC-IV data in PostgreSQL. Follow the full guide:
-
-**[Running & Setup Guide](docs/RUNNING.md)** — covers local PostgreSQL or AWS RDS provisioning, loading MIMIC-IV data, creating application views, and running migrations.
-
-### Environment Setup
-
-1. **Copy environment file**
-   ```bash
-   cp .env.example .env
-   ```
-
-2. **Edit `.env`** with your database credentials (`DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, etc.). See `.env.example` for all options.
-
-### Run Locally
+You need Python 3.12 and a PostgreSQL database that already contains the `fisi9t_*` tables. Either point at the production Neon database (credentials from a maintainer) or build the tables yourself from MIMIC-IV, which requires PhysioNet credentialed access. See [docs/RUNNING.md](docs/RUNNING.md) for both.
 
 ```bash
-docker compose up --build
-open http://localhost:8000/patients/
+python3.12 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env        # fill in DB_*; leave MODEL_SERVICE_URL empty
+python manage.py migrate
+python manage.py runserver
 ```
 
-## Deployment
+Then open http://localhost:8000/patients/.
 
-See the full guide: **[Running & Setup Guide](docs/RUNNING.md)**
+## Deploy
 
-<!-- ## Application Usage
+Deploys are manual from the repo root. Pushing to `main` does not deploy.
 
-TODO: Add screenshots and usage guide showing:
-- Patient list view with simulation clock
-- Patient detail view with clinical charts
-- Prediction detail view with risk score timeline
--->
+```bash
+npx vercel deploy --prod
+```
 
-## Repository Structure
+Configuration, environment variables, and verification steps are in [docs/RUNNING.md](docs/RUNNING.md).
+
+## Docs
+
+- [docs/RUNNING.md](docs/RUNNING.md) — local setup, configuration reference, prediction flow, deployment
+- [docs/MIGRATION_VERCEL_NEON.md](docs/MIGRATION_VERCEL_NEON.md) — hosting history and how the pruned dataset was built
+- [docs/SIMILARITY_SETUP.md](docs/SIMILARITY_SETUP.md) — building the materialized views from MIMIC-IV
+- [architecture/](architecture/) — ERD and MVC flow diagrams
+
+## Repository structure
 
 ```
 .
-├── config/         # Django settings
-├── patients/       # Main Django app (views, API, features, scoring, ORM)
-├── models/         # ML model artifacts (joblib)
+├── config/         # Django settings and WSGI entrypoint (exposes `app` for Vercel)
+├── patients/       # The Django app: views, JSON API, feature assembly, scoring, ORM
+├── models/         # Serialized scikit-learn pipeline
 ├── templates/      # Django HTML templates
-├── static/         # CSS, JavaScript, images
-├── scripts/        # SQL for MIMIC-IV materialized views
-├── terraform/      # AWS infrastructure (RDS, EC2, ECR)
-├── docs/           # Setup and deployment guides
-├── architecture/   # ERD and architecture diagrams
-└── docker-compose.yml, Dockerfile, deploy.sh, requirements.txt
+├── static/, styles/# CSS, JavaScript, images
+├── scripts/        # SQL that builds the fisi9t_* materialized views from MIMIC-IV
+├── docs/           # Guides
+├── architecture/   # Diagrams
+├── terraform/      # Retired AWS infrastructure, kept for reference
+├── vercel.json     # Routes every request to config/wsgi.py
+└── Dockerfile, docker-compose.yml, requirements.txt
 ```
-
-To learn more about the architecture, see [architecture/](architecture/).
-
 
 ## Team
 
@@ -77,9 +66,8 @@ To learn more about the architecture, see [architecture/](architecture/).
 - [Yash Patel](https://www.linkedin.com/in/ypat353/)
 - [Ethan Vo](https://www.linkedin.com/in/vo-ethan/)
 
-
 ## License
 
-This project's source code is released under the [MIT License](LICENSE).
+Source code is released under the [MIT License](LICENSE).
 
-It uses [MIMIC-IV](https://physionet.org/content/mimiciv/), which requires PhysioNet credentialed access. Users must have an approved PhysioNet account to access the underlying clinical data.
+The application uses [MIMIC-IV](https://physionet.org/content/mimiciv/), which requires PhysioNet credentialed access. Users must have an approved PhysioNet account to work with the underlying clinical data.

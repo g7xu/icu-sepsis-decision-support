@@ -1,3 +1,7 @@
+> **Retired.** This stack was destroyed in August 2026 and the app now runs on Vercel with a Neon
+> database; see `docs/MIGRATION_VERCEL_NEON.md`. The files are kept as a record of how the original
+> RDS instance was provisioned and how MIMIC-IV was loaded. Do not `terraform apply` them.
+
 # Terraform: RDS PostgreSQL for MIMIC-IV
 
 This folder creates an RDS PostgreSQL instance for the ICU Sepsis Decision Support app. The app runs **locally**; only the database is on AWS.

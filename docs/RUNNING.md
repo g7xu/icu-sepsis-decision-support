@@ -1,158 +1,132 @@
-# How to Run
+# Running and Deploying
 
-## Option A: Docker (recommended)
+## Run locally
+
+Requirements: Python 3.12 and a PostgreSQL database that already has the `fisi9t_*` materialized views and `sepsis3`. Two ways to get one:
+
+- **Use the production Neon database.** Ask a maintainer for the connection values and put them in `.env`. This is the normal path.
+- **Build from MIMIC-IV.** Load MIMIC-IV 3.1 into PostgreSQL (PhysioNet credentialed access required), then run `scripts/01_*.sql` through `scripts/11_*.sql` in order. This takes several hours. [SIMILARITY_SETUP.md](SIMILARITY_SETUP.md) walks through the view scripts.
 
 ```bash
-# Start Django + Postgres
-docker compose up --build
-
-# Open in browser
+python3.12 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env          # edit DB_*
+python manage.py migrate      # creates django_session and the two cache tables
+python manage.py runserver
 open http://localhost:8000/patients/
 ```
 
-## Option B: Local (Postgres must be running)
+Docker alternative: `docker compose up --build`. The compose file runs only the web container and reads `.env`, so the database must already exist somewhere reachable.
+
+## Configuration reference
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `DB_NAME` | yes | — | Database name |
+| `DB_USER` | yes | — | Database user |
+| `DB_PASSWORD` | yes | — | Database password |
+| `DB_HOST` | yes | `localhost` | Database host |
+| `DB_PORT` | no | `5432` | Database port |
+| `DB_SCHEMA` | no | `mimiciv_derived` | Schema prepended to `search_path`; holds the `fisi9t_*` tables |
+| `DB_SSLMODE` | no | `require` | libpq `sslmode`. Neon needs `require`; a local Postgres without TLS needs `prefer` |
+| `SECRET_KEY` | yes | — | Django secret key |
+| `DEBUG` | no | `True` | Must be `False` in production |
+| `ALLOWED_HOSTS` | no | `localhost,127.0.0.1` | Comma-separated hostnames; a leading dot is a wildcard |
+| `CSRF_TRUSTED_ORIGINS` | prod | derived | Comma-separated `https://` origins. Derived from `ALLOWED_HOSTS` when `DEBUG=False`, but never from leading-dot hosts, so set it explicitly on Vercel |
+| `MODEL_SERVICE_URL` | no | empty | External prediction API. Empty means score in-process with the bundled model |
+| `MODEL_SERVICE_TIMEOUT` | no | `30` | Seconds; only with `MODEL_SERVICE_URL` |
+| `MODEL_SERVICE_API_KEY` | no | empty | Bearer token; only with `MODEL_SERVICE_URL` |
+| `MODEL_HISTORY_HOURS` | no | `6` | Hours of prior feature rows in each model payload |
+| `LOCAL_MODEL_PATH` | no | `models/sepsis_model.joblib` | Path to the serialized scikit-learn pipeline |
+| `SIMILARITY_CSV_PATH` | no | `static/similarity_matrix.csv` | Output path for `manage.py export_similarity_matrix` |
+
+## How a prediction is produced
+
+`GET /patients/<subject_id>/<stay_id>/<hadm_id>/prediction?as_of=<ISO datetime>`
+
+1. If a `PredictionResult` row exists for this patient and `as_of`, it is returned. The same `(patient, as_of)` always yields the same score.
+2. Otherwise the app reads `fisi9t_feature_matrix_hourly` (one wide row per hour), picks the latest row at or before `as_of`, and gathers `MODEL_HISTORY_HOURS` of earlier rows. If the feature matrix is absent it falls back to intersecting the five per-domain hourly tables on `(subject_id, stay_id, charttime_hour)`.
+3. The payload is scored by the bundled pipeline in `patients/local_model.py`, or POSTed to `<MODEL_SERVICE_URL>/predict` when that is configured. A failed external call also falls back to the local model.
+4. The first `comorbidity_group` written for a patient is reused for all later hours so the UI does not flicker. A model that returns none gets `"unknown"`.
+5. The result is stored in `PredictionResult`. Similar-patient results are cached the same way in `SimilarPatientsResult`.
+
+To clear both caches:
 
 ```bash
-# Install deps
-pip install -r requirements.txt
-
-# Set DB vars (or use .env)
-export DB_NAME=sepsis DB_USER=postgres DB_PASSWORD=postgres DB_HOST=localhost DB_PORT=5432
-
-# Run server
-python manage.py runserver
+python manage.py shell -c "from patients.models import PredictionResult, SimilarPatientsResult; PredictionResult.objects.all().delete(); SimilarPatientsResult.objects.all().delete()"
 ```
 
-## Model Service + S3 Flow (External HTTPS on EC2)
+### The bundled model
 
-The prediction endpoint (`GET /patients/<ids>/prediction`) now supports this flow:
+`models/sepsis_model.joblib` is a scikit-learn `Pipeline` serialized with scikit-learn 1.8.0. `requirements.txt` pins that version exactly. Loading it under another version prints `InconsistentVersionWarning` and may change scores, so bump scikit-learn only together with a re-exported artifact. `joblib.load` runs arbitrary code from the file; never point `LOCAL_MODEL_PATH` at an untrusted artifact.
 
-1. Pull hourly-wide features from Postgres materialized views.
-2. Select the **most recent hourly vector** at or before `as_of`.
-3. Write that vector to S3 under:
-   - `s3://<bucket>/<prefix>/patients/<subject_stay_hadm>/features/<hour>.json`
-4. Load prior vectors from S3 (`MODEL_HISTORY_HOURS`).
-5. Call EC2 model endpoint (`POST <MODEL_SERVICE_URL>/predict`).
-6. Persist model output to S3 under:
-   - `.../predictions/<hour>.json`
-   - `.../io/<hour>.json` (request/response audit)
+### Optional external model service
 
-Comorbidity group behavior:
-- First prediction must include `comorbidity_group`.
-- Later calls may omit it; backend reuses the first stored group from S3.
-
-Input vector rule (latest ERD):
-- Preferred source is `fisi9t_feature_matrix_hourly` (or `mimiciv_derived.fisi9t_feature_matrix_hourly`) when present.
-- If feature-matrix view is not present yet, backend falls back to multi-table source alignment.
-- Backend requires patient rows in all required hourly matviews:
-  - `vitals_hourly`
-  - `procedures_hourly`
-  - `chemistry_hourly`
-  - `coagulation_hourly`
-  - `sofa_hourly`
-- It intersects by `(subject_id, stay_id, charttime_hour)` and selects the latest common hour at or before `as_of`.
-- This ensures each model call includes source key triples from every required table.
-
-**Configuration modes:**
-
-When `MODEL_SERVICE_URL` is **empty** (default):
-- Prediction endpoint returns an error: "Model service not configured"
-- The UI will show "N/A" for risk score and "Not configured" for comorbidity group
-- This prevents confusion from showing fake/stub data
-
-When `MODEL_SERVICE_URL` is **set** (`.env`):
-```bash
-MODEL_SERVICE_URL=https://your-ec2-model-endpoint.example.com
-MODEL_SERVICE_TIMEOUT=30
-MODEL_SERVICE_API_KEY=optional_bearer_token
-
-MODEL_HISTORY_HOURS=6
-```
-
-**Prediction cache:**
-- Scored results are cached in Postgres (`PredictionResult`, `SimilarPatientsResult`). Same `(patient, as_of)` always returns the same score.
-- The first `comorbidity_group` written for a patient is reused on subsequent hours so the UI doesn't flicker.
-- To clear the cache:
-  ```python
-  python manage.py shell -c "from patients.models import PredictionResult, SimilarPatientsResult; PredictionResult.objects.all().delete(); SimilarPatientsResult.objects.all().delete()"
-  ```
-
-### EC2 model contract
-
-The EC2 service must expose:
+Not used in production. If you run one, it must accept:
 
 `POST /predict`
 
-Request:
 ```json
 {
   "patient": {"subject_id": 123, "stay_id": 456, "hadm_id": 789},
-  "as_of": "2025-03-13T12:00:00",
-  "current_feature_vector": {
-    "vitals_hourly": {"subject_id": 123, "stay_id": 456, "charttime_hour": "...", "...": "..."},
-    "procedures_hourly": {"subject_id": 123, "stay_id": 456, "charttime_hour": "...", "...": "..."},
-    "chemistry_hourly": {"subject_id": 123, "stay_id": 456, "charttime_hour": "...", "...": "..."},
-    "coagulation_hourly": {"subject_id": 123, "stay_id": 456, "charttime_hour": "...", "...": "..."},
-    "sofa_hourly": {"subject_id": 123, "stay_id": 456, "charttime_hour": "...", "...": "..."}
-  },
-  "source_keys": {
-    "vitals_hourly": {"subject_id": 123, "stay_id": 456, "charttime_hour": "..."},
-    "procedures_hourly": {"subject_id": 123, "stay_id": 456, "charttime_hour": "..."},
-    "chemistry_hourly": {"subject_id": 123, "stay_id": 456, "charttime_hour": "..."},
-    "coagulation_hourly": {"subject_id": 123, "stay_id": 456, "charttime_hour": "..."},
-    "sofa_hourly": {"subject_id": 123, "stay_id": 456, "charttime_hour": "..."}
-  },
-  "history_feature_vectors": [{"...": "..."}, {"...": "..."}]
+  "as_of": "2168-02-20T10:00:00",
+  "current_feature_vector": {"...": "one wide feature row"},
+  "source_keys": {"...": "(subject_id, stay_id, charttime_hour) per source table"},
+  "history_feature_vectors": [{"...": "..."}]
 }
 ```
 
-Response:
+and respond with:
+
 ```json
-{
-  "risk_score": 0.42,
-  "comorbidity_group": "cardiovascular"
-}
+{"risk_score": 0.42, "comorbidity_group": "cardiovascular"}
 ```
 
-`comorbidity_group` can be omitted after first call for a patient.
+`comorbidity_group` may be omitted after the first call for a patient.
 
-### Required AWS setup
+## Endpoints
 
-1. **Network**
-   - Backend must be able to reach EC2 HTTPS endpoint.
-2. **TLS**
-   - Use valid certificate on EC2 endpoint URL.
-
-## Test the prediction endpoint
+All under `/patients/<subject_id>/<stay_id>/<hadm_id>/`. The examples use a cohort patient that exists in the production database.
 
 ```bash
-# Without MODEL_SERVICE_URL configured (will return error)
-curl "http://localhost:8000/patients/10000032/39553978/29079034/prediction?as_of=2025-03-13T12:00:00&window_hours=24"
-# Response: {"error": "Model service not configured. Set MODEL_SERVICE_URL in .env to enable predictions."}
-
-# With MODEL_SERVICE_URL configured (requires EC2 + S3 setup in .env)
-curl "http://localhost:8000/patients/10000032/39553978/29079034/prediction?as_of=2025-03-13T12:00:00&window_hours=24"
+BASE=http://localhost:8000/patients/13145844/31142781/21653707
+curl "$BASE/features/static"
+curl "$BASE/features/hourly?as_of=2168-02-20T10:00:00&window_hours=24"
+curl "$BASE/features/hourly-wide?as_of=2168-02-20T10:00:00&window_hours=24"
+curl "$BASE/feature-bundle?as_of=2168-02-20T10:00:00"
+curl "$BASE/prediction?as_of=2168-02-20T10:00:00"
+curl "$BASE/similar-patients?as_of=2168-02-20T10:00:00"
 ```
 
-## Test the feature endpoints
+The prediction call above returns `risk_score` 0.3718 against the production data; a different value after a dependency change means the model artifact and library versions have drifted.
+
+## Deploy to Vercel
+
+The Vercel project is not connected to GitHub. Deploys are manual:
 
 ```bash
-# Static features
-curl "http://localhost:8000/patients/10000032/39553978/29079034/features/static"
-
-# Hourly features
-curl "http://localhost:8000/patients/10000032/39553978/29079034/features/hourly?as_of=2025-03-13T12:00:00&window_hours=24"
-
-# Hourly-wide (merged table for ML)
-curl "http://localhost:8000/patients/10000032/39553978/29079034/features/hourly-wide?as_of=2025-03-13T12:00:00&window_hours=24"
+npx vercel deploy --prod
 ```
 
-Replace `10000032/39553978/29079034` with real `subject_id/stay_id/hadm_id` from your database.
+What the deploy uses:
 
-## Similarity search (prediction view)
+- `vercel.json` routes every request to `config/wsgi.py`, which exposes the WSGI application as `app`.
+- `.python-version` selects Python 3.12; `requirements.txt` is installed fresh on every build.
+- `.vercelignore` excludes `terraform/`, `docs/`, `scripts/`, and local files from the bundle.
+- Static files are served by WhiteNoise from the source directories; there is no collectstatic step.
 
-To show "3 most similar patients" when viewing a prediction:
+Production environment variables to set in the Vercel project: all `DB_*` values for Neon with `DB_SSLMODE=require`, `SECRET_KEY`, `DEBUG=False`, `ALLOWED_HOSTS=.vercel.app,icu-sepsis-detect.g7xu.dev`, `CSRF_TRUSTED_ORIGINS=https://icu-sepsis-decision-support.vercel.app,https://icu-sepsis-detect.g7xu.dev`, `MODEL_HISTORY_HOURS=6`. Leave `MODEL_SERVICE_URL` unset.
 
-1. Build materialized views (scripts 05, 06, 08, 09, 10, 11).
-2. Export non-cohort feature matrix: `python manage.py export_similarity_matrix`
-3. See [docs/SIMILARITY_SETUP.md](docs/SIMILARITY_SETUP.md) for full steps and implementation notes.
+After deploying, check:
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" https://icu-sepsis-detect.g7xu.dev/patients/
+curl -s "https://icu-sepsis-detect.g7xu.dev/patients/13145844/31142781/21653707/prediction?as_of=2168-02-20T10:00:00"
+```
+
+Both domains, the custom one and `icu-sepsis-decision-support.vercel.app`, point at the same deployment. The custom domain is a Cloudflare CNAME in DNS-only mode.
+
+## Operational notes
+
+- Session rows accumulate in `django_session` on Neon. Run `python manage.py clearsessions` against production occasionally.
+- The Neon dataset contains full hourly history only for the 51 cohort patients. If `patients/cohort.py` changes, the new patients' rows must be exported from a full MIMIC-IV build and loaded into Neon. See [MIGRATION_VERCEL_NEON.md](MIGRATION_VERCEL_NEON.md).

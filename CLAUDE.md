@@ -4,78 +4,87 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-ICU Sepsis Decision Support — a Django web app providing clinicians with interpretable ML-based sepsis risk predictions and similar-patient comparisons. It uses a cohort of 51 curated MIMIC-IV ICU patients with a simulation clock that steps through their hospital stay hour-by-hour.
+ICU Sepsis Decision Support — a Django web app giving clinicians interpretable ML-based sepsis risk predictions and similar-patient comparisons for a cohort of 51 curated MIMIC-IV ICU patients, driven by a simulation clock that steps through each stay hour by hour.
+
+Production runs on Vercel (Python serverless) with a Neon PostgreSQL database. Predictions are computed in-process from a bundled scikit-learn pipeline. There is no separate model service, no S3, and no AWS.
 
 ## Commands
 
-### Local Development (Docker — recommended)
 ```bash
-docker compose up --build         # First run: build image + start web + db
-docker compose up                 # Subsequent runs
-docker compose exec web python manage.py migrate
-docker compose exec web python manage.py runserver
-```
-
-### Without Docker (PostgreSQL already running)
-```bash
+python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env              # Edit DB_HOST=localhost and credentials
-python manage.py migrate
+cp .env.example .env              # set DB_*; MODEL_SERVICE_URL stays empty
+python manage.py migrate          # creates django_session + the two cache tables
 python manage.py runserver        # http://localhost:8000/patients/
+python manage.py check
 ```
 
-### Custom Management Commands
-```bash
-python manage.py export_similarity_matrix          # Export feature matrix CSV for similarity search
-python manage.py clear_model_s3 [--prefix PREFIX] [--dry-run]  # Clear S3 model IO artifacts
-```
+Docker alternative: `docker compose up --build` runs the web container against whatever `.env` points at. There is no bundled database container.
 
-### Database Setup (one-time, after loading MIMIC-IV 3.1 data)
-Run numbered SQL scripts in order from `scripts/01_*.sql` through `scripts/11_*.sql` to build the materialized views the app depends on.
+Deploy (manual; not Git-connected): `npx vercel deploy --prod` from the repo root.
+
+Management command: `python manage.py export_similarity_matrix` writes the non-cohort feature matrix CSV (only needed when rebuilding from a full MIMIC-IV database).
+
+There is no test suite.
 
 ## Architecture
 
-### Django App Structure
-The single Django app is `patients/`. Key files:
+### Django app: `patients/`
 
-- **`patients/cohort.py`** — Defines `PATIENT_STAYS` (the 51 demo patients) and `get_cohort_filter()`. This is the boundary between "demo cohort" and the full MIMIC-IV population.
-- **`patients/models.py`** — Read-only ORM models mapped directly to PostgreSQL materialized views (no writes, no migrations touch these). Models: `UniquePatientProfile`, `VitalsignHourly`, `ChemistryHourly`, `CoagulationHourly`, `SofaHourly`, `ProcedureeventsHourly`.
-- **`patients/services.py`** — All data-fetching logic: queries materialized views, calls the external ML model service over HTTPS, loads the similarity matrix CSV, and writes/reads S3 audit artifacts.
-- **`patients/api.py`** — JSON REST endpoints consumed by the frontend: `features/static`, `features/hourly`, `features/hourly-wide`, `feature-bundle`, `prediction`, `similar-patients`.
-- **`patients/views.py`** — HTML views for patient list, detail, and prediction. The simulation clock (current ICU hour) is stored in Django sessions; prediction results are also cached in session.
-- **`config/settings.py`** — Django settings. Session backend is `django.contrib.sessions.backends.db` (persists across restarts). WhiteNoise serves static files.
+- **`cohort.py`** — `PATIENT_STAYS` (the 51 demo patients) and `get_cohort_filter()`. The boundary between "demo cohort" and the full population.
+- **`models.py`** — Two kinds of models. Unmanaged read-only models mapped onto the `fisi9t_*` materialized views (`UniquePatientProfile`, `VitalsignHourly`, `ChemistryHourly`, `CoagulationHourly`, `SofaHourly`, `ProcedureeventsHourly`), and two managed cache tables (`PredictionResult`, `SimilarPatientsResult`) created by the app's single migration.
+- **`db_utils.py`** — raw-SQL helpers and `DERIVED_TABLE_CANDIDATES`, which lets each table resolve with or without the schema prefix.
+- **`features.py`** — assembles static and hourly feature rows for the API.
+- **`scoring.py`** — `get_prediction()` (the prediction pipeline and its Postgres cache) and `get_similar_patients()` (cosine similarity over the latest-hour row of every non-cohort patient in `fisi9t_feature_matrix_hourly`).
+- **`local_model.py`** — loads `models/sepsis_model.joblib` once per process and scores a payload. `joblib.load` executes arbitrary code, so only trusted artifacts may live in `models/`.
+- **`api.py`** — JSON endpoints under `/patients/<subject>/<stay>/<hadm>/`: `features/static`, `features/hourly`, `features/hourly-wide`, `feature-bundle`, `prediction`, `similar-patients`.
+- **`views.py`** — HTML views (list, detail, prediction) and the simulation clock, which lives in the Django session. `session_utils.py` caches per-hour results in the session as well.
+- **`services.py`** — a re-export shim. `api.py` and `views.py` import `get_prediction` and friends from here; the implementations live in `scoring.py` and `features.py`.
 
-### Data Flow
-1. **Patient list** → renders cohort from `cohort.py`
-2. **Simulation clock advance** → session hour increments → triggers prediction fetch
-3. **Prediction request** → `api.py` → `services.get_prediction()` → queries `fisi9t_feature_matrix_hourly` (pre-merged wide table, 1 row/hour) → optionally writes features to S3 → POSTs to EC2 model service `/predict` → caches result in session + S3
-4. **Similar patients** → `services.py` loads `static/similarity_matrix.csv` → cosine similarity → top 3 non-cohort candidates
+### Prediction flow
 
-### External Dependencies
-- **ML Model Service** (EC2, optional): `POST /predict` — receives feature vector + 6-hour history, returns `{risk_score: float, comorbidity_group: string}`. Configured via `MODEL_SERVICE_URL`. If unset, predictions are disabled.
-- **AWS S3** (optional): audit trail of features and predictions under `s3://<bucket>/<prefix>/patients/<subject_stay_hadm>/`.
-- **PostgreSQL**: MIMIC-IV 3.1 dataset + derived materialized views. All materialized view names are prefixed `fisi9t_`.
+1. Simulation clock advances (session hour increments) and the frontend calls the `prediction` endpoint with `as_of`.
+2. `scoring.get_prediction()` returns the cached `PredictionResult` for `(patient, as_of)` if one exists.
+3. Otherwise it reads `fisi9t_feature_matrix_hourly` (one wide row per hour), takes the latest row at or before `as_of` plus `MODEL_HISTORY_HOURS` of history, and builds the payload.
+4. If `MODEL_SERVICE_URL` is set it POSTs to `<url>/predict`; if unset, or the call fails, `local_model.predict_locally()` scores in-process.
+5. The first `comorbidity_group` ever written for a patient is sticky for later hours. The result is written to `PredictionResult`.
 
-### Infrastructure
-- **`terraform/`** — Provisions AWS RDS PostgreSQL + security groups. Run `terraform apply` then `terraform output -raw env_file_content > ../.env` to auto-generate `.env`.
-- **`Dockerfile`** — `python:3.11-slim` + `gcc`/`libpq-dev`, runs `collectstatic` at build time.
-- **`docker-compose.yml`** — `web` (Django on port 8000) + `db` (PostgreSQL).
+### Database
 
-## Key Environment Variables
+All derived tables carry the `fisi9t_` prefix and live in `DB_SCHEMA` (normally `mimiciv_derived`), plus `sepsis3` for similarity outcome labels. The Neon copy is pruned: full hourly history for the 51 cohort patients only, plus the latest-hour row per non-cohort patient. Hourly charts therefore only work for cohort patients. **Changing the cohort requires re-exporting those patients' full hourly rows from a MIMIC-IV source** — see `docs/MIGRATION_VERCEL_NEON.md`.
+
+### Settings (`config/settings.py`)
+
+- Session backend is the database. `SESSION_EXPIRE_AT_BROWSER_CLOSE` is on, but rows are only purged by `manage.py clearsessions`.
+- `DB_SSLMODE` defaults to `require` (Neon needs TLS).
+- With `DEBUG=False`, `CSRF_TRUSTED_ORIGINS` is derived from `ALLOWED_HOSTS` **except** leading-dot hosts such as `.vercel.app`, which would trust every site on the platform. Production therefore sets `CSRF_TRUSTED_ORIGINS` explicitly.
+- On Vercel (`VERCEL=1`) WhiteNoise serves static files straight from the finders; there is no collectstatic step.
+
+### Deployment (`vercel.json`, `.vercelignore`, `.python-version`)
+
+`vercel.json` uses the legacy `builds` config to route every path to `config/wsgi.py`, which exposes the WSGI callable as `app`. `.vercelignore` keeps terraform, docs, and scripts out of the bundle. `.python-version` pins 3.12. `requirements.txt` is pinned exactly because the model artifact is tied to scikit-learn 1.8.0 and Vercel resolves dependencies on every deploy.
+
+`terraform/` describes the retired AWS stack and is not used.
+
+## Environment Variables
 
 | Variable | Purpose |
 |---|---|
 | `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT` | PostgreSQL connection |
-| `DB_SCHEMA` | Schema containing materialized views (typically `mimiciv_derived`) |
-| `SECRET_KEY` | Django secret key |
-| `MODEL_SERVICE_URL` | HTTPS endpoint for EC2 ML model; leave empty to disable predictions |
-| `MODEL_HISTORY_HOURS` | Hours of feature history sent to model (default: 6) |
-| `MODEL_S3_BUCKET`, `MODEL_S3_PREFIX`, `MODEL_S3_REGION` | S3 audit trail config |
-| `SIMILARITY_CSV_PATH` | Path to similarity matrix CSV (default: `static/similarity_matrix.csv`) |
+| `DB_SCHEMA` | Schema containing the `fisi9t_*` tables (`mimiciv_derived`) |
+| `DB_SSLMODE` | libpq sslmode; default `require` |
+| `SECRET_KEY`, `DEBUG`, `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS` | Django |
+| `MODEL_SERVICE_URL` | Optional external `/predict` endpoint; empty means in-process model |
+| `MODEL_SERVICE_TIMEOUT`, `MODEL_SERVICE_API_KEY` | Only used with `MODEL_SERVICE_URL` |
+| `MODEL_HISTORY_HOURS` | Hours of feature history in each payload (default 6) |
+| `LOCAL_MODEL_PATH` | Override for the joblib artifact path |
+| `SIMILARITY_CSV_PATH` | Output path for `export_similarity_matrix` |
 
-Copy `.env.example` to `.env` to see all available variables.
+`docs/RUNNING.md` has the full reference table with defaults.
 
 ## Docs
-- `docs/RUNNING.md` — detailed run instructions, model service API contract, S3 flow
-- `docs/SIMILARITY_SETUP.md` — building materialized views, exporting similarity matrix CSV
-- `terraform/README.md` — MIMIC-IV data loading (4-step process, takes 4–8 hours)
+
+- `docs/RUNNING.md` — local setup, configuration reference, prediction flow, deployment and verification
+- `docs/MIGRATION_VERCEL_NEON.md` — how the current hosting and pruned dataset came to be
+- `docs/SIMILARITY_SETUP.md` — building materialized views from a full MIMIC-IV load
+- `scripts/01_*.sql` … `11_*.sql` — the view definitions, run in order against MIMIC-IV 3.1
