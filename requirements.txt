@@ -1,10 +1,16 @@
-Django>=4.2
-psycopg2-binary>=2.9
-pandas>=2.0
-numpy>=1.26
-python-dotenv>=1.0
-requests>=2.31
-httpx>=0.27
-whitenoise>=6.5
-joblib>=1.3
-scikit-learn>=1.3
+# Exact pins. The bundled model (models/sepsis_model.joblib) was serialized with
+# scikit-learn 1.8.0; loading it under a different minor version emits
+# InconsistentVersionWarning and is not guaranteed to reproduce the same scores.
+# Vercel resolves this file fresh on every deploy, so ranges would drift.
+Django==6.1.1
+psycopg2-binary==2.9.13
+pandas==3.0.6
+numpy==2.5.3
+scipy==1.18.1
+scikit-learn==1.8.0
+joblib==1.6.0
+threadpoolctl==3.7.0
+python-dotenv==1.2.3
+requests==2.34.2
+httpx==0.28.1
+whitenoise==6.12.0

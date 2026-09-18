@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 # Install system dependencies (including gcc for some python packages if needed)
 RUN apt-get update && apt-get install -y \
